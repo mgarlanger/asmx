@@ -1,0 +1,25 @@
+	SPACE	3,10
+**	DIRECTORY ENTRY FORMAT.
+
+	ORG	0
+
+DF.EMP	EQU	377Q			; ENTRY EMPTY
+DF.CLR	EQU	376Q			; ENTRY EMPTY, REMAINDER ALSO CLEAR
+
+DIR.NAM DS	8			; NAME
+DIR.EXT DS	3			; EXTENSION
+DIRIDL	equ	*			; file identification length	/3.0a/
+
+DIR.CTH DS	1			; creation time (BCD hours)	/3.0a/
+DIR.CTM DS	1			; creation date (BCD minutes)	/3.0a/
+
+DIR.NOA DS	1			; number of accesses		/3.0a/
+DIR.FLG DS	1			; FLAGS
+DIR.USR DS	1			; user area mask		/3.0a/
+DIR.FGN DS	1			; FIRST GROUP NUMBER
+DIR.LGN DS	1			; LAST GROUP NUMBER
+DIR.LSI DS	1			; LAST SECTOR INDEX (IN LAST GROUP)
+DIR.CRD DS	2			; CREATION DATE
+DIR.ACD DS	2			; last access date		/3.0a/
+
+DIRELEN EQU	*			; DIRECTORY ENTRY LENGTH

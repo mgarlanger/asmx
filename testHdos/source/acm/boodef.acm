@@ -1,0 +1,20 @@
+	SPACE	4,10
+**	BOODEF - SPECIAL BOOT-HDOS INTERFACE DEFINTIONS.
+
+SB.ORG	EQU	060000A 		; ORG FOR LOAD OF INITIAL HDOS	/3.0a/
+
+	ORG	042200A
+
+SB.BOO	DS	3			; Jump to Boot routine
+SB.VER	DS	1			; Version of INIT that built disk
+SB.FLG	DS	1			; Boot Flags
+BFLG.A	EQU	00000001B		; Auto-Boot:  1 => Boot
+SB.BAU	DS	2			; Baud Rate Divisor (0=>ignore)
+SB.DAT	DS	2			; Default Date
+	ERRMI	SB.BOO+32-*
+	DS	SB.BOO+32-*		; Reserved
+SB.BPE	EQU	*			; End of BOOT-parameters
+
+SB.DRV	DS	SB.BOO+512-*		; Primary Boot
+
+SB.SDB	EQU	*			; Secondary Boot

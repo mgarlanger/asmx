@@ -1,0 +1,22 @@
+HSDROM	SPACE	3,10
+**	HDOS H17 ROM ENTRY POINTS.
+
+S.READ	EQU	031275A 		; Read from system disk
+S.WRITE EQU	031330A 		; Write to system disk
+ERR.FNO EQU	031344A 		; Error: File not open
+ERR.ILR EQU	031350A 		; Error: Illegal request
+CFF	EQU	031354A 		; Chain free block to file
+DCA	EQU	032002A 		; Determine contiguous area
+FFB	EQU	032133A 		; Find free block
+FFL	EQU	032205A 		; Follow forward link
+*LDO	EQU	033012A 		; Load overlay code
+PDI	EQU	033145A 		; Prepare for device I/O
+REL.	EQU	033175A 		; Relocate code
+REL	EQU	033177A 		; ditto
+TFE	EQU	033233A 		; Test for end-of-file
+*RUC	EQU	033257A 		; Restore user code
+
+BOOTA	EQU	037132A 		; Boot Vectors
+BOOTAL	EQU	000130A 		; Length of boot vectors
+
+CLOCK	EQU	034031A 		; Clock vector

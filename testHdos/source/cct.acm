@@ -1,0 +1,12 @@
+***	CCT - CLEAR CHANNEL TABLE.
+*
+*	CCT CLEARS OUT THE CHANNEL TABLE.
+*
+*	Entry:	NONE
+*	Exit:	NONE
+*	Uses:	ALL
+
+CCT	SCALL	.CLEARA			; CLEAR ALL
+	MVI	A,-1
+	SCALL	.CLEAR			; Load channel, too.
+	RET

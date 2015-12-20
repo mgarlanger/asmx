@@ -1,0 +1,445 @@
+      = 183A            $DADA	EQU	183AH
+      = 1889            $HLIHL	EQU	1889H
+      = 195E            $TYPTX	EQU	195EH
+
+      = 0000            .EXIT	EQU	0
+      = 0002            .SCOUT	EQU	2
+      = 0006            .CONSL	EQU	6
+
+2280                    	ORG	42200A
+
+      = 2280            START	EQU	*
+
+2280  3E 03             	MVI	A,3
+2282  0E 00             	MVI	C,0
+2284  FF 06             	SCALL	.CONSL		; (A) = CONSOLE WIDTH
+
+2286  32 0D23           	STA	WIDTH
+
+2289  3E 03             	MVI	A,3
+228B  06 FF             	MVI	B,255
+228D  48                	MOV	C,B
+228E  FF 06             	SCALL	.CONSL		; SET WIDTH TO 255
+
+2290  CD 5E19           	CALL	$TYPTX
+2293  1B451BC6          	DB	1BH,'E',1BH,'F'+200Q
+
+2297  CD 1523           	CALL	DRAW
+229A  011348            	DB	1,19,'H'
+229D  011944            	DB	1,25,'D'
+22A0  011F4F            	DB	1,31,'O'
+22A3  012553            	DB	1,37,'S'
+
+22A6  013033            	DB	1,48,'3'
+22A9  01362E            	DB	1,54,'.'
+22AC  013830            	DB	1,56,'0'
+
+22AF  052242            	DB	5,34,'B'
+22B2  052859            	DB	5,40,'Y'
+
+22B5  090957            	DB	9,9,'W'
+22B8  09102E            	DB	9,16,'.'
+22BB  091247            	DB	9,18,'G'
+22BE  09182E            	DB	9,24,'.'
+22C1  091A50            	DB	9,26,'P'
+22C4  092041            	DB	9,32,'A'
+22C7  092652            	DB	9,38,'R'
+22CA  092D52            	DB	9,45,'R'
+22CD  09344F            	DB	9,52,'O'
+22D0  093A54            	DB	9,58,'T'
+22D3  094154            	DB	9,65,'T'
+
+22D6  0D2041            	DB	13,32,'A'
+22D9  0D264E            	DB	13,38,'N'
+22DC  0D2C44            	DB	13,44,'D'
+
+22DF  110752            	DB	17,7,'R'
+22E2  110E2E            	DB	17,14,'.'
+22E5  11104C            	DB	17,16,'L'
+22E8  11162E            	DB	17,22,'.'
+22EB  11184D            	DB	17,24,'M'
+22EE  111F55            	DB	17,31,'U'
+22F1  112553            	DB	17,37,'S'
+22F4  112B47            	DB	17,43,'G'
+22F7  113152            	DB	17,49,'R'
+22FA  113841            	DB	17,56,'A'
+22FD  113E56            	DB	17,62,'V'
+2300  114445            	DB	17,68,'E'
+
+2303  00                	DB	0
+
+2304  CD 5E19           	CALL	$TYPTX
+2307  1B478A            	DB	1BH,'G',212Q
+
+230A  3E 03             	MVI	A,3
+230C  06 00             	MVI	B,0
+      = 230D            WIDTH	EQU	*-1
+230E  0E FF             	MVI	C,255
+2310  FF 06             	SCALL	.CONSL
+
+2312  AF                	XRA	A
+2313  FF 00             	SCALL	.EXIT
+
+2315                    	XTEXT	TITLES
+                        ***	Draw big letters
+                        *
+                        *	Entry:	((ret)) = data table
+                        *	Exit:	None
+                        *	Uses:	All
+                        *
+                        *	Table format:
+                        *
+                        *		DB	LINE,COL,CHAR
+                        *		.
+                        *		.
+                        *		DB	0
+
+2315  E3                DRAW	XTHL			; (HL) = DATA ADDRESS
+2316  CD 1B23           	CALL	DRAW.
+2319  E3                	XTHL
+231A  C9                	RET
+
+231B  7E                DRAW.	MOV	A,M		; LINE
+231C  23                	INX	H
+231D  A7                	ANA	A		; ZERO?
+231E  C8                	RZ			; END OF DATA
+231F  C6 1F             	ADI	' '-1
+2321  32 4123           	STA	LINE		; SET IN ESCAPE SEQUENCE
+2324  7E                	MOV	A,M		; COLUMN
+2325  23                	INX	H
+2326  C6 9F             	ADI	' '+200Q-1
+2328  32 4223           	STA	COL		; SET
+
+232B  7E                	MOV	A,M		; LETTER TO DRAW
+232C  23                	INX	H
+
+232D  E5                	PUSH	H
+
+232E  D6 20             	SUI	' '
+2330  87                	ADD	A
+2331  21 5D23           	LXI	H,LETTERS
+2334  CD 3A18           	CALL	$DADA
+2337  CD 8918           	CALL	$HLIHL		; (HL) = DATA ADDRESS
+
+233A  06 04             	MVI	B,4		; 4 LINES PER LETTER
+
+233C  CD 5E19           DRAW1	CALL	$TYPTX		; MOVE THE CURSOR
+233F  1B59              	DB	1BH,'Y'
+2341  00                LINE	DB	0
+2342  00                COL	DB	0
+
+2343  7E                DRAW2	MOV	A,M
+2344  23                	INX	H
+2345  A7                	ANA	A		; END OF LINE?
+2346  CA 4E23           	JZ	DRAW3		; YES.
+2349  FF 02             	SCALL	.SCOUT
+234B  C3 4323           	JMP	DRAW2
+
+234E  3A 4123           DRAW3	LDA	LINE		; NEXT LINE
+2351  3C                	INR	A
+2352  32 4123           	STA	LINE
+
+2355  05                	DCR	B		; END OF LETTER?
+2356  C2 3C23           	JNZ	DRAW1		; NO.
+
+2359  E1                	POP	H
+235A  C3 1B23           	JMP	DRAW.
+
+                        *	Letter data look-up table
+
+235D  34284C28 F1283428 LETTERS DW	.SPACE,.EXCL,.QUOTE,.SPACE,.SPACE,.SPACE,.SPACE,.APOST
+2365  34283428 3428D928
+236D  34283428 34287B28 	DW	.SPACE,.SPACE,.SPACE,.PLUS,.COMMA,.MINUS,.DOT,.SLASH
+2375  E5289928 10281C28
+237D  00271C27 2C274827 	DW	.0,.1,.2,.3,.4,.5,.6,.7
+2385  64278427 A027BC27
+238D  D827F427 B5283428 	DW	.8,.9,.COLON,.SPACE,.SPACE,.EQUAL,.SPACE,.QUES
+2395  3428C128 34285C28
+239D  34281B24 37245324 	DW	.SPACE,.A,.B,.C,.D,.E,.F,.G
+23A5  6F248B24 A724C324
+23AD  DF24FB24 13252F25 	DW	.H,.I,.J,.K,.L,.M,.N,.O
+23B5  4B256725 8725A325
+23BD  BF25DB25 F7251726 	DW	.P,.Q,.R,.S,.T,.U,.V,.W
+23C5  33265126 6D268926
+23CD  A926C526 E4263428 	DW	.X,.Y,.Z,.SPACE,.SPACE,.SPACE,.SPACE,.SPACE
+23D5  34283428 34283428
+23DD  34281B24 37245324 	DW	.SPACE,.A,.B,.C,.D,.E,.F,.G
+23E5  6F248B24 A724C324
+23ED  DF24FB24 13252F25 	DW	.H,.I,.J,.K,.L,.M,.N,.O
+23F5  4B256725 8725A325
+23FD  BF25DB25 F7251726 	DW	.P,.Q,.R,.S,.T,.U,.V,.W
+2405  33265126 6D268926
+240D  A926C526 E4263428 	DW	.X,.Y,.Z,.SPACE,.SPACE,.SPACE,.SPACE
+2415  34283428 3428
+
+                        *	Letters
+
+241B  66616161 616300   .A	DB	'faaaac',0
+2422  60206161 206000   	DB	'` aa `',0
+2429  60206663 206000   	DB	'` fc `',0
+2430  65616465 616400   	DB	'eadead',0
+
+2437  66616161 616300   .B	DB	'faaaac',0
+243E  60207661 206000   	DB	'` va `',0
+2445  60207661 206000   	DB	'` va `',0
+244C  65616161 616400   	DB	'eaaaad',0
+
+2453  66616161 616300   .C	DB	'faaaac',0
+245A  60206661 616400   	DB	'` faad',0
+2461  60206561 616300   	DB	'` eaac',0
+2468  65616161 616400   	DB	'eaaaad',0
+
+246F  66616161 616300   .D	DB	'faaaac',0
+2476  60207663 206000   	DB	'` vc `',0
+247D  60207664 206000   	DB	'` vd `',0
+2484  65616161 616400   	DB	'eaaaad',0
+
+248B  66616161 616300   .E	DB	'faaaac',0
+2492  60206161 736400   	DB	'` aasd',0
+2499  60206161 756300   	DB	'` aauc',0
+24A0  65616161 616400   	DB	'eaaaad',0
+
+24A7  66616161 616300   .F	DB	'faaaac',0
+24AE  60206161 736400   	DB	'` aasd',0
+24B5  60206661 642000   	DB	'` fad ',0
+24BC  65616420 202000   	DB	'ead   ',0
+
+24C3  66616161 616300   .G	DB	'faaaac',0
+24CA  60206661 617400   	DB	'` faat',0
+24D1  60206561 206000   	DB	'` ea `',0
+24D8  65616161 616400   	DB	'eaaaad',0
+
+24DF  66616366 616300   .H	DB	'facfac',0
+24E6  60206564 206000   	DB	'` ed `',0
+24ED  60206663 206000   	DB	'` fc `',0
+24F4  65616465 616400   	DB	'eadead',0
+
+24FB  66616161 6300     .I	DB	'faaac',0
+2501  65632066 6400     	DB	'ec fd',0
+2507  66642065 6300     	DB	'fd ec',0
+250D  65616161 6400     	DB	'eaaad',0
+
+2513  20202066 616300   .J	DB	'   fac',0
+251A  66616360 206000   	DB	'fac` `',0
+2521  60206564 206000   	DB	'` ed `',0
+2528  65616161 616400   	DB	'eaaaad',0
+
+252F  66616366 616300   .K	DB	'facfac',0
+2536  60206564 666400   	DB	'` edfd',0
+253D  60206663 656300   	DB	'` fcec',0
+2544  65616465 616400   	DB	'eadead',0
+
+254B  66616320 202000   .L	DB	'fac   ',0
+2552  60206020 202000   	DB	'` `   ',0
+2559  60206561 616300   	DB	'` eaac',0
+2560  65616161 616400   	DB	'eaaaad',0
+
+2567  66616173 61616300 .M	DB	'faasaac',0
+256F  60202020 20206000 	DB	'`     `',0
+2577  60206020 60206000 	DB	'` ` ` `',0
+257F  65617561 75616400 	DB	'eauauad',0
+
+2587  66616173 616300   .N	DB	'faasac',0
+258E  60202060 206000   	DB	'`  ` `',0
+2595  60206020 206000   	DB	'` `  `',0
+259C  65617561 616400   	DB	'eauaad',0
+
+25A3  66616161 616300   .O	DB	'faaaac',0
+25AA  60206663 206000   	DB	'` fc `',0
+25B1  60206564 206000   	DB	'` ed `',0
+25B8  65616161 616400   	DB	'eaaaad',0
+
+25BF  66616161 616300   .P	DB	'faaaac',0
+25C6  60206161 206000   	DB	'` aa `',0
+25CD  60206661 616400   	DB	'` faad',0
+25D4  65616420 202000   	DB	'ead   ',0
+
+25DB  66616161 616300   .Q	DB	'faaaac',0
+25E2  60206663 206000   	DB	'` fc `',0
+25E9  60206564 617400   	DB	'` edat',0
+25F0  65616175 616400   	DB	'eaauad',0
+
+25F7  66616161 61616300 .R	DB	'faaaaac',0
+25FF  60206161 61206000 	DB	'` aaa `',0
+2607  60206663 20617400 	DB	'` fc at',0
+260F  65616465 61616400 	DB	'eadeaad',0
+
+2617  66616161 616300   .S	DB	'faaaac',0
+261E  60206161 617400   	DB	'` aaat',0
+2625  76616161 206000   	DB	'vaaa `',0
+262C  65616161 616400   	DB	'eaaaad',0
+
+2633  66616161 61616300 .T	DB	'faaaaac',0
+263B  65616320 66616400 	DB	'eac fad',0
+2643  20206020 600900   	DB	'  ` `	',0
+264A  20206561 640900   	DB	'  ead	',0
+
+2651  66616366 616300   .U	DB	'facfac',0
+2658  60206060 206000   	DB	'` `` `',0
+265F  60206564 206000   	DB	'` ed `',0
+2666  65616161 616400   	DB	'eaaaad',0
+
+266D  66616366 616300   .V	DB	'facfac',0
+2674  60206060 206000   	DB	'` `` `',0
+267B  65636564 666400   	DB	'ecedfd',0
+2682  20656161 642000   	DB	' eaad ',0
+
+2689  66617361 73616300 .W	DB	'fasasac',0
+2691  60206020 60206000 	DB	'` ` ` `',0
+2699  60202020 20206000 	DB	'`     `',0
+26A1  65616175 61616400 	DB	'eaauaad',0
+
+26A9  66616366 616300   .X	DB	'facfac',0
+26B0  65636564 666400   	DB	'ecedfd',0
+26B7  66646663 656300   	DB	'fdfcec',0
+26BE  65616465 616400   	DB	'eadead',0
+
+26C5  66616320 66616300 .Y	DB	'fac fac',0
+26CD  60206561 64206000 	DB	'` ead `',0
+26D5  65616320 66616400 	DB	'eac fad',0
+26DD  20206561 640900   	DB	'  ead	',0
+
+26E4  66616161 616300   .Z	DB	'faaaac',0
+26EB  65617820 782000   	DB	'eax x ',0
+26F2  20782078 616300   	DB	' x xac',0
+26F9  65616161 616400   	DB	'eaaaad',0
+
+2700  66616161 616300   .0	DB	'faaaac',0
+2707  60207D7C 206000   	DB	'` }| `',0
+270E  60207D7C 206000   	DB	'` }| `',0
+2715  65616161 616400   	DB	'eaaaad',0
+
+271C  66616300          .1	DB	'fac',0
+2720  60206000          	DB	'` `',0
+2724  60206000          	DB	'` `',0
+2728  65616400          	DB	'ead',0
+
+272C  66616161 616300   .2	DB	'faaaac',0
+2733  76616161 206000   	DB	'vaaa `',0
+273A  60206161 617400   	DB	'` aaat',0
+2741  65616161 616400   	DB	'eaaaad',0
+
+2748  66616161 616300   .3	DB	'faaaac',0
+274F  65736161 206000   	DB	'esaa `',0
+2756  66756161 206000   	DB	'fuaa `',0
+275D  65616161 616400   	DB	'eaaaad',0
+
+2764  66616366 61632000 .4	DB	'facfac ',0
+276C  60206564 20656300 	DB	'` ed ec',0
+2774  65616163 20666400 	DB	'eaac fd',0
+277C  20202065 61642000 	DB	'   ead ',0
+
+2784  66616161 632000   .5	DB	'faaac ',0
+278B  60206161 756300   	DB	'` aauc',0
+2792  76616161 206000   	DB	'vaaa `',0
+2799  65616161 616400   	DB	'eaaaad',0
+
+27A0  66616161 616300   .6	DB	'faaaac',0
+27A7  60206161 617400   	DB	'` aaat',0
+27AE  60206161 206000   	DB	'` aa `',0
+27B5  65616161 616400   	DB	'eaaaad',0
+
+27BC  66616161 616300   .7	DB	'faaaac',0
+27C3  65616163 206000   	DB	'eaac `',0
+27CA  20202060 206000   	DB	'   ` `',0
+27D1  20202065 616400   	DB	'   ead',0
+
+27D8  66616161 616300   .8	DB	'faaaac',0
+27DF  60206161 206000   	DB	'` aa `',0
+27E6  60206161 206000   	DB	'` aa `',0
+27ED  65616161 616400   	DB	'eaaaad',0
+
+27F4  66616161 616300   .9	DB	'faaaac',0
+27FB  60206161 206000   	DB	'` aa `',0
+2802  76616161 206000   	DB	'vaaa `',0
+2809  65616161 616400   	DB	'eaaaad',0
+
+2810  202000            .DOT	DB	'  ',0
+2813  202000            	DB	'  ',0
+2816  666300            	DB	'fc',0
+2819  656400            	DB	'ed',0
+
+281C  20202078 7800     .SLASH	DB	'   xx',0
+2822  20207878 2000     	DB	'  xx ',0
+2828  20787820 2000     	DB	' xx  ',0
+282E  78782020 2000     	DB	'xx   ',0
+
+2834  20202020 2000     .SPACE	DB	'     ',0
+283A  20202020 2000     	DB	'     ',0
+2840  20202020 2000     	DB	'     ',0
+2846  20202020 2000     	DB	'     ',0
+
+284C  66616300          .EXCL	DB	'fac',0
+2850  60206000          	DB	'` `',0
+2854  76617400          	DB	'vat',0
+2858  65616400          	DB	'ead',0
+
+285C  66616161 61616300 .QUES	DB	'faaaaac',0
+2864  65617361 61206000 	DB	'easaa `',0
+286C  20207661 73616400 	DB	'  vasad',0
+2874  20206561 640900   	DB	'  ead	',0
+
+287B  20206661 630900   .PLUS	DB	'  fac	',0
+2882  66616420 65616300 	DB	'fad eac',0
+288A  65616320 66616400 	DB	'eac fad',0
+2892  20206561 640900   	DB	'  ead	',0
+
+2899  20202020 202000   .MINUS	DB	'      ',0
+28A0  66616161 616300   	DB	'faaaac',0
+28A7  65616161 616400   	DB	'eaaaad',0
+28AE  20202020 202000   	DB	'      ',0
+
+28B5  666300            .COLON	DB	'fc',0
+28B8  656400            	DB	'ed',0
+28BB  666300            	DB	'fc',0
+28BE  656400            	DB	'ed',0
+
+28C1  20202020 2000     .EQUAL	DB	'     ',0
+28C7  6F707070 6E00     	DB	'opppn',0
+28CD  6F707070 6E00     	DB	'opppn',0
+28D3  20202020 2000     	DB	'     ',0
+
+28D9  666300            .APOST	DB	'fc',0
+28DC  657400            	DB	'et',0
+28DF  202000            	DB	'  ',0
+28E2  202000            	DB	'  ',0
+
+28E5  202000            .COMMA	DB	'  ',0
+28E8  202000            	DB	'  ',0
+28EB  666300            	DB	'fc',0
+28EE  657400            	DB	'et',0
+
+28F1  787800            .QUOTE	DB	'xx',0
+28F4  202000            	DB	'  ',0
+28F7  202000            	DB	'  ',0
+28FA  202000            	DB	'  ',0
+
+28FD   (2280)           	END	START
+
+00000 Total Errors
+
+
+00000 Total Warnings
+
+$DADA              183A E  $HLIHL             1889 E  $TYPTX             195E E
+.0                 2700    .1                 271C    .2                 272C
+.3                 2748    .4                 2764    .5                 2784
+.6                 27A0    .7                 27BC    .8                 27D8
+.9                 27F4    .A                 241B    .APOST             28D9
+.B                 2437    .C                 2453    .COLON             28B5
+.COMMA             28E5    .CONSL             0006 E  .D                 246F
+.DATE.             0001 E  .DOT               2810    .E                 248B
+.EQUAL             28C1    .EXCL              284C    .EXIT              0000 E
+.F                 24A7    .G                 24C3    .H                 24DF
+.I                 24FB    .J                 2513    .K                 252F
+.L                 254B    .M                 2567    .MINUS             2899
+.N                 2587    .O                 25A3    .P                 25BF
+.PLUS              287B    .Q                 25DB    .QUES              285C
+.QUOTE             28F1    .R                 25F7    .S                 2617
+.SCOUT             0002 E  .SLASH             281C    .SPACE             2834
+.T                 2633    .TIME.             0002 E  .U                 2651
+.V                 266D    .W                 2689    .X                 26A9
+.Y                 26C5    .Z                 26E4    COL                2342
+DRAW               2315    DRAW.              231B    DRAW1              233C
+DRAW2              2343    DRAW3              234E    LETTERS            235D
+LINE               2341    START              2280 E  WIDTH              230D E

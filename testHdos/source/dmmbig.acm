@@ -1,0 +1,487 @@
+***	DMM - Display Main Memory Information
+*
+*	DM[M]
+
+DMM	POP	H			; Clear stack
+
+***	Size memory
+
+	CALL	MEMSIZ			; Size all memory
+
+*	(BC) = Memory size in K-Bytes
+
+	MVI	A,3			; 3 digits
+	LXI	H,DMMV0
+	CALL	$UDDS			; Set for display
+
+***	Determine System Memory Values
+
+	LHLD	S.HIMEM 		; Hardware High Memory Address
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV1
+	CALL	$UOW.
+	LXI	H,DMMV1H
+	CALL	$UHW
+
+	LHLD	S.SCR			; HDOS System Scratch Area
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV2
+	CALL	$UOW.
+	LXI	H,DMMV2H
+	CALL	$UHW
+
+	LHLD	S.DLINK 		; HDOS Data Link Address
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV3
+	CALL	$UOW.
+	LXI	H,DMMV3H
+	CALL	$UHW
+
+	LHLD	S.DISP			; SCALL Dispatcher
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV4
+	CALL	$UOW.
+	LXI	H,DMMV4H
+	CALL	$UHW
+
+	LHLD	S.DFWA			; Device Table FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV5
+	CALL	$UOW.
+	LXI	H,DMMV5H
+	CALL	$UHW
+
+	LHLD	S.CFWA			; Channel Table FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV6
+	CALL	$UOW.
+	LXI	H,DMMV6H
+	CALL	$UHW
+
+	LHLD	S.SYDVD 		; SY: Driver FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV7
+	CALL	$UOW.
+	LXI	H,DMMV7H
+	CALL	$UHW
+
+	LHLD	S.EDLIN 		; Editor Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV8
+	CALL	$UOW.
+	LXI	H,DMMV8H
+	CALL	$UHW
+
+	LHLD	S.PRMT			; Prompt Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV9
+	CALL	$UOW.
+	LXI	H,DMMV9H
+	CALL	$UHW
+
+	LHLD	S.PATH			; Path Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVA
+	CALL	$UOW.
+	LXI	H,DMMVAH
+	CALL	$UHW
+
+	LHLD	S.RFWA			; HDOS Resident FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVB
+	CALL	$UOW.
+	LXI	H,DMMVBH
+	CALL	$UHW
+
+	LHLD	S.SYSM			; System Resident FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVC
+	CALL	$UOW.
+	LXI	H,DMMVCH
+	CALL	$UHW
+
+	DCX	B			; User Memory LWA
+	LXI	H,DMMVD
+	CALL	$UOW.
+	LXI	H,DMMVDH
+	CALL	$UHW
+
+	LXI	B,USERFWA		; User Memory FWA
+	LXI	H,DMMVE
+	CALL	$UOW.
+	LXI	H,DMMVEH
+	CALL	$UHW
+
+	LHLD	.UIVEC+1		; User Interupt Vector 1
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU1
+	CALL	$UOW.
+	LXI	H,DMMU1H
+	CALL	$UHW
+
+	LHLD	.UIVEC+4		; User Interupt Vector 2
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU2
+	CALL	$UOW.
+	LXI	H,DMMU2H
+	CALL	$UHW
+
+	LHLD	.UIVEC+7		; User Interupt Vector 3
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU3
+	CALL	$UOW.
+	LXI	H,DMMU3H
+	CALL	$UHW
+
+	LHLD	.UIVEC+10		; User Interupt Vector 4
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU4
+	CALL	$UOW.
+	LXI	H,DMMU4H
+	CALL	$UHW
+
+	LHLD	.UIVEC+13		; User Interupt Vector 5
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU5
+	CALL	$UOW.
+	LXI	H,DMMU5H
+	CALL	$UHW
+
+	LHLD	.UIVEC+16		; User Interupt Vector 6
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU6
+	CALL	$UOW.
+	LXI	H,DMMU6H
+	CALL	$UHW
+
+	LHLD	.UIVEC+19		; User Interupt Vector 7
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU7
+	CALL	$UOW.
+	LXI	H,DMMU7H
+	CALL	$UHW
+
+***	Calculate Memory Space Size
+
+	LXI	H,USERFWA		; Start of user memory
+	CALL	$CHL
+	XCHG
+	LHLD	S.SYSM			; Start of system memory
+	DAD	D			; (HL) = User area size
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVF
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVFK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVFF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+	LHLD	S.SYSM			; Get FWA of System reserved
+	CALL	$CHL
+	XCHG
+	LHLD	S.HIMEM
+	DAD	D
+	INX	H			; (HL) = Size of reserved area
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVG
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVGK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVGF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+	LHLD	S.RFWA			; Get FWA of HDOS reserved
+	CALL	$CHL
+	XCHG
+	LHLD	S.HIMEM
+	DAD	D
+	INX	H			; (HL) = Size of locked area
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVH
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVHK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVHF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+***	Tell the tale ...
+
+	CALL	$TYPTX
+	DB	NL,'Main Memory:',TAB
+DMMV0	DB	'nnnk',TAB,TAB,'System High Memory:',TAB
+DMMV1	DB	'000.000',TAB,' (hhhh)'
+DMMV1H	EQU	*-5
+	DB	NL,'~~~~~~~~~~~~~~~~~~~~',TAB,TAB,'HDOS Scratch Area:',TAB
+DMMV2	DB	'000.000',TAB,' (hhhh)'
+DMMV2H	EQU	*-5
+	DB	NL,TAB,TAB,TAB,TAB,'HDOS Data Link Addr:',TAB
+DMMV3	DB	'000.000',TAB,' (hhhh)'
+DMMV3H	EQU	*-5
+	DB	NL,'PIP is ',200Q
+
+	LDA	PIPMEM		Is PIP in memory ?
+	ANA	A
+	JNZ	DMM.Y
+	CALL	$TYPTX
+	DB	'NOT ',200Q
+
+DMM.Y	CALL	$TYPTX
+	DB	'in memory',TAB,TAB,'SCALL Dispatcher:',TAB
+DMMV4	DB	'000.000',TAB,' (hhhh)'
+DMMV4H	EQU	*-5
+	DB	NL,TAB,TAB,TAB,TAB,'Device Table FWA:',TAB
+DMMV5	DB	'000.000',TAB,' (hhhh)'
+DMMV5H	EQU	*-5
+	DB	NL,TAB,TAB,TAB,TAB,'Channel Table FWA:',TAB
+DMMV6	DB	'000.000',TAB,' (hhhh)'
+DMMV6H	EQU	*-5
+	DB	NL,TAB,TAB,TAB,TAB,'SY: Driver FWA:',TAB,TAB
+DMMV7	DB	'000.000',TAB,' (hhhh)'
+DMMV7H	EQU	*-5
+	DB	NL,'UIVEC 1:',32,32,32
+DMMU1	DB	'000.000',32,32,'(hhhh)'
+DMMU1H	EQU	*-5
+	DB	TAB,'Editer Buffer FWA:',TAB
+DMMV8	DB	'000.000',TAB,' (hhhh)'
+DMMV8H	EQU	*-5
+	DB	NL,'UIVEC 2:',32,32,32
+DMMU2	DB	'000.000',32,32,'(hhhh)'
+DMMU2H	EQU	*-5
+	DB	TAB,'Prompt Buffer FWA:',TAB
+DMMV9	DB	'000.000',TAB,' (hhhh)'
+DMMV9H	EQU	*-5
+	DB	NL,'UIVEC 3:',32,32,32
+DMMU3	DB	'000.000',32,32,'(hhhh)'
+DMMU3H	EQU	*-5
+	DB	TAB,'Path Buffer FWA:',TAB
+DMMVA	DB	'000.000',TAB,' (hhhh)'
+DMMVAH	EQU	*-5
+	DB	NL,'UIVEC 4:',32,32,32
+DMMU4	DB	'000.000',32,32,'(hhhh)'
+DMMU4H	EQU	*-5
+	DB	TAB,'HDOS Resident FWA:',TAB
+DMMVB	DB	'000.000',TAB,' (hhhh)'
+DMMVBH	EQU	*-5
+	DB	NL,'UIVEC 5:',32,32,32
+DMMU5	DB	'000.000',32,32,'(hhhh)'
+DMMU5H	EQU	*-5
+	DB	TAB,'System Resident FWA:',TAB
+DMMVC	DB	'000.000',TAB,' (hhhh)'
+DMMVCH	EQU	*-5
+	DB	NL,'UIVEC 6:',32,32,32
+DMMU6	DB	'000.000',32,32,'(hhhh)'
+DMMU6H	EQU	*-5
+	DB	TAB,'User Memory LWA:',TAB
+DMMVD	DB	'000.000',TAB,' (hhhh)'
+DMMVDH	EQU	*-5
+	DB	NL,'UIVEC 7:',32,32,32
+DMMU7	DB	'000.000',32,32,'(hhhh)'
+DMMU7H	EQU	*-5
+	DB	TAB,'User Memory FWA:',TAB
+DMMVE	DB	'000.000',TAB,' (hhhh)'
+DMMVEH	EQU	*-5
+	DB	NL,NL,TAB,'HDOS Locked:',TAB
+DMMVF	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL
+DMMVFK	EQU	*-9
+DMMVFF	EQU	*-6
+	DB	TAB,'HDOS Reserved:',TAB
+DMMVG	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL
+DMMVGK	EQU	*-9
+DMMVGF	EQU	*-6
+	DB	TAB,'User Memory:',TAB
+DMMVH	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL,ENL
+DMMVHK	EQU	*-10
+DMMVHF	EQU	*-7
+
+***	Test CPU Type
+*
+*	The following routine performs a reliable test of
+*	what CPU is in use without executing ANY illegal
+*	opcodes for any of the supported chips. The test
+*	is based upon subtle differences in the way certain
+*	flags are affected when certain instructions are
+*	executed. The key instructions are flagged with "<--".
+*
+*	Supported chips are: 8080, 8085, and Z-80.
+
+*	perform Z-80 check first
+
+DMM2	MVI	A,01111111B
+	INR	A			; <--
+	JPE	ISZ80
+
+*	check for an 8080 or 8085
+
+	XRA	A
+	ANA	A			; <--
+	DAA
+	JNZ	IS8085
+
+IS8080	EQU	*
+
+	CALL	$TYPTX
+	DB	TAB,'CPU is 808','0'+200Q
+	JMP	DMM3
+
+IS8085	EQU	*
+
+	CALL	$TYPTX
+	DB	TAB,'CPU is 808','5'+200Q
+	JMP	DMM3
+
+ISZ80	EQU	*
+
+	CALL	$TYPTX
+	DB	TAB,'CPU is Z80',' '+200Q
+*	JMP	DMM3
+	ERRNZ	*-DMM3
+
+***	Report clock speed
+
+DMM3	LXI	H,.MFLAG		; Get Monitor flag
+	PUSH	H			; Save it for later
+	MVI	A,377Q-UO.CLK
+	ANA	M			; Strip clock bit
+	MOV	M,A			; Put it back
+
+	MVI	L,#.TICCNT		; Point to TICCNT
+	MOV	A,M			; Get value
+
+DMM3A	CMP	M			; Wait for it to change
+	JE	DMM3A
+	LXI	D,0			; Zero counter
+	INR	A			; Wait for next TIC
+
+DMM3B	CMP	M
+	INX	D			; Count until have a TIC
+	JE	DMM3B			; No change
+
+	POP	H			; (HL) = .MFLAG
+	MVI	A,UO.CLK		; Enable clock
+	ORA	M
+	MOV	M,A			; Put it right
+
+*	If (D) = 1, then 4 or 6MHz, else must be 2MHz.
+
+	MOV	A,D			; Get value (Is 0 or 1)
+	INR	A			; Bump it.  Now 1 or 2.
+	ADD	A			; Double it.  Now 2 or 4.
+	ORI	'0'			; Make it nice.
+	STA	SPEED			; Set speed
+	CPI	'2'			; Is 2MHz?
+	JE	SPEED.			; Yes.
+
+	MOV	A,E			; (A) = low order count
+	CPI	130Q			; Is slow enough to be 4MHz?
+	JC	SPEED.			; Yes
+	MVI	A,'6'
+	STA	SPEED			; Set to display 6MHz.
+
+SPEED.	CALL	$TYPTX
+	DB	' --> Clock speed is '
+SPEED	DB	'# MHz',ENL
+
+	JMP	SYSCMD

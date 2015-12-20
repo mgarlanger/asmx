@@ -1,0 +1,85 @@
+$DADA	EQU	183AH
+$HLIHL	EQU	1889H
+$TYPTX	EQU	195EH
+
+.EXIT	EQU	0
+.SCOUT	EQU	2
+.CONSL	EQU	6
+
+	ORG	42200A
+
+START	EQU	*
+
+	MVI	A,3
+	MVI	C,0
+	SCALL	.CONSL		; (A) = CONSOLE WIDTH
+
+	STA	WIDTH
+
+	MVI	A,3
+	MVI	B,255
+	MOV	C,B
+	SCALL	.CONSL		; SET WIDTH TO 255
+
+	CALL	$TYPTX
+	DB	1BH,'E',1BH,'F'+200Q
+
+	CALL	DRAW
+	DB	1,19,'H'
+	DB	1,25,'D'
+	DB	1,31,'O'
+	DB	1,37,'S'
+
+	DB	1,48,'3'
+	DB	1,54,'.'
+	DB	1,56,'0'
+
+	DB	5,34,'B'
+	DB	5,40,'Y'
+
+	DB	9,9,'W'
+	DB	9,16,'.'
+	DB	9,18,'G'
+	DB	9,24,'.'
+	DB	9,26,'P'
+	DB	9,32,'A'
+	DB	9,38,'R'
+	DB	9,45,'R'
+	DB	9,52,'O'
+	DB	9,58,'T'
+	DB	9,65,'T'
+
+	DB	13,32,'A'
+	DB	13,38,'N'
+	DB	13,44,'D'
+
+	DB	17,7,'R'
+	DB	17,14,'.'
+	DB	17,16,'L'
+	DB	17,22,'.'
+	DB	17,24,'M'
+	DB	17,31,'U'
+	DB	17,37,'S'
+	DB	17,43,'G'
+	DB	17,49,'R'
+	DB	17,56,'A'
+	DB	17,62,'V'
+	DB	17,68,'E'
+
+	DB	0
+
+	CALL	$TYPTX
+	DB	1BH,'G',212Q
+
+	MVI	A,3
+	MVI	B,0
+WIDTH	EQU	*-1
+	MVI	C,255
+	SCALL	.CONSL
+
+	XRA	A
+	SCALL	.EXIT
+
+	XTEXT	TITLES
+
+	END	START

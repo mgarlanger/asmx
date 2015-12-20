@@ -12,17 +12,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#if 0
-// these should already be defined in sys/types.h (included from stdio.h)
-typedef unsigned char  u_char;
-typedef unsigned short u_short;
-typedef unsigned int   u_int;
-typedef unsigned long  u_long;
-#endif
+
+#define HDOS 1
 
 // a few useful typedefs
 typedef unsigned char  bool;    // define a bool type
-enum { FALSE = 0, TRUE = 1 };
+enum { FALSE = 0, false = 0, TRUE = 1, true = 1 };
 typedef char Str255[256];       // generic string type
 
 #define maxOpcdLen  11          // max opcode length (for building opcode table)
@@ -130,6 +125,9 @@ void InstrWW(u_short w1, u_short w2);
 void InstrWL(u_short w1, u_long l1);
 void InstrL(u_long l1);
 void InstrLL(u_long l1, u_long l2);
+#ifdef HDOS
+void checkRelocate(int offset);
+#endif
 
 //char * ListStr(char *l, char *s);
 char * ListByte(char *p, u_char b);
@@ -157,3 +155,4 @@ extern  int             hexSpaces;          // flags for spaces in hex output fo
 extern  int             listWid;            // listing width: LIST_16, LIST_24
 
 #endif // _ASMX_H_
+

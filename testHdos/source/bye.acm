@@ -1,0 +1,46 @@
+***	BYE - DISMOUNTS ALL MOUNTED DISKS AND REBOOTS THE SYSTEM.
+*
+*	Also deactivates all tasks in system.	/81.08.bp/
+*
+*	BYE
+*	Q[UIT]
+
+BYE	POP	B			; clean off command
+
+	SCALL	.DAD			; DISMOUNT ALL DEVICES
+
+	MVI	A,TASMAX-1		; (A) = Maximum number of tasks
+
+BYE1	PUSH	PSW			; Save task number
+	MVI	B,TAS.DEA		; Deactivate function
+	SCALL	.TASK			; Call task manager
+	POP	PSW			; Restore task number
+	DCR	A			; Decrement it
+	JNZ	BYE1			; Not done, do another.
+
+	LDA	ZROFLG			; See if to zero stats
+	ANA	A
+	JZ	BYE2
+
+	LXI	H,D.HECNT		; I/O statistics block
+	MVI	B,14
+	CALL	$ZERO			; Gone now ...
+
+BYE2	MVI	A,250
+	CALL	.DLY
+	MVI	A,250
+	CALL	.DLY
+
+	CALL	CLRSCRN
+	MVI	C,11
+BYE3	MVI	A,NL
+	SCALL	.SCOUT
+	DCR	C
+	JNZ	BYE3
+
+	CALL	$TYPTX
+	DB	TAB,TAB,TAB,32,32,32,32,32
+	DB	'You are at Witt''s End','.'+200Q
+
+	DI				; off with the interrupts
+	JMP	*			; I'm getting dizzy

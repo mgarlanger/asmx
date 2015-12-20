@@ -1,0 +1,239 @@
+	TITLE	'LABEL - Read or Change a Disk Label'
+	STL	'  HDOS 3.0 version by Mighty/Soft'
+*	LABEL - Read or Change a Disk Label
+*
+*	Usage:	LABEL DEV:
+*
+*	DEV: is any valid HDOS device (SY1:, DK0:, etc.)
+*
+*	The existing label on the specified disk will be displayed.
+*	You will be prompted for a new label.  Touch RETURN if you
+*	don't want to change the label.  Touch DELETE if you want to
+*	remove the existing label and have no new label.
+*
+*	Based on:	REMARK #9	M. Duttweiler
+*			REMARK #35	Pat Swayne
+
+.EXIT	EQU	0
+.SCIN	EQU	1
+.SCOUT	EQU	2
+.CONSL	EQU	6
+.VERS	EQU	11Q
+.CTLC	EQU	41Q
+.ERROR	EQU	57Q
+.LOADD	EQU	62Q
+
+CTLC	EQU	3
+CTLD	EQU	4
+BELL	EQU	7
+NL	EQU	12Q
+TAB	EQU	11Q
+ESC	EQU	33Q
+DEL	EQU	127
+ENL	EQU	212Q
+
+$DADA	EQU	30072A
+$DU66	EQU	30106A
+$MOVE	EQU	30252A
+$TYPTX	EQU	31136A
+
+DC.WRI	EQU	1			; Write to disk
+DC.RER	EQU	2			; Read regardless from disk
+DC.ABT	EQU	7			; Abort device
+DC.MOU	EQU	8			; Mount device
+
+DEV.JMP EQU	3			; Jump to device driver
+
+DDF.LAB EQU	9			; Label sector
+
+D.SYDD	EQU	40130A			; System device driver (pre 2.0)
+
+S.DFBLK EQU	40372A			; Resident default block
+
+AIO.UNI EQU	41061A			; Active unit number
+
+	ORG	42200A
+
+*	GET THE DEVICE HE WANTS
+
+START	LXI	H,0			; See where stack is
+	DAD	SP
+	MOV	A,L
+	CPI	200Q
+	JZ	READSEC 		; No arg given, use default
+	MVI	A,303Q			; JMP code
+	STA	VER30			; Have arg, skip default stuffing
+	LXI	D,DEV			; Device name buffer
+	MVI	B,3			; We want 3 char
+GETARG	MOV	A,M			; Get a char
+	ORA	A			; NUL is end of entry
+	JZ	READSEC 		; At end, proceed
+	INX	H			; Bump pointer
+	CPI	' '			; Is it a space
+	JE	GETARG			; Skip over spaces
+	CPI	TAB			; Is it a tab
+	JE	GETARG			; Skip over tabs
+	STAX	D			; Stuff char
+	INX	D			; Bump pointer
+	DCR	B			; Count down
+	JNZ	GETARG			; Still need more
+
+*	READ LABEL SECTOR
+
+READSEC EQU	*
+
+	LXI	B,201201A
+	XRA	A
+	SCALL	.CONSL
+
+	LXI	H,GLAB
+	MVI	A,CTLC
+	SCALL	.CTLC			; Set up CTL-C
+
+	SCALL	.VERS			; Get HDOS version
+	JC	OLDVER			; Must be older than 2.0
+	CPI	20H			; Is it 2.0
+	JC	OLDVER			; Must be older than 2.0
+	CPI	30H			; Is it 3.0 or later
+VER30	JC	VER20			; Must be 2.0
+	LXI	B,3			; 3 bytes
+	LXI	D,S.DFBLK		; From
+	LXI	H,DEV			; To
+	CALL	$MOVE			; Stuff default if no arg given
+VER20	LXI	H,DEV			; Point to device
+	SCALL	.LOADD			; Load it to get address
+	JC	ERROR
+	LXI	D,DEV.JMP		; Offset to jump
+	DAD	D			; Point at jump
+	SHLD	DEVJMP			; Save jump address
+OLDVER	LDA	DEV+2			; Get unit number
+	SUI	'0'			; Make it binary
+	STA	AIO.UNI 		; Save as active unit
+	LXI	H,0
+	MVI	A,DC.ABT
+	CALL	DISK			; Abort device
+	JC	ERROR
+	LXI	H,DDF.LAB		; Point at label sector
+	LXI	D,BUFFER		; Point at buffer
+	LXI	B,256			; We want 1 sector
+	MVI	A,DC.RER
+	CALL	DISK			; Read label sector
+	JC	ERROR
+
+*	PRINT CURRENT LABEL
+
+	CALL	$TYPTX
+	DB	NL,'Current Label is:',NL,'"'+200Q
+	LXI	H,BUFFER+17		; Point at label text
+LABLP	MOV	A,M			; Get a char
+	ORA	A			; NUL is end of label
+	JZ	GETLAB			; At end
+	SCALL	.SCOUT			; Show char
+	INX	H			; Bump pointer
+	JMP	LABLP			; Loop for more
+
+*	GET NEW LABEL
+
+GETLAB	MVI	A,'"'			; Mark end of LABEL
+	SCALL	.SCOUT
+
+GLAB	LXI	SP,42200A
+	CALL	$TYPTX
+	DB	ESC,'y1'
+	DB	NL,'Enter new label or DELETE to clear or RETURN to exit.'
+	DB	NL,'Touch CTL-D when finished.',NL,ENL
+	LXI	H,BUFFER+17		; Point at label text
+	MVI	B,61			; Max. 60 chars
+	SCALL	.SCIN			; Input char
+	JC	*-2
+	CPI	NL			; Is it RETURN
+	JE	EXIT			; Yes, no change
+	CPI	DEL
+	JE	DELETE
+	JMP	NORET			; No, use as first char
+
+GETLAB1 SCALL	.SCIN			; Input char
+	JC	*-2
+NORET	MOV	M,A			; Stuff char
+	SCALL	.SCOUT			; Print char
+	INX	H			; Bump pointer
+	DCR	B			; Count down
+	JZ	LABOVL			; Label overflow
+	PUSH	PSW
+	PUSH	B
+	PUSH	H
+	DCR	B
+	MOV	C,B
+	MVI	B,0
+	LXI	H,CNT
+	MVI	A,2
+	CALL	$UDDS
+	CALL	$TYPTX
+	DB	ESC,'j',ESC,'x1',ESC,'Y8 ',ESC,'K'
+CNT	DB	'nn Character(s) Left',ESC,'k'+200Q
+	POP	H
+	POP	B
+	POP	PSW
+	CPI	CTLD			; Is it Control D
+	JNE	GETLAB1 		; No, get another char
+	DCX	H			; Yes, back up pointer
+	MVI	M,0			; Stuff NUL to flag end of label
+	MVI	A,NL
+	SCALL	.SCOUT			; Go to next line
+
+DELETE	DCR	B			; Fill rest of LABEL area
+	JZ	WRITE			;  with NUL's
+	MVI	M,0
+	INX	H
+	JMP	DELETE
+
+*	WRITE NEW LABEL SECTOR
+
+WRITE	CALL	$TYPTX
+	DB	ESC,'y','1'+200Q
+	MVI	L,0			; Volume Number = 0
+	MVI	A,DC.MOU
+	CALL	DISK			; Mount
+	LXI	H,DDF.LAB		; Label sector number
+	LXI	D,BUFFER		; Point at buffer
+	LXI	B,256			; We want 1 sector
+	MVI	A,DC.WRI
+	CALL	DISK			; Write label sector
+	PUSH	PSW			; Save possible error condition
+	LDA	BUFFER			; Get real volume number
+	MOV	L,A			; Save in L
+	MVI	A,DC.MOU
+	CALL	DISK			; Remount
+	POP	PSW			; Restore possible error condition
+	JNC	EXIT			; No error
+
+*	PROCESS ERROR
+
+ERROR	MVI	H,BELL
+	SCALL	.ERROR			; Print error message
+	MVI	A,1
+	SCALL	.EXIT			; Abort exit
+
+*	CALL DEVICE DRIVER
+
+DISK	JMP	D.SYDD			; Go to device driver
+DEVJMP	EQU	*-2
+
+*	LABEL OVERFLOW
+
+LABOVL	CALL	$TYPTX
+	DB	NL,NL,'Too many characters in label (60 max.)',ENL
+	JMP	GETLAB
+
+EXIT	XRA	A
+	SCALL	.EXIT			; Normal exit
+
+	XTEXT	UDDX
+
+*	DATA SPACE
+
+DEV	DB	'SY0:',0		; Device name
+
+BUFFER	EQU	*			; Label sector buffer
+
+	END	START

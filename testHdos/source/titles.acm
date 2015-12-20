@@ -1,0 +1,320 @@
+***	Draw big letters
+*
+*	Entry:	((ret)) = data table
+*	Exit:	None
+*	Uses:	All
+*
+*	Table format:
+*
+*		DB	LINE,COL,CHAR
+*		.
+*		.
+*		DB	0
+
+DRAW	XTHL			; (HL) = DATA ADDRESS
+	CALL	DRAW.
+	XTHL
+	RET
+
+DRAW.	MOV	A,M		; LINE
+	INX	H
+	ANA	A		; ZERO?
+	RZ			; END OF DATA
+	ADI	' '-1
+	STA	LINE		; SET IN ESCAPE SEQUENCE
+	MOV	A,M		; COLUMN
+	INX	H
+	ADI	' '+200Q-1
+	STA	COL		; SET
+
+	MOV	A,M		; LETTER TO DRAW
+	INX	H
+
+	PUSH	H
+
+	SUI	' '
+	ADD	A
+	LXI	H,LETTERS
+	CALL	$DADA
+	CALL	$HLIHL		; (HL) = DATA ADDRESS
+
+	MVI	B,4		; 4 LINES PER LETTER
+
+DRAW1	CALL	$TYPTX		; MOVE THE CURSOR
+	DB	1BH,'Y'
+LINE	DB	0
+COL	DB	0
+
+DRAW2	MOV	A,M
+	INX	H
+	ANA	A		; END OF LINE?
+	JZ	DRAW3		; YES.
+	SCALL	.SCOUT
+	JMP	DRAW2
+
+DRAW3	LDA	LINE		; NEXT LINE
+	INR	A
+	STA	LINE
+
+	DCR	B		; END OF LETTER?
+	JNZ	DRAW1		; NO.
+
+	POP	H
+	JMP	DRAW.
+
+*	Letter data look-up table
+
+LETTERS DW	.SPACE,.EXCL,.QUOTE,.SPACE,.SPACE,.SPACE,.SPACE,.APOST
+	DW	.SPACE,.SPACE,.SPACE,.PLUS,.COMMA,.MINUS,.DOT,.SLASH
+	DW	.0,.1,.2,.3,.4,.5,.6,.7
+	DW	.8,.9,.COLON,.SPACE,.SPACE,.EQUAL,.SPACE,.QUES
+	DW	.SPACE,.A,.B,.C,.D,.E,.F,.G
+	DW	.H,.I,.J,.K,.L,.M,.N,.O
+	DW	.P,.Q,.R,.S,.T,.U,.V,.W
+	DW	.X,.Y,.Z,.SPACE,.SPACE,.SPACE,.SPACE,.SPACE
+	DW	.SPACE,.A,.B,.C,.D,.E,.F,.G
+	DW	.H,.I,.J,.K,.L,.M,.N,.O
+	DW	.P,.Q,.R,.S,.T,.U,.V,.W
+	DW	.X,.Y,.Z,.SPACE,.SPACE,.SPACE,.SPACE
+
+*	Letters
+
+.A	DB	'faaaac',0
+	DB	'` aa `',0
+	DB	'` fc `',0
+	DB	'eadead',0
+
+.B	DB	'faaaac',0
+	DB	'` va `',0
+	DB	'` va `',0
+	DB	'eaaaad',0
+
+.C	DB	'faaaac',0
+	DB	'` faad',0
+	DB	'` eaac',0
+	DB	'eaaaad',0
+
+.D	DB	'faaaac',0
+	DB	'` vc `',0
+	DB	'` vd `',0
+	DB	'eaaaad',0
+
+.E	DB	'faaaac',0
+	DB	'` aasd',0
+	DB	'` aauc',0
+	DB	'eaaaad',0
+
+.F	DB	'faaaac',0
+	DB	'` aasd',0
+	DB	'` fad ',0
+	DB	'ead   ',0
+
+.G	DB	'faaaac',0
+	DB	'` faat',0
+	DB	'` ea `',0
+	DB	'eaaaad',0
+
+.H	DB	'facfac',0
+	DB	'` ed `',0
+	DB	'` fc `',0
+	DB	'eadead',0
+
+.I	DB	'faaac',0
+	DB	'ec fd',0
+	DB	'fd ec',0
+	DB	'eaaad',0
+
+.J	DB	'   fac',0
+	DB	'fac` `',0
+	DB	'` ed `',0
+	DB	'eaaaad',0
+
+.K	DB	'facfac',0
+	DB	'` edfd',0
+	DB	'` fcec',0
+	DB	'eadead',0
+
+.L	DB	'fac   ',0
+	DB	'` `   ',0
+	DB	'` eaac',0
+	DB	'eaaaad',0
+
+.M	DB	'faasaac',0
+	DB	'`     `',0
+	DB	'` ` ` `',0
+	DB	'eauauad',0
+
+.N	DB	'faasac',0
+	DB	'`  ` `',0
+	DB	'` `  `',0
+	DB	'eauaad',0
+
+.O	DB	'faaaac',0
+	DB	'` fc `',0
+	DB	'` ed `',0
+	DB	'eaaaad',0
+
+.P	DB	'faaaac',0
+	DB	'` aa `',0
+	DB	'` faad',0
+	DB	'ead   ',0
+
+.Q	DB	'faaaac',0
+	DB	'` fc `',0
+	DB	'` edat',0
+	DB	'eaauad',0
+
+.R	DB	'faaaaac',0
+	DB	'` aaa `',0
+	DB	'` fc at',0
+	DB	'eadeaad',0
+
+.S	DB	'faaaac',0
+	DB	'` aaat',0
+	DB	'vaaa `',0
+	DB	'eaaaad',0
+
+.T	DB	'faaaaac',0
+	DB	'eac fad',0
+	DB	'  ` `	',0
+	DB	'  ead	',0
+
+.U	DB	'facfac',0
+	DB	'` `` `',0
+	DB	'` ed `',0
+	DB	'eaaaad',0
+
+.V	DB	'facfac',0
+	DB	'` `` `',0
+	DB	'ecedfd',0
+	DB	' eaad ',0
+
+.W	DB	'fasasac',0
+	DB	'` ` ` `',0
+	DB	'`     `',0
+	DB	'eaauaad',0
+
+.X	DB	'facfac',0
+	DB	'ecedfd',0
+	DB	'fdfcec',0
+	DB	'eadead',0
+
+.Y	DB	'fac fac',0
+	DB	'` ead `',0
+	DB	'eac fad',0
+	DB	'  ead	',0
+
+.Z	DB	'faaaac',0
+	DB	'eax x ',0
+	DB	' x xac',0
+	DB	'eaaaad',0
+
+.0	DB	'faaaac',0
+	DB	'` }| `',0
+	DB	'` }| `',0
+	DB	'eaaaad',0
+
+.1	DB	'fac',0
+	DB	'` `',0
+	DB	'` `',0
+	DB	'ead',0
+
+.2	DB	'faaaac',0
+	DB	'vaaa `',0
+	DB	'` aaat',0
+	DB	'eaaaad',0
+
+.3	DB	'faaaac',0
+	DB	'esaa `',0
+	DB	'fuaa `',0
+	DB	'eaaaad',0
+
+.4	DB	'facfac ',0
+	DB	'` ed ec',0
+	DB	'eaac fd',0
+	DB	'   ead ',0
+
+.5	DB	'faaac ',0
+	DB	'` aauc',0
+	DB	'vaaa `',0
+	DB	'eaaaad',0
+
+.6	DB	'faaaac',0
+	DB	'` aaat',0
+	DB	'` aa `',0
+	DB	'eaaaad',0
+
+.7	DB	'faaaac',0
+	DB	'eaac `',0
+	DB	'   ` `',0
+	DB	'   ead',0
+
+.8	DB	'faaaac',0
+	DB	'` aa `',0
+	DB	'` aa `',0
+	DB	'eaaaad',0
+
+.9	DB	'faaaac',0
+	DB	'` aa `',0
+	DB	'vaaa `',0
+	DB	'eaaaad',0
+
+.DOT	DB	'  ',0
+	DB	'  ',0
+	DB	'fc',0
+	DB	'ed',0
+
+.SLASH	DB	'   xx',0
+	DB	'  xx ',0
+	DB	' xx  ',0
+	DB	'xx   ',0
+
+.SPACE	DB	'     ',0
+	DB	'     ',0
+	DB	'     ',0
+	DB	'     ',0
+
+.EXCL	DB	'fac',0
+	DB	'` `',0
+	DB	'vat',0
+	DB	'ead',0
+
+.QUES	DB	'faaaaac',0
+	DB	'easaa `',0
+	DB	'  vasad',0
+	DB	'  ead	',0
+
+.PLUS	DB	'  fac	',0
+	DB	'fad eac',0
+	DB	'eac fad',0
+	DB	'  ead	',0
+
+.MINUS	DB	'      ',0
+	DB	'faaaac',0
+	DB	'eaaaad',0
+	DB	'      ',0
+
+.COLON	DB	'fc',0
+	DB	'ed',0
+	DB	'fc',0
+	DB	'ed',0
+
+.EQUAL	DB	'     ',0
+	DB	'opppn',0
+	DB	'opppn',0
+	DB	'     ',0
+
+.APOST	DB	'fc',0
+	DB	'et',0
+	DB	'  ',0
+	DB	'  ',0
+
+.COMMA	DB	'  ',0
+	DB	'  ',0
+	DB	'fc',0
+	DB	'et',0
+
+.QUOTE	DB	'xx',0
+	DB	'  ',0
+	DB	'  ',0
+	DB	'  ',0

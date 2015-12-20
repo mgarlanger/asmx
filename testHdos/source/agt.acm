@@ -1,0 +1,114 @@
+        SPACE   4,10
+**	AGT	-  Allocate GRT Table
+*
+*	AGT allocates enough space for each of the GRT's
+*	required by a device driver.
+*
+*	********
+*	* Note *
+*	********
+*
+*		This problem should be addressed more aggressively
+*		in that GRT's should not necessarily be on page
+*		boudaries, however, this would necessitate replacing
+*		much code and sacrificing the efficiency of the
+*		allocation algorithim.	For now, we will waste
+*		the extra memory, however, at some time this
+*		restriction should be removed.
+*					G. Chandler 80.04.29
+*
+*	ENTRY:	AIO.DTA initialized
+*		DE	= device driver length
+*		HL	= DEV.DVG for this device
+*
+*	EXIT:	HL	= device load address
+*		PSW	= 'C' clear if no errors
+*			   unit GRT pointers initialized
+*			= 'C' set   if not enough room
+*
+*	USES:	A,F,H,L
+*
+
+AGT	PUSH	D			; save driver length
+
+	CALL	$INDLB
+	DW	DEV.FLG-DEV.DVG
+	ANI	DT.DD
+	STA	AGTA			; save directory device flag
+	JZ	AGT1			; Not a directory device
+
+*	Compute total load length
+
+	CALL	$INDLB
+	DW	DEV.MNU-DEV.DVG
+	STA	AGTB			; save the maximum number of units
+	ADD	D			; add the tables to the end of the driver
+	MOV	D,A
+
+*	Compute load address
+
+AGT1	LHLD	S.SYSM
+
+	MOV	A,L
+	SUB	E
+	MOV	L,A
+	MOV	A,H
+	SBB	D
+	MOV	H,A			; HL = HL - DE
+
+	POP	D
+	RC				; error
+
+	LDA	AGTA
+	ANA	A
+	RZ				; Not a directory device
+
+*	Kludge the load address to force GRT's on page boundaries
+
+	MOV	A,E
+	ADD	L
+	CMA	A
+	PUSH	B
+	MVI	B,377Q			; sign extend offset !
+	MOV	C,A
+	DAD	B			; Adjust HL to force GRT's on page boundaries
+	POP	B
+	INX	H
+
+	LDA	AGTB			; A  = maximum number of units
+	ANA	A
+	RZ				; No units for some reason?
+
+*	Initialize the unit pointers
+
+	PUSH	D			; save load length
+	PUSH	H			; save load address
+	DAD	D
+	XCHG				; DE = address of first GRT to allocate
+
+	PUSH	D
+	LHLD	AIO.DTA
+	LXI	D,DEV.UNT
+	DAD	D			; HL = address of UNIT table pointer
+	POP	D
+
+AGT2	DCR	A
+	JM	AGT3			; all finished
+
+	PUSH	PSW
+	PUSH	H
+	CALL	S.GUP			; HL = unit table pointer
+	CALL	$INDS
+	DW	UNT.GRT 		; initialize the GRT pointer
+	POP	H
+	POP	PSW
+
+	INR	D			; advance to the next GRT pointer
+	JMP	AGT2
+
+AGT3	POP	H			; restore load address
+	POP	D			; restore load length
+	RET
+
+AGTA	DB	0			; Directory Device flag
+AGTB	DB	0			; Maximum Number of Units

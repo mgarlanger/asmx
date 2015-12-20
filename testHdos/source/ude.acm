@@ -1,0 +1,31 @@
+	SPACE	4,10
+**	UDE - UPDATE DIRECTORY ENTRY.
+*
+*	UDE UPDATES THE DIRECTORY ENTRY IN THE SECTOR BUFFER
+*	FROM AIO.XXX
+*
+*	ENTRY	SECSCR = DIRECTORY SECTOR
+*		(HL) = ADDRESS OF ENTRY IN SECSCR
+*	EXIT	NONE
+*	USES	ALL
+
+UDE	PUSH	H			; SAVE (HL)
+	LHLD	AIO.LGN 		; (L) = AIO.LGN
+	ERRNZ	AIO.LSI-AIO.LGN-1	; (H) = AIO.LSI
+	SHLD	AIO.DIR+DIR.LGN 	; SET DIR.LGN
+	ERRNZ	DIR.LSI-DIR.LGN-1	; SET DIR.LSI
+
+	call	dcf			; is file contiguous?		/3.0a/
+	lxi	h,AIO.DIR+DIR.FLG	; point to flag byte		/3.0a/
+	mvi	a,DIF.CNT		; 'C' flag			/3.0a/
+	jc	ude1			; not contiguous		/3.0a/
+	ora	m			; set flag			/3.0a/
+	db	MI.LXID 		; skip next two instructions	/3.0a/
+ude1	cma				; mask to clear 		/3.0a/
+	ana	m			; strip off 'C' 		/3.0a/
+	mov	m,a			;  and replace. 		/3.0a/
+
+	POP	H			; (hl)=entry in SECSCR
+	LXI	B,DIRELEN
+	LXI	D,AIO.DIR
+	JMP	$MOVE			; UDPATE IN DIR

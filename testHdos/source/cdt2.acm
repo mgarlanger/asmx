@@ -1,0 +1,167 @@
+***	CDT - CLEAR DEVICE TABLE.
+*
+*	CDT CLEARS THE DEVICE TABLE.
+*
+*	NON-RESIDENT DEVICE DRIVERS ARE DISCARDED.
+*	REQUESTED RESIDENT DEVICE DRIVERS ARE UNLOADED IF POSSIBLE.
+*
+*	Entry:	NONE
+*	Exit:	NONE
+*	Uses:	ALL
+
+CDT	LHLD	S.DFWA			; (HL) = DEVICE TABLE FWA
+CDT1	MOV	A,M
+	ANA	A
+	JZ	CDT3			; END OF TABLE, TRY TO UNLOAD
+	PUSH	H			; SAVE ADDRESS
+
+*	Have Entry
+
+	INX	H
+	INX	H
+	MOV	A,M			; (A) = DEV.RES
+	ANI	DR.IM+DR.PR
+	JZ	CDT2			; No, go for next.
+	ANI	DR.PR			; Locked?
+	JNZ	CDT2			; Yes.
+	CALL	$INDL			; Get driver address
+	DW	DEV.DDA-2
+	DCX	D			; Back up over			/3.0a/
+	DCX	D			;   S.SYSM pointer		/3.0a/
+	PUSH	H			; Save address of Res. flag
+	LHLD	S.SYSM
+	CALL	CPDEHL
+	POP	H
+	JC	CDT2			; Driver > SYSM
+	JZ	CDT2			; Driver = SYSM
+
+*	Driver is below S.SYSM so squash it.
+
+	MOV	A,M			; (A) = Residence Code
+	ANI	377Q-DR.IM		; Remove 'In memory' flag
+	MOV	M,A
+	LXI	D,S.SDD 		; Stand-in Driver
+	CALL	$INDS			; Set it
+	DW	DEV.DDA-2
+
+*	Advance to next entry
+
+CDT2	POP	H			; (HL) = ENTRY FWA
+	LXI	D,DEVELEN
+	DAD	D
+	JMP	CDT1			; DO IT AGAIN.
+
+*	Unload any requested devices if they meet all requirements
+
+CDT3	LHLD	S.SYSM
+	XCHG
+	LHLD	S.RFWA
+	CALL	$CDEHL
+	RNE				; Pointers MUST match
+CDT4	LHLD	S.DFWA			; (HL) = Device Table
+CDT5	MOV	A,M
+	ANA	A
+	RZ				; End of table
+	CPI	DV.NU
+	JE	CDTX			; Entry not used
+	MOV	B,H
+	MOV	C,L
+	INX	B
+	INX	B			; (BC) = DEV.RES
+	ERRNZ	DEV.RES-DEV.NAM-2
+	LDAX	B			; (A) = Residence code
+	ANI	DR.FX
+	JNZ	CDTX			; Device is fixed
+	LDAX	B			; (A) = Residence code
+	ANI	DR.UNL
+	JZ	CDTX			; Not unloading this one anyhow
+	CALL	$INDLB
+	DW	DEV.FLG 		; (A) = Flag byte
+	ANI	DT.DD
+	JZ	CDT6			; Go ahead, not DIR device
+	CALL	$INDLB
+	DW	DEV.MUM 		; (A) = Mounted unit mask
+	ANA	A
+	JNZ	CDTX			; Something is mounted
+CDT6	PUSH	H
+	CALL	$INDL
+	DW	DEV.DDA 		; (DE) = Driver address
+	XCHG
+	SHLD	OURDVD			; Save for possible driver call
+	XCHG
+	LHLD	S.RFWA
+	INX	H			; Skip over pointer
+	INX	H			; (HL) = Lowest resident addr
+	CALL	$CDEHL
+	POP	H
+	JNZ	CDTX			; NOT lowest resident thing
+
+*	All tests have passed, so let's kick it out
+
+	CALL	$INDLB			; Get device flag
+	DW	DEV.FLG
+	ANI	DT.UL			; Does it require notification ?
+	JZ	CDT7			; No, just pitch it
+
+	MVI	A,DC.UNL		; Yes, tell it what to expect
+	PUSH	H			; Save the
+	PUSH	B			;  good stuff
+	CALL	CC.OFF			; Prohibit control char.
+	CALL	*-*			; Hey driver, guess what !?!
+OURDVD	EQU	*-2
+	PUSH	PSW
+	CALL	CC.ON			; Allow control char.
+	POP	PSW
+	POP	B			; Restore the
+	POP	H			;  good stuff
+	JNC	CDT7			; All is well !
+
+	PUSH	PSW
+	LDAX	B
+	ANI	377Q-DR.UNL
+	STAX	B			; Clear unload pending
+	CALL	$HLIHL
+	SHLD	CDTDV
+	CALL	$TYPTX
+	DB	NL
+CDTDV	DB	'XX: - Unload Failed,',' '+200Q
+	JMP	ERROR1
+
+CDT7	LXI	D,S.SDD 		; (DE) = Stand-in driver addr
+	CALL	$INDS
+	DW	DEV.DDA 		; Poke it into table entry
+	LDAX	B			; (A) = Residence code
+	ANI	377Q-DR.UNL-DR.FX-DR.PR-DR.IM
+	STAX	B			; Clear all known bits
+
+	CALL	$HLIHL			; Get device name
+	SHLD	CDTDN			; Save it
+	CALL	$TYPTX
+	DB	NL
+CDTDN	DB	'XX: - Unloaded',ENL
+
+	LHLD	S.RFWA
+	CALL	$HLIHL			; (HL) = Previous S.RFWA
+	SHLD	S.RFWA			; Set new pointers
+	SHLD	S.SYSM			;   to previous value
+	JMP	CDT4			; Try for another one
+
+CDTX	LXI	B,DEVELEN
+	DAD	B
+	JMP	CDT5			; Try next entry
+	SPACE	4,10
+***	PROHIBIT PROCESSING OF CTL-A, CTL-B, OR CTL-C
+
+CC.OFF	PUSH	H
+	LHLD	S.DLINK
+	INR	M
+	POP	H
+	RET
+
+***	ALLOW PROCESSING OF CTL-A, CTL-B, OR CTL-C
+
+CC.ON	PUSH	H
+	LHLD	S.DLINK
+	DCR	M
+	POP	H
+	RET

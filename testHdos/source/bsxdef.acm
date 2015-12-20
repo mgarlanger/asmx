@@ -1,0 +1,13 @@
+	SPACE	4,10
+**	BASEX HEADER EQUIVALENCES
+
+	ORG	0
+
+BSX.ID	DS	1			; 377Q = Binary File Flag
+	DS	1			; File Type (FT.BSX)
+BSX.PSA DS	2			; Program Start Address
+BSX.PEA DS	2			; Program End Address
+BSX.SSA DS	2			; Symbol_Table Start Address
+BSX.SEA DS	2			; Symbol_Table End Address
+
+BSX.COD DS	0			; Code Starts Here

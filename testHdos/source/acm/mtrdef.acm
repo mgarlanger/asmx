@@ -1,0 +1,12 @@
+	SPACE	4,10
+**	HDOS MONITOR PRIVATE RAM AREA DEFINITIONS.
+
+	ORG	0
+
+M.SYSM	DS	1			; SYSCALL ITTERATION COUNT
+	DS	1			; STAND-ALONE FLAG (obsolete)	/3.0a/
+
+M.CSL	DS	2			; Address of console data area	/3.0a/
+
+M.SUNI	DS	1			; System Unit Number
+M.SYDD	DS	2			; Address of Raw System Driver

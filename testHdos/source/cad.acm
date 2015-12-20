@@ -1,0 +1,172 @@
+	SPACE	4,10
+**	$CAD - CODE AUGUSTAN DATE.
+*
+*	$CAD IS CALLED TO CODE AN AUGUSTAN DATE INTO THE FORM:
+*
+*
+*	----------------------------------------
+*	I  0  I  6 BITS  I  4 BITS  I  5 BITS  I
+*	----------------------------------------
+*		YEAR-70       MON       DAY
+*		 1-63        1-12       1-31
+*
+*	FROM THE FORM:
+*
+*	DD-MMM-YY
+*
+*	Optional partial forms: 				/3.0a/
+*
+*	DD-MMM		If same year				/3.0a/
+*	DD		If same month and year			/3.0a/
+*
+*	Rest of date is filled in from the S.DATE system area	/3.0a/
+*
+*	ENTRY	(HL) = ADDRESS OF STRING
+*	EXIT	'C' CLEAR IF OK
+*		 (DE) = 15 BIT VALUE
+*		 (HL) ADVANCED PAST '-YY' or Short Form Date if Used
+*		'C' SET IF ERROR
+*	USES	ALL
+
+$CAD	PUSH	H
+	MVI	C,$CADBL
+	LXI	D,$CADB
+	CALL	$COMP
+	JNZ	$CAD0		Is not 'No-Date'
+	POP	D
+	LXI	D,0		0  =>  No Date
+	ANA	A		Clear 'C'
+	RET
+
+$CAD0	POP	H
+	CALL	$DDD		DECODE DECIMAL DIGITS
+	RC			ERROR
+	MOV	A,D
+	ANA	A
+	STC			ASSUME TOO LARGE
+	RNZ			TOO LARGE
+	MOV	A,E
+	ANA	A
+	STC
+	RZ			TOO SMALL FOR DD
+	CPI	32
+	CMC	
+	RC			TOO LARGE
+	XCHG			(HL) = DAY
+	MVI	A,100000B
+	ADD	L
+	MOV	L,A		COUNT 1ST MONTH
+	XCHG			(DE) = DD*16+1, (HL) = ADDRESS
+
+*	DECODE MONTH
+
+	PUSH	D		SAVE DD*16+1
+	MVI	A,311Q		RET Code			/3.0a/
+	STA	CADR		Assume whole DATE given 	/3.0a/
+	MOV	A,M
+	CPI	'-'
+	JE	CAD.M		OK so far			/3.0a/
+	CALL	$CADD		Is it end of entry ?		/3.0a/
+	JNZ	$CAD2		FORMAT ERROR
+
+	SHLD	CADHL		Given ONLY day, save (HL)	/3.0a/
+	XRA	A		and poke NULL at end so 	|
+	STA	CADR		(HL) gets restored		|
+	LXI	H,S.DATE+3	Point at MMM-YY in system	|
+	LXI	D,DBUF		and copy it to buffer		|
+	MVI	C,6						|
+CADL	MOV	A,M						|
+	CALL	$MCU		Map to upper case		|
+	STAX	D						|
+	INX	H						|
+	INX	D						|
+	DCR	C						|
+	JNZ	CADL						|
+	XRA	A		Mark end of string		|
+	STAX	D		with a NULL byte		|
+	LXI	H,DBUF-1	Point to buffer 		|
+
+CAD.M	INX	H		Bump pointer			/3.0a/
+	LXI	D,$CADA 	(DE) = MONTH TABLE ADDRESS
+$CAD1	LXI	B,3
+	PUSH	H		SAVE TEXT ADDRESS, $CADA ADDRESS
+	PUSH	D
+	CALL	$COMP		COMPARE
+	POP	D		(DE) = *$CADA* ADDRESS
+	JE	$CAD3		GOT MONTH
+	POP	H		(HL) = BUFFER ADDRESS OF MMM-YY
+	INX	D
+	INX	D
+	INX	D		TRY NEXT MONTH
+	XTHL
+	MVI	A,100000B
+	CALL	$DADA.		COUNT MONTH
+	XTHL
+	LDAX	D		(A) = ENTRY IN $CADA
+	ANA	A
+	JNZ	$CAD1		MORE MONTHS TO GO
+
+*	ERROR
+
+$CAD2	POP	H		CLEAR STACK
+	STC
+	RET			FLAG ERROR
+
+*	CRACK -YY
+
+$CAD3	POP	B		DISCARD ADDRESS IF MMM-YY
+	MOV	A,M
+	CPI	'-'
+	JE	CAD.Y		OK So Far			/3.0a/
+	CALL	$CADD		Is it end of entry ?		/3.0a/
+	JNZ	$CAD2		FORMAT ERROR
+
+	SHLD	CADHL		Given all but year, save (HL)	/3.0a/
+	XRA	A		and poke NULL at end so (HL)	|
+	STA	CADR		gets restored			|
+	STA	DBUF+2		Mark end of number with NULL	|
+	LHLD	S.DATE+7	Get ascii year from system	|
+	SHLD	DBUF		and put it in buffer		|
+	LXI	H,DBUF-1	Point to buffer 		|
+
+CAD.Y	INX	H		Bump pointer			/3.0a/
+	CALL	$DDD		DECODE DECIMAL DIGITS
+	JC	$CAD2		IF ERROR
+	MOV	A,D
+	ANA	A
+	JNZ	$CAD2		ERROR
+	MOV	A,E		(A) = YEAR
+	SUI	70		SUBTRACT DISPLACEMENT
+	JC	$CAD2		ERROR
+	CPI	63
+	JNC	$CAD2		TOO LARGE
+	POP	D		(DE) = MONTH AND DAY
+	ADD	A		(A) = YEAR*2
+	ADD	D
+	MOV	D,A		MERGE WITH REST OF IT
+
+CADR	RET			or NOP if we must restore (HL)	/3.0a/
+	LXI	H,*-*						|
+CADHL	EQU	*-2						/3.0a/
+	RET
+
+$CADD	ANA	A		CHECK FOR A VALID DELIMITER	/3.0a/
+	RZ			NULL				|
+	CPI	'/'						|
+	RE			SLASH				|
+	CPI	' '						|
+	RE			SPACE				|
+	CPI	TAB						|
+	RE			TAB				|
+	CPI	','						|
+	RET			COMMA				/3.0a/
+
+$CADA	DS	0		TABLE OF MONTHS
+	DB	'JAN','FEB','MAR','APR','MAY','JUN'
+	DB	'JUL','AUG','SEP','OCT','NOV','DEC'
+	DB	0
+
+$CADB	DB	'NO-DATE'
+$CADBL	EQU	*-$CADB
+
+DBUF	DB	'MMM-YY',0	   Date Buffer for Partials	/3.0a/

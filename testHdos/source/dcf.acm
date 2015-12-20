@@ -1,0 +1,20 @@
+	SPACE	4,10
+***	determine contiguous file					/3.0a/
+*
+*	Entry:	AIO area set up
+*	Exit:	'C' clear if contiguous
+*	Uses:	a,f,h,l
+
+dcf	lhld	AIO.GRT 		; GRT address for this file
+	lda	AIO.DIR+DIR.FGN 	; first group number
+	mov	l,a			; set 1st link
+
+dcf1	mov	a,m			; get forward link
+	ana	a			; is last?
+	rz				; yes, file is contiguous.
+	dcr	a			; compare to previous
+	cmp	l			; is right?
+	stc				; assume not
+	rnz				; no, not contiguous.
+	inr	l			; next group
+	jmp	dcf1

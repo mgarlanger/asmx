@@ -1,0 +1,15 @@
+EDVEC	SPACE	4,10
+**	JMP Vectors to TT.DVD
+*
+*	It is the responsibility of TT.DVD to initialize this
+*	vector table when it is loaded.
+
+	ORG	S.CVEC
+
+..SCIN	DS	3			; JMP to .SCIN
+..SCOUT DS	3			; JMP to .SCOUT
+..PRINT DS	3			; JMP to .PRINT
+..CONSL DS	3			; JMP to .CONSL
+..CLRCO DS	3			; JMP to .CLRCO
+
+S.CVECL EQU	*-S.CVEC

@@ -1,0 +1,54 @@
+	SPACE	4,10
+***	RVL - READ VOLUME LABEL
+*
+*	RVL reads the volume label sector from a designated mounted
+*	disk into a user specified area.
+*
+*	Entry:	(HL) = Device Name
+*		(DE) = Buffer Address
+*		 (A) = Device Unit #
+*	Exit:	'C' Set if Error
+*		 (A) = Error Code
+*	Uses:	ALL
+
+RVL	STA	LABUNI			; Set Device Unit
+	SHLD	LABDEV			; Set our Device Name
+	XCHG
+	SHLD	BUFFAD			; Set Buffer Address
+
+*	See if the specified device exists.  Get it's address.
+
+	LXI	D,'xx'			; Driver name
+LABDEV	EQU	*-2
+	SCALL	.GDA			; Get driver address
+	RC
+	SHLD	DEVADR			; Save driver address
+
+*	Check to see that the device is indeed mounted.
+
+	LXI	H,DEV.MUM		; Index up to Mounted Units Mask
+	DAD	B
+	MOV	C,M			; Get mask
+	LDA	LABUNI			; Get unit he wants
+	MOV	B,A			; Set it
+	XRA	A			; Make a zero
+	CALL	BITS			; Set the proper bit
+	ANA	C
+	MVI	A,EC.UUN		; Unit not mounted
+	STC
+	RZ				; Return w/ error
+
+*	Now that we know we have valid stuff, do it.
+
+	LXI	H,DDF.LAB		; The label sector
+	LXI	D,*-*			; Buffer address
+BUFFAD	EQU	*-2
+	LXI	B,1*256 		; Only 1 sector
+	MVI	A,0			; Unit number
+LABUNI	EQU	*-1
+	STA	AIO.UNI
+	MVI	A,DC.RER		; Read Regardless
+	CALL	*-*			; Call the driver
+DEVADR	EQU	*-2
+
+	RET				; Go back with whatever we got

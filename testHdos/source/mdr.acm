@@ -1,0 +1,333 @@
+***	MOUNT - MOUNT DISK.
+*
+*	M[OUNT] DEV:
+
+MOUNT	EQU	*
+
+	MVI	A,.MOUNT		; MOUNT SYSCALL INDEX
+	JMP	MDRX
+	SPACE	4,10
+***	DISMOUNT - DISMOUNT DISK.
+*
+*	D[ISMOUNT] DEV:
+
+DMOUNT	EQU	*
+
+	MVI	A,.DMOUN		; DISMOUNT SYSCALL INDEX
+	JMP	MDRX
+	SPACE	4,10
+***	RESET - RESET DISK.
+*
+*	R[ESET] DEV:
+
+RESET	EQU	*
+
+	MVI	A,.RESET		; RESET SYSCALL INDEX
+*	JMP	MDRX
+
+	ERRNZ	*-MDRX
+
+MDRX	STA	MDRSC			; STUFF SYSCALL INDEX
+	POP	H			; (HL) = LINE ADDRESS
+	CALL	M$SOB			; (A) = NEXT CHARACTER (upper case)
+	ANA	A
+	JNZ	MDR0			; HAVE AN ARGUMENT
+	JMP	ILLSYN			; MUST GIVE DEVICE
+	EJECT
+***	Mn - Mount Device unit 'n'
+*
+*	Mn
+
+MN	EQU	*
+
+	MVI	A,.MOUNT		; MOUNT SYSCALL INDEX
+	JMP	MDRN
+	SPACE	4,10
+***	Dn - Dismount Device unit 'n'
+*
+*	Dn
+
+DN	EQU	*
+
+	MVI	A,.DMOUN		; DISMOUNT SYSCALL INDEX
+	JMP	MDRN
+	SPACE	4,10
+***	Rn - Reset Device unit 'n'
+*
+*	Rn
+
+RN	EQU	*
+
+	MVI	A,.RESET		; RESET SYSCALL INDEX
+*	JMP	MDRN
+
+	ERRNZ	*-MDRN
+
+MDRN	STA	MDRSC
+	CALL	GUN
+	STA	MUNIT
+	CALL	GETDEV
+	SHLD	MDEVIC
+
+	LXI	H,MDEVIC
+MDR0	PUSH	H
+	CALL	SY0CHK			; CHECK FOR 'SY0:'
+	POP	H
+	SCALL	0
+MDRSC	EQU	*-1
+	JC	ERROR			; Huh?
+	RST	SYSCMD
+	EJECT
+***	MM - MULTIPLE MOUNT DISKS
+*
+*	MM [xx[:]]
+
+XQMNT	EQU	*
+
+	MVI	A,.MONMS
+	DB	MI.LXIH
+
+XMNT	EQU	*
+
+	MVI	A,.MOUNT
+	STA	XMM3A
+
+	POP	H			; (HL) = LINE ADDRESS
+	CALL	M$SOB			; (A) = NEXT CHARACTER (upper case)
+	ANA	A
+	JNZ	XMM1			; HAVE A DEVICE SPEC.
+	CALL	GETDEV
+	JMP	XMM2
+
+XMM1	CALL	$HLIHL
+XMM2	SHLD	MDEVIC
+	MVI	A,'0'			; Set unit to 0 in preparation
+	STA	MUNIT			;  for the attempted load
+	LXI	H,MDEVIC
+	SCALL	.LOADD
+	JC	ERROR
+	LHLD	MDEVIC
+	XCHG
+	SCALL	.GDA			; Error shouldn't happen
+	JC	ERROR			;  since we passed .LOADD above
+	LXI	H,DEV.MNU
+	DAD	B
+	MOV	A,M
+	STA	XMM5			; SAVE MAX. NUMBER OF UNITS
+	LXI	H,DEV.DDA
+	DAD	B
+	CALL	$HLIHL
+	SHLD	OURDEV			; SAVE ADDRESS
+	XRA	A			; START WITH UNIT 0
+
+XMM3	PUSH	PSW
+	STA	AIO.UNI
+	MVI	A,DC.RDY
+	CALL	CC.OFF			; Prohibit Control Char.
+	CALL	*-*
+OURDEV	EQU	*-2
+	PUSH	PSW
+	CALL	CC.ON			; Allow Control Char.
+	POP	PSW
+	JC	XMM4
+	POP	PSW			; GET UNIT #
+	PUSH	PSW
+	ADI	'0'			; MAKE IT ASCII
+	STA	MUNIT
+	LXI	H,MDEVIC
+	SCALL	.MOUNT			; MOUNT
+XMM3A	EQU	*-1
+	JNC	XMM4			; SUCCESS, TRY THE NEXT ONE
+	CPI	EC.VPM			; ALREADY MOUNTED
+	CNE	XMDERR			; SOMRTHING ELSE IS WRONG
+
+XMM4	POP	PSW			; TRY NEXT UNIT
+	INR	A
+	CPI	0
+XMM5	EQU	*-1
+	JC	XMM3
+	RST	SYSCMD
+	EJECT
+***	MD - MULTIPLE DISMOUNT DISKS
+*
+*	MD [xx[:]]
+
+XDMNT	EQU	*
+
+	POP	H			; (HL) = LINE ADDRESS
+	CALL	M$SOB			; (A) = NEXT CHARACTER (upper case)
+	ANA	A
+	JNZ	XMD1			; HAVE A DEVICE SPEC.
+	CALL	GETDEV
+	JMP	XMD2
+
+XMD1	CALL	$HLIHL
+XMD2	SHLD	MDEVIC
+	XCHG
+	SCALL	.GDA
+	JC	ERROR			; Unknown device
+	LXI	H,DEV.RES
+	DAD	B
+	MOV	A,M			; Get residence byte
+	ANI	DR.IM
+	MVI	A,EC.DNL		; Assume error
+	JZ	ERROR			; Device not loaded
+	LXI	H,DEV.MNU
+	DAD	B
+	MOV	A,M
+	STA	XMD5			; SAVE MAX. NUMBER OF UNITS
+	XRA	A			; START WITH UNIT 0
+
+XMD3	PUSH	PSW
+	ADI	'0'			; MAKE IT ASCII
+	STA	MUNIT
+
+*	Test for SY0: so we don't truncate the device table accidentally.
+*	User is forced to dismount SY0: seperately the first time,
+*	if he really wants to remove the system disk.
+
+	CPI	'0'
+	JNE	XMD3.			; Can't be SY0:
+	LDA	S.MOUNT
+	ANA	A
+	JZ	XMD3.			; SY0: has been dismounted before
+	LHLD	MDEVIC
+	LXI	D,'YS'			; If this is SY0: and it has not
+	CALL	$CDEHL			;  been dismounted before, we MUST
+	JE	XMD4			;   NOT do it now.
+
+XMD3.	LXI	H,MDEVIC
+	SCALL	.DMOUN			; DISMOUNT
+	JNC	XMD4			; SUCCESS, TRY THE NEXT ONE
+	CPI	EC.NVM			; EMPTY DRIVE
+	CNE	XMDERR			; SOMETHING ELSE IS WRONG
+
+XMD4	POP	PSW			; TRY NEXT UNIT
+	INR	A
+	CPI	0
+XMD5	EQU	*-1
+	JC	XMD3
+	RST	SYSCMD
+	SPACE	4,10
+XMDERR	PUSH	PSW			; SOMETHING IS WRONG
+	LXI	H,MDEVIC
+	SCALL	.PRINT			; SHOW 'DEV: - '
+	POP	PSW
+	MVI	H,NL
+	SCALL	.ERROR
+	RET
+	EJECT
+***	GETDEV - Get device name according to ALTFLG
+*
+*	Entry:	NONE
+*	Exit:	(HL) = Device name
+*		 'Z' Set is primary device
+*		 'Z' Clear is alternate device
+*	Uses:	A,F,H,L
+
+GETDEV	LHLD	PRIDEV			; Assume we want primary
+	LDA	ALTFLG			; Get alternate flag
+	ANA	A
+	RZ
+	LHLD	ALTDEV			; Get other device name
+	RET
+	SPACE	4,10
+***	GUN - Get unit number from command line.
+*
+*	Entry:	((SP)) = Start of parameters on line
+*	Exit:	(A) = Unit number '0'-'7'
+*	Uses:	A,F,H,L,D,E
+
+GUN	POP	D			; Get (RET) address
+	POP	H			; Get line address
+	PUSH	H			;
+	PUSH	D			; Put stack back like it was
+GUN1	DCX	H			; Point to prev. character
+	MOV	A,M
+	CPI	' '
+	JE	GUN1			; Ignore spaces
+	CPI	TAB
+	JE	GUN1			;  and TABs
+	CPI	'0'			; Is < '0'?
+	JC	GUN2			; Yes, assume '0'
+	CPI	'7'+1			; Is > '7'?
+	RC				; Character is Ok.
+
+*	Don't know what it was, so assume default unit
+
+GUN2	LDA	S.DFBLK+2
+	RET
+
+MDEVIC	DB	'xx'
+MUNIT	DB	'n:',0
+MDEVL	EQU	*-MDEVIC-1		; DON'T COUNT THE NULL BYTE
+	DB	' -',' '+200Q
+	EJECT
+***	SY0CHK - CHECK DEVICE SPEC. FOR 'SY0:'
+*
+*	IF DEVICE SPEC. IS 'SY0:' AND YOU ARE DISMOUNTING OR RESETING
+*	THEN BE SURE PIP IS IN MEMORY.
+*
+*	ENTRY	HL => POINTS AT DEVICE SPEC.
+
+SY0CHK	EQU	*
+
+	LDA	PIPMEM			; IS PIP ALREADY HERE
+	ANA	A
+	RNZ				; YES, SO FORGET I ASKED
+
+	LDA	MDRSC
+	CPI	.MOUNT			; ARE WE MOUNTING A DISK
+	RZ				; YES, SO ALL IS WELL
+
+	MOV	A,M
+	CPI	'S'			; IS IT 'S'
+	RNZ				; NO, CAN'T BE 'SY0:'
+	INX	H
+	MOV	A,M
+	CPI	'Y'			; IS IT 'Y'
+	RNZ				; NO, CAN'T BE 'SY0:'
+	INX	H
+	MOV	A,M
+	CPI	':'
+	JE	SY0CK			; IMPLIED '0'
+	CPI	'0'			; IS IT '0'
+	RNZ				; NO, IT'S NOT 'SY0:'
+
+*	IT IS 'SY0:' SO PROCESS AS PIP COMMAND TO GET PIP IN MEMORY
+
+SY0CK	CALL	CHKPIP			; CHECK FOR CO-RES PIP FIRST
+	RNE				; NO, GO AHEAD AND DO IT
+	MVI	A,1
+	STA	PIPCHK			; Flag as OK
+
+	POP	H			; DISCARD RETURN ADDRESS
+	POP	B			; BC => DEVICE SPEC.
+
+	LXI	H,LABEL 		; COPY DEVICE NAME TO BUFFER
+SY0CK0	LDAX	B
+	ANA	A
+	JZ	SY0CK1
+	MOV	M,A
+	INX	H
+	INX	B
+	JMP	SY0CK0
+
+SY0CK1	LDA	MDRSC
+	CPI	.DMOUN
+	LXI	B,RESAL
+	ERRNZ	RESAL-DISAL
+	LXI	D,RESA
+	JNE	SY0CK2
+
+	LXI	D,DISA
+SY0CK2	CALL	$MOVE			; APPEND SWITCH TO BUFFER
+
+	LXI	B,LABEL
+	JMP	PIP			; PROCESS AS PIP COMMAND
+
+RESA	DB	'/RES',0
+RESAL	EQU	*-RESA
+
+DISA	DB	'/DIS',0
+DISAL	EQU	*-DISA

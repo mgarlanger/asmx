@@ -1,0 +1,1250 @@
+	TITLE	'SYSCMD/plus - SYSTEM COMMAND PROCESSOR'
+	STL	'INTRODUCTION'
+
+	LON	LCI
+
+***	SYSCMD/plus - System Command Processor.
+*
+*	J.G. Letwin,	77/12
+*
+*	FOR HEATH COMPANY
+*
+*	G.A. Chandler,	78/09	Maintenance Release
+*			79/05	HDOS Version:	1.5
+*
+*	\wgp\	80/11	CUSTOM VERSION 1.6
+*	\wgp\	81/06	Enhanced and Adapted for HDOS 2.0
+*	\dtc\		Original programs for TIME and DEV.
+*	\wgp\	81/10	Inclusion of PRn command.
+*	\wgp\	82/01	2, 4, or 6MHz status display
+*	\wgp\	82/01	Added additional processing for H19 terminal
+*	\wgp\	82/04	Updated time routines for FPM/80, v1.5, & Super-89.
+*	\wgp\	82/10	Updated PRINT command to copy as seperate files.
+*	\wgp\	82/10	Added CLR command.
+*
+*	W.G. Parrott,	85-86	Major Revision for HDOS 3.0
+*	R.L. Musgrave,	85-86	Major Revision for HDOS 3.0
+*
+*		86/08	Released into Public Domain
+*			 by Heath Company,
+*			 August 16, 1986.
+
+CUSTOM	EQU	0			; Distribution Revision Number
+
+TRUE	EQU	0
+FALSE	EQU	1
+
+Z80	EQU	FALSE			; Assemble for Z80 CPU
+USER	EQU	FALSE			; USER Areas NOT implemented
+$BATCH	EQU	TRUE			; Allow BATCH processing in $RTL
+$MULTI	EQU	TRUE			; Allow multiple commands in $RTL
+H17TBLS EQU	TRUE			; Don't replace ROM code
+
+MI.LXIH EQU	041Q
+
+	STL	'SYSTEM DEFINITIONS & EQUIVALANCES'
+	EJECT
+	XTEXT	HOSBASE
+	XTEXT	ASCII
+	XTEXT	MTR
+	XTEXT	MTRRAM
+	XTEXT	HOSDEF
+	XTEXT	ECDEF
+	XTEXT	DDFDEF
+	XTEXT	DIRDEF
+	XTEXT	DIFDEF
+	XTEXT	DISDEF
+	XTEXT	LABDEF
+	XTEXT	HOSEQU
+	XTEXT	EDCON
+	XTEXT	EDRAM
+	XTEXT	ESVAL
+	XTEXT	ESINT
+	XTEXT	MTRDEF
+	XTEXT	DEVDEF
+	XTEXT	IOCDEF
+	XTEXT	FBDEF
+	XTEXT	DDDEF
+	XTEXT	FILDEF
+	XTEXT	ABSDEF
+	XTEXT	PICDEF
+	XTEXT	BSXDEF
+	XTEXT	TASKDEF
+	STL	'SYSXIT - SYSTEM EXIT PROCESSOR'
+	EJECT
+	CODE	ABS			; Assemble Absolute
+
+	ORG	USERFWA
+
+	NOTE	USERFWA 	; Start
+	NOTE	MEML		; Base End
+	NOTE	PIP.WS		; PIP
+	NOTE	IMEML		; Init End
+	NOTE	IMEML-USERFWA	; Length
+	NOTE	BUFFWA		; Buffer
+	NOTE	RMEML		; Top
+	ERRPL	MEML-PIP.WS
+
+	ERRNZ	*-USERFWA		; Warm start MUST be at start of file.
+
+SYSCMD	EQU	B.INT0			; SYSCMD Vector at RESTART 0
+
+WARM	JMP	SYSXIT			; Warm start from pip
+
+DEFA	DB	'SY0ABS'		; Default Default
+DEFAL	EQU	*-DEFA
+SYSCB	DB	'SY0ABS'		; Default for Implicit RUN (LINK)
+RUNA	DB	'SY0ABS'		; Default for RUN
+BATBLK	DB	'SY0BAT'		; Default for Batch Files
+TSKBLK	DB	'SY0TAS'		; Default for Tasks
+
+YES	EQU	1
+NO	EQU	0
+
+VFYFLG	DB	NO			; YES=Set VERIFY ON @ Boot
+ECOFLG	DB	YES			; YES=Default ECHO OFF in BATCH
+ZROFLG	DB	NO			; YES=Zero H17 I/O Statistics
+XYZZYF	DB	NO			; YES=Default XYZZY ON
+	DB	0,0,0			; Three User Definable Bytes
+ULTRA	DB	NO			; YES=Ultra ROM is Present
+
+DPDEV	DB	'SY'			; Default primary device name
+DADEV	DB	'DK'			; Default alternate device name
+
+PRIDEV	DB	'PD',':',0		; Primary Device Name
+ALTDEV	DB	'AD',':',0		; Alternate Device Name
+
+LSTDEV	DB	'LP',':',0		; List Device Name
+
+ALTFLG	DB	0			; Alternate device flag
+
+NULFLG	DB	0			; =1 when NUL found in BATCH file
+
+H19FLG	DB	0			; <>0 if H19/VT52 Terminal
+
+DPROM	DB	NL,'S:',' '+200Q	; DEFAULT SYSTEM PROMPT
+	DW	0,0,0,0,0,0		;  16 characters max.
+DPROML	EQU	*-DPROM
+	DB	0			; MUST have trailing null
+	EJECT
+***	SYSXIT - SYSTEM EXIT PROCESSOR.
+
+SYSXIT	EQU	*
+
+	STA	SYSXITA 		; Save value.  If > 0, then abort exit.
+	SCALL	.VERS
+	JC	SYSX1			; Had error getting version
+	CPI	VERS
+	JNE	SYSX1			; WRONG VERSION!
+
+	IF	Z80
+	MVI	A,01111111B		; A special value
+	INR	A
+	JPE	SYSXIT. 		; Z80 CPU.  Ok.
+
+	CALL	$TYPTX
+	DB	NL,'? CPU is not Z80!',BELL,NL,ENL
+	JMP	$FATAL
+	ENDIF
+
+SYSXIT. EQU	*
+
+	LXI	H,SYSCMD.		; Set Up RESTART 0 Vector
+	SHLD	B.INT0+1		; Force SYSCMD. after JMP
+
+	LDA	S.FMASK
+	ANI	F.TERM
+	CPI	F.H19
+	JNE	SYSXITH
+	STA	H19FLG
+
+SYSXITH LDA	S.FLAG
+	ANI	S.EXITC 		; Show exit code ?
+	JZ	SYSXIT0 		; No
+
+	LDA	S.FLAG
+	ANI	S.SYSCM 		; Is SYSCMD in memory ?
+	JZ	SYSXEC			; No, show it
+
+	LDA	SYSXITA
+	ANA	A			; Is it zero ?
+	JZ	SYSXIT0 		; Yes, don't show it
+
+SYSXEC	LDA	SYSXITA
+	MOV	C,A
+	MVI	B,0
+	MVI	A,3
+	LXI	H,SYSXITC
+	CALL	$UDDN
+	CALL	$TYPTX
+	DB	NL,'Exit Code = '
+SYSXITC DB	'nnn',ENL
+
+SYSXIT0 LXI	H,RMEML 		; Top of memory w/ largest TASK
+	SCALL	.SETTOP
+	MVI	A,EC.NEM		; Assume we had an error
+	JC	SYSX2			; If error  (SHOULDN'T HAPPEN)
+	LXI	SP,STACK
+	LHLD	LSTDEV			; List Device
+	XCHG
+	SCALL	.GDA			; Get it's address
+	SHLD	LSTADR			; Set it
+
+	LDA	SYSXITA
+	ANA	A			; Do we have an Abort Exit ?
+	CNZ	PRSCL			; Yes, Preset the Console
+	CALL	CCT			; Clear channel table
+	CALL	SYSXIT1 		; Clear everything out
+	CALL	SETDEV			; Set up default devices
+
+	LDA	S.FLAG
+	ANI	S.INIT			; See if we have been here before
+	JZ	SYSINIT 		; No, initialize SYSCMD
+
+	LDA	S.FLAG
+	ANI	S.BREAK+S.BATCH 	; Have we been stopped ?
+	CPI	S.BREAK+S.BATCH
+	JE	CCBAT1			; Yes, ask if Batch should stop
+
+	LDA	SYSXITA
+	ANA	A			; Do we have an Abort Exit ?
+	JNZ	BATOFF			; Yes, Insure Batch is Off
+
+	RST	SYSCMD
+
+***	Patch Area
+
+PATCH	DS	0
+	DB	FF,NL,'Yet another fine software product'
+	DB	' for Heath/Zenith computers',NL
+
+	ERRMI	PATCH+64-*
+	DC	PATCH+64-*,#0AAH
+PATCHL	EQU	*-PATCH
+
+***	SYSXIT1 - SET SYSTEM LOW MEMORY AND CLEAR DEVICE TABLE
+
+SYSXIT1 EQU	*
+
+	LDA	S.MOUNT
+	ANA	A
+	RZ				; System disk is not mounted
+
+	CALL	SSM			; Set system memory lower bound
+	XCHG				; (HL) = New S.SYSM
+	SHLD	S.SYSM			; Set System Lower Bound
+	CALL	CDT			; Clear Device Table
+
+	MVI	A,DR.PR 		; Mark as permanent
+	STA	L.ORI
+	JMP	LAD..			; Lock anything above S.RFWA & return
+
+*	HDOS VERSION NOT CORRECT, OR ERROR UPON RETURN.
+
+SYSX1	MVI	A,EC.NCV		; Not correct version
+SYSX2	MVI	H,NL
+	SCALL	.ERROR
+
+$FATAL	EQU	*			; Misc. Fatal error exit.
+
+	CALL	S.FASER 		; Bad, bad news!!
+
+SYSXITA DB	0			; PSW VALUE UPON ENTRY
+	SPACE	4
+***	LSTJMP - System Listing Device
+*
+
+LSTJMP	JMP	*-*			; Go to driver
+LSTADR	EQU	*-2
+	STL	'SYSXIT Subroutines'
+	EJECT
+	XTEXT	CCT
+	SPACE	4,10
+	XTEXT	SSM
+	SPACE	4,10
+	XTEXT	CDT2
+	SPACE	4,10
+	XTEXT	PRSCL
+	STL	'COMMAND PROCESSOR'
+	EJECT
+***	SYSCMD/plus - SYSTEM COMMAND PROCESSOR.
+
+ERROR	PUSH	PSW			; SAVE ERROR CODE.
+	CALL	$GNL
+ERROR1	SCALL	.CLRCO			; CLEAR BUFFER & CTL/O
+	POP	PSW
+	MVI	H,BELL
+	SCALL	.ERROR
+	CALL	BATBIT			; BATCH = OFF, ECHO = ON
+	XRA	A
+	JMP	SYSXIT
+
+BATBIT	LDA	S.FLAG
+	ANI	377Q-S.BATCH-S.ECHO-S.BREAK	; BATCH = OFF, ECHO = ON
+	STA	S.FLAG			; Clear Break Bit Also
+	XRA	A
+	STA	NULFLG			; Reset NUL flag
+	RET
+
+ILLCOM	CALL	$TYPTX
+	DB	NL,BELL
+	DB	'Illegal Comman','d'+200Q
+	RET
+
+ILLSYN	CALL	ILLCOM
+	CALL	$TYPTX
+	DB	' Synta','x'+200Q
+	JMP	BATOFF
+
+ILLCMD	CALL	ILLCOM
+*	JMP	BATOFF
+	ERRNZ	*-BATOFF
+
+BATOFF	CALL	BATBIT			; BATCH = OFF, ECHO = ON
+
+SYSCMD. EQU	*
+
+	LDA	NULFLG
+	ANA	A
+	CNZ	BATBIT			; BATCH = OFF, ECHO = ON
+
+	CALL	SYSXIT1 		; Tidy up while we're at it
+
+	LDA	ULTRA			; Do we have an Ultra ROM ?
+	ANA	A
+	JZ	CCBJ			; No, move along
+
+	LDA	H19FLG			; Do we have H19 ?
+	ANA	A
+	JZ	CCBJ			; No, move along
+
+	LDA	S.CLKTR 		; Is system clock task resident ?
+	ANA	A
+	JZ	CCBJ			; No, move along
+
+	MVI	A,CR+200Q		; Required CR at end
+	STA	ENDTIM
+	LDA	S.CUSOR 		; Get current cursor position
+	PUSH	PSW			;  and save it
+	CALL	$TYPTX
+	DB	ESC,'j' 		; Save cursor position
+	DB	ESC,'X'+200Q		; Tell ultra what's coming
+	CALL	DISPLA. 		; Send time to ultra
+	CALL	$TYPTX
+	DB	ESC,'k'+200Q		; Restore cursor position
+	POP	PSW			; Get previous cursor position
+	STA	S.CUSOR 		;  and restore it
+
+CCBJ	LXI	H,CCBAT0		; Becomes JMP CCBAT0 if ^C hit
+
+	LDA	S.FLAG
+	ANI	S.BATCH 		; In Batch Mode ?
+	JNZ	S.CMD.			; Yes
+
+	LXI	H,CCHIT
+	MVI	A,CTLC
+	SCALL	.CTLC			; SET UP CTL/C PROCESSOR
+
+	LXI	H,EDLINE
+	MVI	A,CTLA
+	SCALL	.CTLC			; Set up CTL/A processor
+
+	JMP	S.CMD
+
+S.CMD.	LXI	H,CCBAT
+	MVI	A,CTLC
+	SCALL	.CTLC			; Reassign Ctl-C
+
+	LXI	H,0
+	MVI	A,CTLA
+	SCALL	.CTLC			; Disable Ctl-A
+
+S.CMD	LDA	S.FLAG
+	ORI	S.SYSCM 		; Flag SYSCMD.SYS as here
+	ANI	377Q-S.BREAK		; Insure Break Bit is Clear
+	STA	S.FLAG
+
+	ANI	S.ECHO			; Is ECHO off ?
+	CZ	$GNL			; No, guarantee new line
+
+	LXI	H,SYSCMD.		; Set Up RESTART 0 Vector
+	SHLD	B.INT0+1		; Force SYSCMD. after JMP
+
+	LXI	SP,STACK
+	CALL	TT.CCM			; CLEAR SPECIAL CONSOLE MODES
+	CALL	$CCO			; CLEAR CTL/O
+
+	CALL	HLDSCR2 		; Clear hold screen mode on H19
+
+	LDA	S.FLAG			; Is type-ahead buffer stuffed
+	ANI	S.TABUF+S.ECHO		; or is ECHO off?
+	CZ	PROM$$			; No, show PROMPT
+
+	LDA	S.FLAG
+	ANI	377Q-S.TABUF		; Clear Buffer Stuffed Flag
+	STA	S.FLAG
+
+	XRA	A
+	STA	ALTFLG			; Assume command will be for Pri. Dev.
+	STA	B.CNT			; Initialize BATCH byte count
+
+	LXI	H,LINE
+	CALL	$RTL			; READ COMMAND LINE (NO CASE MAPPING)
+	JC	SYSCMD. 		; CTL/D STRUCK
+PROMZ	DCX	H
+	MVI	M,' '			; Init *LINE* in case your command
+	INX	H			;   is 'n:filename'
+
+	LDA	S.FLAG
+	ANI	S.BATCH 		: In Batch Mode ?
+	JNZ	PROMZZ			; Yes, skip command move
+
+	XCHG				; DE=>Command
+	LHLD	S.EDLIN 		; HL=>Buffer
+PROMZL	LDAX	D			; Move command to buffer ...
+	MOV	M,A
+	INX	H
+	INX	D
+	ORA	A
+	JNZ	PROMZL			; ... until a NULL byte
+
+PROMZZ	LXI	H,LINE
+	CALL	$SOB
+	CPI	':'			; If first non-white char is ':'
+	JE	SYSCMD. 		;  then it is a label, skip over it
+PROM1	CALL	$SOB			; Skip over leading spaces, tabs, etc.
+	CPI	'.'			; Do we clear and hold ?
+CLRCHR	EQU	*-1
+	JNE	PROM2			; No
+	MVI	M,' '			; Yes, blank '.'
+	CALL	CLRSCRN 		; Clear screen
+	CALL	HLDSCRN 		; Hold screen mode
+	CALL	$SOB			; Get next non-blank
+PROM2	CPI	';'			; Is for alternate device?
+ALTCHR	EQU	*-1
+	JNE	SYSC0			; No
+	MVI	M,' '			; Yes, blank ';'
+	STA	ALTFLG			; Set for alternate
+	JMP	PROM1			; Check '.' in case wasn't first
+
+SYSC0	PUSH	H			; Save command address
+
+*	ADD DEVICE NAME TO 'n:' UNLESS PREVIOUS CHAR IS ALPHA OR NUM
+
+	DCX	H			; Pre-decrement
+PARSE	INX	H			; Advance
+	MOV	A,M
+	ANA	A			; Is it null ?
+	JZ	SYSCX			; At end of line, carry on
+	CPI	':'
+	JNE	PARSE			; Not a device delimiter
+	PUSH	H
+	DCX	H
+	MOV	A,M			; Get char before ':'
+	CPI	'0'
+	JC	PARSE2			; < '0', Not valid unit #
+	CPI	'7'+1
+	JNC	PARSE2			; > '7', Not valid unit #
+	DCX	H
+	MOV	A,M			; Get char before unit #
+	CALL	$MCU			; Map char to upper case
+	CPI	'0'
+	JC	PARSE1			; Is probably a file name
+	CPI	':'
+	JC	PARSE2			; Is a digit, skip it
+	CPI	'A'
+	JC	PARSE1			; Is probably a file name
+	CPI	'['
+	JC	PARSE2			; Is alpha, skip it
+PARSE1	INX	H			; Point at unit #
+	MOV	D,H
+	MOV	E,L			; Save source pointer
+	INX	H
+	INX	H			; Bump destination pointer
+	PUSH	H
+	MOV	B,H
+	MOV	C,L			; BC = pointer
+	CALL	FEC			; HL => FINAL 0 BYTE
+	INX	H			; Bump for accurate count
+	MOV	A,L			; Subtract BC from HL
+	SUB	E
+	MOV	C,A			; Save result in BC
+	MOV	A,H
+	SBB	D
+	MOV	B,A			; BC = count
+	POP	H
+	CALL	$MOVE			; Spread out to add 2 chars
+	POP	H			; HL => where ':' was
+	PUSH	H
+	DCX	H			; Back up to where unit # was
+	XCHG				; Save HL
+	CALL	GETDEV
+	XCHG				; (DE) = device name, (HL) = pointer
+	CALL	ISDEHL
+PARSE2	POP	H
+	JMP	PARSE			; Keep looking
+
+CRACK	LXI	H,VERB			; Crack command name
+SYSC1	LDAX	D
+	CPI	'.'
+	JZ	SYSC2			; Valid file specification character
+	CPI	'0'
+	RC				; < '0' and not '.'
+	CPI	':'+1
+	JC	SYSC2			; Numeric, or ':'
+	CALL	$MCU			; Map character to upper case
+	CPI	'A'-2
+	RC				; Not alpha, num.,':','.','?', or '@'
+	CPI	'Z'+1
+	RNC				; Not alpha
+
+*	HAVE ALPHA CHARACTER, BUILD INTO COMMAND VERB
+
+SYSC2	MOV	M,A
+	INX	H
+	INX	D
+	JMP	SYSC1
+
+SYSCX	EQU	*
+
+*	CRACK COMMAND NAME
+
+	MVI	A,200Q
+	STA	VERB-1			; REQUIRED BY VERB SCANNING
+	POP	D			; Retrieve line address
+
+	CALL	CRACK			; Do the cracking
+
+*	HAVE SPLIT OUT THE VERB.  SEE IF WE KNOW IT.
+
+SYSC3	PUSH	D			; SAVE LINE POINTER
+	MVI	M,0			; FORCE END OF VERB
+	DCX	H
+	MOV	A,M
+	XRI	200Q			; SET END OF WORD
+	JP	SYSCMD. 		; NULL COMMAND
+
+*	SEE IF WE KNOW THIS COMMAND
+
+	LXI	D,VERB
+	LXI	H,SYSCC
+	CALL	$FST
+	JNZ	SYSC5			; NOT BUILT-IN COMMAND
+	MOV	A,M			; (A) = INDEX
+	CALL	$TJMP			; ENTER PROCESSOR
+
+	STL	'COMMAND PROCESSOR TABLES'
+	EJECT
+SYSCA	DS	0
+
+I.RUN	EQU	*-SYSCA/2
+	DW	RUN
+
+I.HEL	EQU	*-SYSCA/2
+	DW	HELP
+
+I.PRN	EQU	*-SYSCA/2
+	DW	PRINT
+
+I.TYP	EQU	*-SYSCA/2
+	DW	TYPE
+
+I.CLS	EQU	*-SYSCA/2
+	DW	CLS
+
+I.DEL	EQU	*-SYSCA/2
+	DW	DELETE
+
+I.PLO	EQU	*-SYSCA/2
+	DW	PICLOA
+
+I.LOG	EQU	*-SYSCA/2
+	DW	TOGLOG
+
+I.TIM	EQU	*-SYSCA/2
+	DW	TIME
+
+I.CHK	EQU	*-SYSCA/2
+	DW	CHECK
+
+I.REN	EQU	*-SYSCA/2
+	DW	RENAME
+
+I.MOU	EQU	*-SYSCA/2
+	DW	MOUNT
+
+I.MN	EQU	*-SYSCA/2
+	DW	MN
+
+I.DMO	EQU	*-SYSCA/2
+	DW	DMOUNT
+
+I.DN	EQU	*-SYSCA/2
+	DW	DN
+
+I.RES	EQU	*-SYSCA/2
+	DW	RESET
+
+I.RN	EQU	*-SYSCA/2
+	DW	RN
+
+I.QM	EQU	*-SYSCA/2
+	DW	XQMNT
+
+I.MM	EQU	*-SYSCA/2
+	DW	XMNT
+
+I.MD	EQU	*-SYSCA/2
+	DW	XDMNT
+
+I.DAT	EQU	*-SYSCA/2
+	DW	DATE
+
+I.DIR	EQU	*-SYSCA/2
+	DW	DIR
+
+I.CN	EQU	*-SYSCA/2
+	DW	CN
+
+I.PCN	EQU	*-SYSCA/2
+	DW	PCN
+
+I.DEV	EQU	*-SYSCA/2
+	DW	DEVICE
+
+I.DMM	EQU	*-SYSCA/2
+	DW	DMM
+
+I.COP	EQU	*-SYSCA/2
+	DW	COPY
+
+I.BYE	EQU	*-SYSCA/2
+	DW	BYE
+
+I.VER	EQU	*-SYSCA/2
+	DW	VERSN
+
+I.VERX	EQU	*-SYSCA/2
+	DW	VERSNX
+
+I.LOA	EQU	*-SYSCA/2
+	DW	LOADD
+
+I.FLO	EQU	*-SYSCA/2
+	DW	FLOADD
+
+I.UNL	EQU	*-SYSCA/2
+	DW	UNLOAD
+
+I.DEF	EQU	*-SYSCA/2
+	DW	DEFAULT
+
+I.CLR	EQU	*-SYSCA/2
+	DW	CLR
+
+I.PIP	EQU	*-SYSCA/2
+	DW	PIPX
+
+I.VFY	EQU	*-SYSCA/2
+	DW	VERIFY
+
+I.PRM	EQU	*-SYSCA/2
+	DW	PROMPT
+
+I.PTH	EQU	*-SYSCA/2
+	DW	PATH
+
+I.ASK	EQU	*-SYSCA/2
+	DW	ASK
+
+I.BIT	EQU	*-SYSCA/2
+	DW	BIT
+
+I.COU	EQU	*-SYSCA/2
+	DW	COUNT
+
+I.ECH	EQU	*-SYSCA/2
+	DW	ECHO
+
+I.END	EQU	*-SYSCA/2
+	DW	END
+
+I.GOT	EQU	*-SYSCA/2
+	DW	GOTO
+
+I.JMP	EQU	*-SYSCA/2
+	DW	JUMP
+
+I.IF	EQU	*-SYSCA/2
+	DW	IF
+
+I.PAU	EQU	*-SYSCA/2
+	DW	PAUSE
+
+I.REM	EQU	*-SYSCA/2
+	DW	REM
+
+I.SHF	EQU	*-SYSCA/2
+	DW	SHIFT
+
+I.WAIT	EQU	*-SYSCA/2
+	DW	WAIT
+
+I.XYZZY EQU	*-SYSCA/2
+	DW	XYZZY
+
+I.SI	EQU	*-SYSCA/2
+	DW	SI
+
+*	Extra room for expansion
+
+	DW	$FATAL
+	DW	$FATAL
+
+*	Can't find the command in the 'built-in' list.
+*	Try to link to it.
+
+SYSC5	CALL	$MOVEL			; Preset default
+	DW	6,SYSCB,SYSBLK
+SYSC5.	POP	B			; (BC) = START OF PARAMETERS
+	CALL	PCL			; PASS COMMAND LINE ON STACK
+	LHLD	S.PATH
+	SHLD	PTHPTR			; Preset pointer
+	CALL	SCGONE			; Flag SYSCMD.SYS as gone
+
+SYSC6	LXI	H,LINE			; File name
+	LXI	D,SYSBLK		; Default
+	XRA	A			; Channel
+	SCALL	.LINK			; Try to LINK to it
+
+*	File could not be linked to so we assume it isn't there and try
+*	the next PATH entry.
+
+	CALL	PATH..			; Do error check first
+	JNZ	SYSC6			; Try again
+
+*	Maybe he wants a BATCH file ?
+
+	LXI	H,SYSCMD.		; Set Up RESTART 0 Vector
+	SHLD	B.INT0+1		; Force SYSCMD. after JMP
+
+	LHLD	S.PATH
+	SHLD	PTHPTR			; Preset pointer
+	CALL	$MOVEL
+	DW	6,BATBLK,SYSBLK 	; Preset default
+
+SYSC9	LXI	H,LINE			; File name
+	LXI	D,SYSBLK		; Default
+	XRA	A			; Channel
+	SCALL	.OPENR			; Open for read
+	JNC	SYSC12			; It worked !
+
+*	File could not be opened so we assume it isn't there and try
+*	the next PATH entry.
+
+	CALL	PATH..			; Do error check first
+	JNZ	SYSC9			; Try again
+
+	JMP	ILLCMD			; Absolutely NO idea what you want !
+
+SYSC12	PUSH	H			; HL advanced past file name
+	LHLD	AIO.DIR+DIR.FGN 	; Get FGN and LGN of BATCH file
+	SHLD	BATGNS			;  and save it
+	XRA	A			; Get complete file name
+	LXI	H,LABEL 		;  in a known format
+	LXI	D,LABEL+20
+	SCALL	.NAME
+	JC	ERROR
+
+	CALL	$MOVEL			; Preset BATCH file name
+	DW	3,LABEL+20,BATNAME
+	MVI	M,':'			; Force colon
+	INX	H
+	LXI	D,LABEL
+	CALL	$CPF
+	MVI	M,'.'			; Force dot
+	INX	H			; To
+	LXI	D,LABEL+23		; From
+	LXI	B,3			; Count
+	CALL	$MOVE
+	XRA	A
+	MOV	M,A			; Force final null
+	STA	BATSEC			; Preset secter index
+	STA	NULFLG			; Preset NUL flag
+	STA	S.SHIFT 		; Zero SHIFT count
+
+	CALL	B.R1			; Read first sector
+
+	LHLD	BATBUF			; Point at buffer
+	MVI	C,0			; Count = 256
+SYSC20	MOV	A,M			; Get byte
+	ANI	200Q			; See if hi bit set
+	MVI	A,EC.IFC		; Assume error
+	JNZ	ERROR			; Hi bit set, NOT ascii
+	INX	H			; Bump pointer
+	DCR	C			; Count down
+	JNZ	SYSC20			; Try next byte
+
+	POP	H			; Pass BATCH argument line
+	CALL	$SOB
+	XCHG				; (DE) = Argument string
+	LHLD	SUBBUF			; (HL) = Subst. buffer
+PBCL	LDAX	D
+	MOV	M,A			; If NUL is first thing
+	INX	D			;   then NO arguments
+	INX	H
+	ANA	A
+	JNZ	PBCL			; Loop til NUL
+
+	LDA	S.FLAG
+	ORI	S.BATCH
+	STA	S.FLAG			; Turn on batch processing
+
+	LXI	H,B.BAT
+	SHLD	B.XXX			; Preset logic to normal input
+
+	LDA	ECOFLG			; See if we want ECHO OFF
+	ANA	A
+	JNZ	ECHOFF			; Yes, go through ECHO routine
+
+	RST	SYSCMD			; No, just start going
+	SPACE	4,10
+*	Follow the path
+
+PATH..	CPI	EC.FNF			; First be sure we are not in
+	JE	PATH.X			;  trouble
+	CPI	EC.UUN
+	JE	PATH.X
+	PUSH	PSW
+	LHLD	PTHPTR
+	XCHG
+	LHLD	S.PATH
+	CALL	$CDEHL			; If first pass then not PATH'S fault
+	JE	ERROR1
+	CALL	$TYPTX
+	DB	'Check Path -',' '+200Q
+	JMP	ERROR1
+
+PATH.X	LHLD	PTHPTR
+
+*	Skip over path delimiters
+
+SKPD	DCX	H			; Predecrement
+SKPD1	INX	H			; Bump pointer
+	MOV	A,M			; Get char
+	CPI	' '
+	JE	SKPD1			; Skip space
+	CPI	TAB
+	JE	SKPD1			; Skip tab
+	CPI	':'
+	JE	SKPD1			; Skip colon
+	CPI	';'
+	JE	SKPD1			; Skip semi
+	CPI	','
+	JE	SKPD1			; Skip comma
+
+	LXI	D,SYSBLK
+	MVI	C,3
+PATH.0	MOV	A,M			; Get char
+	ANA	A			; Test for NUL
+	RZ				; At end of path
+	STAX	D			; Stuff it
+	INX	H			; Bump *from*
+	INX	D			; Bump *to*
+	DCR	C			; Count down
+	JNZ	PATH.0
+	CPI	':'			; If third char is ':' ...
+	JNE	PATH.1
+	MVI	A,'0'
+	DCX	D
+	STAX	D			; ... then it should be '0'
+PATH.1	SHLD	PTHPTR
+	ANA	A			; Turn off zero flag bit
+	RET
+
+PTHPTR	DW	0
+	EJECT
+***	COMMAND TABLE.
+*
+*	DATA VALUES ARE INDEXES INTO SYSCA.
+
+.	SET	200Q			; Parity bit (designates optional)
+$	EQU	177Q			; Any numeric (0-7) character
+$$	EQU	$+.			; Optional numeric (0-7) character
+
+SYSCC	EQU	*
+
+	DB	'?','?'+.,'?'+.,.,I.HEL
+	DB	'AS','K'+.,.,I.ASK
+	DB	'BIT',.,I.BIT
+	DB	'BYE',.,I.BYE
+	DB	'C','A'+.,'T'+.,.,I.DIR
+	DB	'C',$,.,I.CN				; sequence sensitive
+	DB	'CH','E'+.,'C'+.,'K'+.,.,I.CHK
+	DB	'CLR',.,I.CLR
+	DB	'CLS',.,I.CLS
+	DB	'COU','N'+.,'T'+.,.,I.COU
+	DB	'CO','P'+.,'Y'+.,.,I.COP
+	DB	'CRC',.,I.CHK
+	DB	'D','I'+.,'S'+.,'M'+.,'O'+.,'U'+.,'N'+.,'T'+.,.,I.DMO
+	DB	'D',$$,.,I.DN				; sequence sensitive
+	DB	'DA','T'+.,'E'+.,.,I.DAT
+	DB	'DEF','A'+.,'U'+.,'L'+.,'T'+.,.,I.DEF
+	DB	'DEL','E'+.,'T'+.,'E'+.,.,I.DEL
+	DB	'DEV','I'+.,'C'+.,'E'+.,'S'+.,.,I.DEV
+	DB	'DIR',.,I.DIR
+	DB	'DM','M'+.,.,I.DMM
+	DB	'EC','H'+.,'O'+.,.,I.ECH
+	DB	'END',.,I.END
+	DB	'ERA','S'+.,'E'+.,.,I.DEL
+	DB	'FL','A'+.,'G'+.,'S'+.,.,I.COP
+	DB	'GO','T'+.,'O'+.,.,I.GOT
+	DB	'H','E'+.,'L'+.,'P'+.,.,I.HEL
+	DB	'ID',.,I.VERX
+	DB	'IF',.,I.IF
+	DB	'JU','M'+.,'P'+.,.,I.JMP
+	DB	'L','O'+.,'A'+.,'D'+.,.,I.LOA
+	DB	'LOADF',.,I.FLO
+	DB	'LI','S'+.,'T'+.,.,I.TYP
+	DB	'LOG',.,I.LOG
+	DB	'M','O'+.,'U'+.,'N'+.,'T'+.,.,I.MOU
+	DB	'M',$$,.,I.MN				; sequence sensitive
+	DB	'MD',.,I.MD
+	DB	'MM',.,I.MM
+	DB	'PA','T'+.,'H'+.,.,I.PTH
+	DB	'PAU','S'+.,'E'+.,.,I.PAU
+	DB	'PC',$$,.,I.PCN
+	DB	'PIP',.,I.PIP
+	DB	'PR','I'+.,'N'+.,'T'+.,.,I.PRN
+	DB	'PRO','M'+.,'P'+.,'T'+.,.,I.PRM
+	DB	'QM',.,I.QM
+	DB	'Q','U'+.,'I'+.,'T'+.,.,I.BYE
+	DB	'REM',.,I.REM
+	DB	'R','E'+.,'S'+.,'E'+.,'T'+.,.,I.RES
+	DB	'R',$$,.,I.RN				; sequence sensitive
+	DB	'REN','A'+.,'M'+.,'E'+.,.,I.REN
+	DB	'RU','N'+.,.,I.RUN
+	DB	'SH','I'+.,'F'+.,'T'+.,.,I.SHF
+	DB	'SI',.,I.SI
+	DB	'ST','A'+.,'R'+.,'T'+.,.,I.PLO
+	DB	'TI','M'+.,'E'+.,.,I.TIM
+	DB	'T','Y'+.,'P'+.,'E'+.,.,I.TYP
+	DB	'UNL','O'+.,'A'+.,'D'+.,.,I.UNL
+	IF	USER
+	DB	'US','E'+.,'R'+.,.,I.COP
+	ENDIF
+	DB	'VER','S'+.,'I'+.,'O'+.,'N'+.,.,I.VER
+	DB	'VERI','F'+.,'Y'+.,.,I.VFY
+	DB	'WAIT',.,I.WAIT
+	DB	'XYZZY',.,I.XYZZY
+
+	DB	0,0
+
+	DW	0,0,0,0,0,0,0,0
+	SPACE	4,10
+***	CCHIT - CTL/C PROCESSOR.
+*
+*	Note:	The stack is re-initialized because if the console is
+*		running slow (300 baud), multiple CTL/C's can overrun
+*		the stack due to the time required to actually print
+*		'^C'.  This problem can (and WILL) result in a system
+*		crash!
+
+CCHIT	LXI	SP,STACK		; Set stack anew ...
+	SCALL	.CLRCO			; CLEAR BUFFER
+	CALL	$TYPTX
+	DB	'^','C'+200Q
+	CALL	CCT			; No channels open, please ...
+	CALL	SYSXIT1 		; Clear device table
+	RST	SYSCMD
+	SPACE	4,10
+***	CCBAT - CTL/C PROCESSOR FOR BATCH MODE
+
+CCBAT	MVI	A,303Q			; JMP code
+	STA	CCBJ			; Force jump to CCBAT0
+	RET
+
+CCBAT0	CALL	$TYPTX
+	DB	'^','C'+200Q
+
+CCBAT1	LXI	H,0
+	MVI	A,CTLC
+	SCALL	.CTLC			; Disable Ctl-C
+
+	MVI	A,21H			; LXI H, code
+	STA	CCBJ			; Skip jump to CCBAT0
+
+	SCALL	.CLRCO			; Clear console buffer
+	CALL	$TYPTX
+	DB	NL,'Abort Batch Job ? (Y/N) <N>',' '+200Q
+	CALL	TT.CE			; Set character mode/no echo
+CCBAT2	SCALL	.SCIN			; Get Key
+	JC	CCBAT2
+	SCALL	.SCOUT			; Show it
+	PUSH	PSW			; Save it
+	CALL	$GNL			; New line
+	POP	PSW			; Get it back
+	CALL	$MCU			; Map it
+	CPI	'Y'			; Is it Yes
+	JE	BATOFF			; Yes, bail out
+	RST	SYSCMD			; No, proceed with batch job
+	SPACE	4,10
+***	TT.CE - Set character mode with no echo
+
+	ERRNZ	I.CSLMD
+TT.CE	XRA	A			; A = I.CSLMD
+	MVI	B,CSL.CHR+CSL.ECH	; Character mode + No echo
+	MOV	C,B
+	SCALL	.CONSL			; Set it
+	RET
+	SPACE	4,10
+***	TT.CCM - Clear Special Console Modes
+
+	ERRNZ	I.CSLMD
+TT.CCM	XRA	A			; A = I.CSLMD
+	MOV	B,A			; Line mode with Echo
+	MVI	C,CSL.ECH+CSL.RAW+CSL.CHR	; Also clear Raw mode
+	SCALL	.CONSL			; Set it
+	RET
+	STL	'RUN - PROCESS RUN COMMAND'
+	EJECT
+	XTEXT	RUN
+
+	STL	'HELP - TYPE HELP FILE'
+	EJECT
+	XTEXT	HELP
+
+	STL	'PRINT - PRINT FILE ON LINE PRINTER'
+	EJECT
+	XTEXT	PRINT
+
+	STL	'TYPE - TYPE FILE ON CONSOLE'
+	EJECT
+	XTEXT	TYPE
+
+	STL	'CLS - CLEAR CONSOLE SCREEN'
+	EJECT
+	XTEXT	CLS
+
+	STL	'DELETE - DELETE FILES'
+	EJECT
+	XTEXT	DELETE
+
+	STL	'RENAME - RENAME FILES'
+	EJECT
+	XTEXT	RENAME
+
+	STL	'COPY - COPY FILE'
+	EJECT
+	XTEXT	COPY
+
+	STL	'DIR / CAT / Cn / PCn - DIRECTORY LIST DEVICE'
+	EJECT
+	XTEXT	DIR
+
+	STL	'MOUNT / DISMOUNT / RESET DISK'
+	EJECT
+	XTEXT	MDR
+
+	STL	'CHECK - Checksum file'
+	EJECT
+	XTEXT	CHECK
+
+	STL	'VERSN - SHOW VERSION'
+	EJECT
+	XTEXT	VERSN
+
+	STL	'LOAD - LOAD DEVICE DRIVER'
+	EJECT
+	XTEXT	LOADD
+
+	STL	'DATE - PROCESS DATE COMMAND'
+	EJECT
+	XTEXT	DATE
+
+	STL	'TIME - PROCESS TIME COMMAND'
+	EJECT
+	XTEXT	TIME
+
+	STL	'CLR - CLEAR FILE FLAGS'
+	EJECT
+	XTEXT	FLAG
+
+	STL	'START - PROCESS POSITION INDEPENDANT LOAD'
+	EJECT
+	XTEXT	START
+
+	STL	'LOG - TOGGLE LOG ON/OFF  (Uses ECHO.TAS)'
+	EJECT
+	XTEXT	LOG
+
+	STL	'DMM - DISPLAY MAIN MEMORY'
+	EJECT
+	XTEXT	DMM
+
+	STL	'SI - SHOW SYSTEM INFORMATION'
+	EJECT
+	XTEXT	SI
+
+	STL	'DEV - SHOW ALL DEVICES'
+	EJECT
+	XTEXT	DEV
+
+	STL	'DEFAULT - SET/SHOW SYSTEM DEFAULT DEVICE'
+	EJECT
+	XTEXT	DEFAULT
+
+	STL	'VERIFY - SET/SHOW CURRENT VERIFY STATE'
+	EJECT
+	XTEXT	VERIFY
+
+	STL	'PROMPT - SET/SHOW SYSTEM PROMPT'
+	EJECT
+	XTEXT	PROMPT
+
+	STL	'PATH - SET/SHOW IMPLICIT RUN PATH'
+	EJECT
+	XTEXT	PATH
+
+	STL	'BYE - SYSTEM END'
+	EJECT
+	XTEXT	BYE
+
+	STL	'XYZZY - DISPLAY EXIT CODE ?'
+	EJECT
+	XTEXT	XYZZY
+
+	XTEXT	BATCH
+
+	STL	'EDLINE - SYSCMD.SYS Command Line Editor'
+	EJECT
+	XTEXT	EDLINE
+
+	STL	'Miscellaneous Subroutines'
+	EJECT
+	XTEXT	FEC
+	SPACE	4,10
+	XTEXT	PCL
+	SPACE	4,10
+	XTEXT	PIP
+	SPACE	4,10
+	XTEXT	PROMSHO
+
+	STL	'COMMON DECKS'
+	EJECT
+	XTEXT	H17SUBS
+	XTEXT	BITS
+	XTEXT	CAD
+	XTEXT	CCO
+	XTEXT	CPDEHL
+	XTEXT	CPF
+	XTEXT	CRLF
+	XTEXT	DAD
+	XTEXT	DDD
+	XTEXT	FST2
+	XTEXT	GNL
+	XTEXT	H19SUBS
+	XTEXT	ILDEHL
+	XTEXT	INDXX
+	XTEXT	ISDEHL
+	XTEXT	MCU
+	XTEXT	MLU
+	XTEXT	MOVEL
+	XTEXT	RTL2
+	SPACE	4,10
+***	M$SOB - Map Line First, then Skip Over Blanks
+
+M$SOB	CALL	$MLU			; Map Line to Upper Case
+
+	XTEXT	SOB
+	XTEXT	TYPCC
+	XTEXT	UDDX
+	XTEXT	UHW
+	XTEXT	UOW
+	XTEXT	XCHGBC
+
+MEML	EQU	*			; Program LWA + 1
+
+	STL	'SYSCMD Initialization Code'
+	EJECT
+***	SYSINIT - Initialize SYSCMD at boot time
+*
+*	This routine is only used once.
+*	PIP is allowed to overlay it if necessary.
+
+SYSINIT EQU	*
+
+	LDA	S.FLAG
+	ORI	S.INIT
+	STA	S.FLAG			; FLAG so we DON'T repeat this code
+
+	LHLD	S.DFBLK 		; CHECK FOR A SYSTEM DEFAULT
+	MOV	A,H
+	ORA	L
+	JNZ	SI0			; HAVE ALREADY PRESET DEVICE NAMES
+
+	LHLD	DPDEV			; PRESET DEFAULT PRIMARY DEVICE
+	SHLD	PRIDEV
+	LHLD	DADEV			; PRESET DEFAULT ALTERNATE DEVICE
+	SHLD	ALTDEV
+
+SI0	LDA	VFYFLG			; GET BOOT DEFAULT STATE
+	ANA	A
+	JZ	SI1
+	LDA	S.FLAG
+	ORI	S.VFLG			; PRESET VERIFY FLAG
+	STA	S.FLAG
+
+SI1	LDA	XYZZYF
+	ANA	A
+	JZ	SI2
+	LDA	S.FLAG
+	ORI	S.EXITC 		; PRESET XYZZY FLAG
+	STA	S.FLAG
+
+SI2	LDA	S.BOOTF 		; Get boot flags
+	ANI	BOOT.P			; Did user say 'Ignore'
+	JZ	SYSCMD. 		; Yes, forget AUTOEXEC.BAT
+
+*	CHECK FOR AUTOEXEC.BAT AT BOOT TIME
+
+	LXI	H,PROLOG		; 'AUTOEXEC'
+	LXI	D,BATBLK		; DEFAULT BLOCK
+	XRA	A			; CHAN. 0
+	SCALL	.OPENR
+	JNC	SYSC12			; SET UP BATCH FILE USAGE
+	CPI	EC.FNF
+	JE	SYSCMD. 		; NO PROLOG FILE, DO NOTHING
+AUTOER	PUSH	PSW
+	CALL	$TYPTX
+PROLOG	DB	'AUTOEXEC',0,' -',' '+200Q
+	POP	PSW
+	JMP	ERROR			; ERROR WITH PROLOG FILE, DO NOTHING
+	SPACE	4,10
+**	"what" identification
+
+	DB	'@(#)SYSCMD/Plus by Richard Musgrave',NL
+
+	DW	.DATE.			; assembly date
+	DW	.TIME.			;  and time.
+
+IMEML	EQU	*			; LWA including init. code + 1
+	STL	'WORKING BUFFERS'
+	EJECT
+***	BUFFERS
+
+BUFFWA	EQU	200000A
+
+SYSBLK	EQU	BUFFWA			; Default Block for PATH usage
+
+VERB.	EQU	SYSBLK+6		; Verb 200Q byte
+VERB	EQU	VERB.+1 		; Verb buffer
+
+LINE	EQU	VERB+120		; Line buffer
+
+LABEL	EQU	LINE+101		; Label buffer
+TSKBUF	EQU	LABEL			; Task buffer  (Overlays label buffer)
+
+RMEML	EQU	8*1024+TSKBUF		; 8k above us for Task Buffer
+
+	END	SYSXIT

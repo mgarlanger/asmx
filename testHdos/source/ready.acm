@@ -1,0 +1,23 @@
+	SPACE	4,10
+**	READY	-  Wait for Ready
+*
+*	READY issues the call to the device driver to wait
+*	for the device to go ready.
+*
+*	ENTRY:	NONE
+*
+*	EXIT:	NONE
+*
+*	USES:	NONE
+*
+
+READY	CALL	$SAVALL
+
+READY1	CALL	CAB.
+	JNZ	$RSTALL
+
+	MVI	A,DC.RDY
+	CALL	DRIVER
+	JC	READY1
+
+	JMP	$RSTALL

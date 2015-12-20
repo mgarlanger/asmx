@@ -1,0 +1,57 @@
+	SPACE	4,10
+**	IMM - ISSUE MOUNT MESSAGE.
+*
+*	IMM TYPES THE MOUNTING MESSAGE:
+*
+*	VOLUME NNNNN, MOUNTED ON DEV:
+*	LABEL: XXXX ... XXX
+*
+*	ENTRY	LABEL SECTOR READ
+*		(HL) = ADDRESS OF MESSAGE VERB STRING (.PRINT FORMAT)
+*	EXIT	NONE
+*	USES	ALL
+
+IMM	push	h			; save verb
+
+	LHLD	S.LABEL
+	CALL	$INDLB
+	DW	LAB.VER
+	cpi	3*16+0			; version 3.0
+	jc	imm1			; is previous
+
+	CALL	$INDL
+	DW	LAB.LVN
+	mov	b,d
+	mov	c,e			; (bc) = volume number
+	jmp	imm2							
+
+imm1	CALL	$INDLB			; (a) = volume #
+	DW	LAB.SER
+	MOV	C,A
+	MVI	B,0
+
+imm2	LXI	H,IMMB
+	mvi	a,5			; 5 digit maximum
+	CALL	$UDD			; UNPACK VOLUME NUMBER
+
+	LXI	B,4
+	LXI	D,DEVNAME
+	LXI	H,IMMC
+	CALL	$MOVE
+
+	LXI	H,IMMA
+	SCALL	.PRINT			; PRINT MESSAGE
+	POP	H
+	SCALL	.PRINT			; PRINT VERB
+	LXI	H,IMMC
+	SCALL	.PRINT			; PRINT THE REST OF IT
+	LHLD	S.LABEL
+	LXI	D,LAB.LAB
+	DAD	D
+	CALL	$DTB			; DELETE TRAILING BLANKS
+	CALL	$TYPCC			; TYPE LABEL
+	JMP	$CRLF			; CRLF AND EXIT
+
+IMMA	DB	'Volume '
+IMMB	DB	'xxxxx,',' '+EOL					
+IMMC	DB	'DEV:',NL,'Label:',' '+EOL

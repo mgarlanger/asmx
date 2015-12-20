@@ -1,0 +1,12 @@
+
+$DADA	SPACE	4,10
+**	$DADA - PERFORM (H,L) = (H,L) + (0,A)
+*
+*	ENTRY	(H,L) = BEFORE VALUE
+*		(A) = BEFORE VALUE
+*	EXIT	(H,L) = (H,L) + (0,A)
+*		'C' SET IF OVERFLOW
+*	USES	F,H,L
+
+
+$DADA	EQU	30072A		IN H17 ROM

@@ -1,0 +1,472 @@
+	TITLE	'MAP - DECODE MAIN MEMORY CELLS'
+	STL	'  An HDOS 3.0 Utility'
+
+	LON	LCI
+
+	XTEXT	HOSBASE
+	XTEXT	HDOS30
+	XTEXT	MTRRAM
+
+$HLIHL	EQU	30211A
+$MOVE	EQU	30252A
+$TYPTX	EQU	31136A
+
+	ORG	USERFWA
+
+**	"what" identification
+
+	db	'@(#)HDOS 3.0 MAP Utility by Richard Musgrave',NL
+
+	dw	.DATE.			; date and
+	dw	.TIME.			;  time of assembly
+
+START	EQU	*
+
+**
+
+	SCALL	.VERS
+	JC	ABORT			; early version
+	CPI	VERS
+	JZ	START.			; is current.
+
+ABORT	MVI	A,EC.NCV
+	MVI	H,7
+	SCALL	.ERROR
+
+	XRA	A
+	SCALL	.EXIT
+
+***	Determine System Memory Values
+
+START.	LHLD	S.HIMEM 		; Hardware High Memory Address
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV1
+	CALL	$UOW.
+	LXI	H,DMMV1H
+	CALL	$UHW
+
+	LHLD	S.SCR			; HDOS System Scratch Area
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV2
+	CALL	$UOW.
+	LXI	H,DMMV2H
+	CALL	$UHW
+
+	LHLD	S.DLINK 		; SY: Driver FWA
+	LXI	D,M.SYDD
+	DAD	D
+	CALL	$HLIHL
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV3
+	CALL	$UOW.
+	LXI	H,DMMV3H
+	CALL	$UHW
+
+	LHLD	S.DFWA			; Device Table FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV4
+	CALL	$UOW.
+	LXI	H,DMMV4H
+	CALL	$UHW
+
+	LHLD	S.CFWA			; Channel Table FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV5
+	CALL	$UOW.
+	LXI	H,DMMV5H
+	CALL	$UHW
+
+*	LHLD	S.TFWA			; Task Table FWA
+*	MOV	B,H
+*	MOV	C,L
+*	LXI	H,DMMV6
+*	CALL	$UOW.
+*	LXI	H,DMMV6H
+*	CALL	$UHW
+
+	LHLD	S.RFWA			; HDOS Resident FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV7
+	CALL	$UOW.
+	LXI	H,DMMV7H
+	CALL	$UHW
+
+	LHLD	S.SYSM			; System Resident FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMV8
+	CALL	$UOW.
+	LXI	H,DMMV8H
+	CALL	$UHW
+
+	LXI	B,USERFWA		; User Memory FWA
+	LXI	H,DMMV9
+	CALL	$UOW.
+	LXI	H,DMMV9H
+	CALL	$UHW
+
+	LHLD	CSLIBUF 		; Console Type-Ahead Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVA
+	CALL	$UOW.
+	LXI	H,DMMVAH
+	CALL	$UHW
+
+	LHLD	S.EDLIN 		; Editor Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVB
+	CALL	$UOW.
+	LXI	H,DMMVBH
+	CALL	$UHW
+
+	LHLD	S.PRMT			; Prompt Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVC
+	CALL	$UOW.
+	LXI	H,DMMVCH
+	CALL	$UHW
+
+	LHLD	S.PATH			; Path Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVD
+	CALL	$UOW.
+	LXI	H,DMMVDH
+	CALL	$UHW
+
+	LHLD	SUBBUF			; Substitution Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVE
+	CALL	$UOW.
+	LXI	H,DMMVEH
+	CALL	$UHW
+
+	LHLD	BATBUF			; BATCH Buffer FWA
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVF
+	CALL	$UOW.
+	LXI	H,DMMVFH
+	CALL	$UHW
+
+	LHLD	S.LABEL 		; System Label Buffer
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVG
+	CALL	$UOW.
+	LXI	H,DMMVGH
+	CALL	$UHW
+
+	LHLD	S.LWA			; Free Space Above HDOS
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVH
+	CALL	$UOW.
+	LXI	H,DMMVHH
+	CALL	$UHW
+
+	LHLD	S.DLINK 		; HDOS Data Link Address
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVI
+	CALL	$UOW.
+	LXI	H,DMMVIH
+	CALL	$UHW
+
+	LHLD	B.SCALL+1		; SCALL Dispatcher
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVJ
+	CALL	$UOW.
+	LXI	H,DMMVJH
+	CALL	$UHW
+
+	LXI	B,S.FMASK		; Feature Mask
+	LXI	H,DMMVK
+	CALL	$UOW.
+	LXI	H,DMMVKH
+	CALL	$UHW
+
+	LHLD	.UIVEC+1		; User Interupt Vector 1
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU1
+	CALL	$UOW.
+	LXI	H,DMMU1H
+	CALL	$UHW
+
+	LHLD	.UIVEC+4		; User Interupt Vector 2
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU2
+	CALL	$UOW.
+	LXI	H,DMMU2H
+	CALL	$UHW
+
+	LHLD	.UIVEC+7		; User Interupt Vector 3
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU3
+	CALL	$UOW.
+	LXI	H,DMMU3H
+	CALL	$UHW
+
+	LHLD	.UIVEC+10		; User Interupt Vector 4
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU4
+	CALL	$UOW.
+	LXI	H,DMMU4H
+	CALL	$UHW
+
+	LHLD	.UIVEC+13		; User Interupt Vector 5
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU5
+	CALL	$UOW.
+	LXI	H,DMMU5H
+	CALL	$UHW
+
+	LHLD	.UIVEC+16		; User Interupt Vector 6
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU6
+	CALL	$UOW.
+	LXI	H,DMMU6H
+	CALL	$UHW
+
+	LHLD	.UIVEC+19		; User Interupt Vector 7
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMU7
+	CALL	$UOW.
+	LXI	H,DMMU7H
+	CALL	$UHW
+
+	LHLD	B.INT0+1		; Restart Vector 0
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR0
+	CALL	$UOW.
+	LXI	H,DMMR0H
+	CALL	$UHW
+
+	LHLD	B.INT1+1		; Restart Vector 1
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR1
+	CALL	$UOW.
+	LXI	H,DMMR1H
+	CALL	$UHW
+
+	LHLD	B.INT2+1		; Restart Vector 2
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR2
+	CALL	$UOW.
+	LXI	H,DMMR2H
+	CALL	$UHW
+
+	LHLD	B.INT3+1		; Restart Vector 3
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR3
+	CALL	$UOW.
+	LXI	H,DMMR3H
+	CALL	$UHW
+
+	LHLD	B.INT4+1		; Restart Vector 4
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR4
+	CALL	$UOW.
+	LXI	H,DMMR4H
+	CALL	$UHW
+
+	LHLD	B.INT5+1		; Restart Vector 5
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR5
+	CALL	$UOW.
+	LXI	H,DMMR5H
+	CALL	$UHW
+
+	LHLD	B.INT6+1		; Restart Vector 6
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR6
+	CALL	$UOW.
+	LXI	H,DMMR6H
+	CALL	$UHW
+
+	LHLD	B.INT7+1		; Restart Vector 7
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMR7
+	CALL	$UOW.
+	LXI	H,DMMR7H
+	CALL	$UHW
+
+	MVI	A,01111111B
+	INR	A
+	JPE	Z80NMI			; Is a Z80
+
+	LXI	B,NA$L			; String length
+	LXI	D,NA$			; 'Not Applicable '
+	LXI	H,DMMNM 		; Dest.
+	CALL	$MOVE			; Move in
+	JMP	MAP
+
+Z80NMI	LHLD	B.NMI+1 		; Non-maskable Interupt Vector
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMNM
+	CALL	$UOW.
+	LXI	H,DMMNMH
+	CALL	$UHW
+
+***	Tell the tale ...
+
+MAP	LDA	S.FMASK 		; feature mask
+	ANI	F.TERM			; check terminal
+	CPI	F.H19			; is an H19?
+	JNZ	MAP.			; no.
+
+	CALL	$TYPTX
+	DB	ESC,'E'+EOL
+
+MAP.	CALL	$TYPTX
+	DB	NL,'System High Memory:',TAB
+DMMV1	DB	'000.000',TAB,' (hhhh)'
+DMMV1H	EQU	*-5
+	DB	TAB,TAB,'HDOS 3.0a Magic Addresses'
+	DB	NL,'HDOS Scratch Area:',TAB
+DMMV2	DB	'000.000',TAB,' (hhhh)'
+DMMV2H	EQU	*-5
+	DB	NL,'SY: Driver FWA:',TAB,TAB
+DMMV3	DB	'000.000',TAB,' (hhhh)'
+DMMV3H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 7:',32,32,32
+DMMU7	DB	'000.000',32,32,'(hhhh)'
+DMMU7H	EQU	*-5
+	DB	NL,'Device Table FWA:',TAB
+DMMV4	DB	'000.000',TAB,' (hhhh)'
+DMMV4H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 6:',32,32,32
+DMMU6	DB	'000.000',32,32,'(hhhh)'
+DMMU6H	EQU	*-5
+	DB	NL,'Channel Table FWA:',TAB
+DMMV5	DB	'000.000',TAB,' (hhhh)'
+DMMV5H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 5:',32,32,32
+DMMU5	DB	'000.000',32,32,'(hhhh)'
+DMMU5H	EQU	*-5
+	DB	NL,'Task Table FWA:',TAB,TAB
+*MMV6	DB	'000.000',TAB,' (hhhh)'
+*MMV6H	EQU	*-5
+	DB	'Not Available'
+	DB	TAB,TAB,'UIVEC 4:',32,32,32
+DMMU4	DB	'000.000',32,32,'(hhhh)'
+DMMU4H	EQU	*-5
+	DB	NL,'HDOS Resident FWA:',TAB
+DMMV7	DB	'000.000',TAB,' (hhhh)'
+DMMV7H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 3:',32,32,32
+DMMU3	DB	'000.000',32,32,'(hhhh)'
+DMMU3H	EQU	*-5
+	DB	NL,'System Resident FWA:',TAB
+DMMV8	DB	'000.000',TAB,' (hhhh)'
+DMMV8H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 2:',32,32,32
+DMMU2	DB	'000.000',32,32,'(hhhh)'
+DMMU2H	EQU	*-5
+	DB	NL,'User Memory FWA:',TAB
+DMMV9	DB	'000.000',TAB,' (hhhh)'
+DMMV9H	EQU	*-5
+	DB	TAB,TAB,'UIVEC 1:',32,32,32
+DMMU1	DB	'000.000',32,32,'(hhhh)'
+DMMU1H	EQU	*-5
+	DB	NL,'Type-Ahead Buffer FWA:',TAB
+DMMVA	DB	'000.000',TAB,' (hhhh)'
+DMMVAH	EQU	*-5
+	DB	NL,'Editer Buffer FWA:',TAB
+DMMVB	DB	'000.000',TAB,' (hhhh)'
+DMMVBH	EQU	*-5
+	DB	TAB,TAB,'NMI VEC:',32,32,32
+DMMNM	DB	'000.000',32,32,'(hhhh)'
+DMMNMH	EQU	*-5
+	DB	NL,'Prompt Buffer FWA:',TAB
+DMMVC	DB	'000.000',TAB,' (hhhh)'
+DMMVCH	EQU	*-5
+	DB	NL,'Path Buffer FWA:',TAB
+DMMVD	DB	'000.000',TAB,' (hhhh)'
+DMMVDH	EQU	*-5
+	DB	TAB,TAB,'RST 7:',32,32,32,32,32
+DMMR7	DB	'000.000',32,32,'(hhhh)'
+DMMR7H	EQU	*-5
+	DB	NL,'Subst. Buffer FWA:',TAB
+DMMVE	DB	'000.000',TAB,' (hhhh)'
+DMMVEH	EQU	*-5
+	DB	TAB,TAB,'RST 6:',32,32,32,32,32
+DMMR6	DB	'000.000',32,32,'(hhhh)'
+DMMR6H	EQU	*-5
+	DB	NL,'Batch Buffer FWA:',TAB
+DMMVF	DB	'000.000',TAB,' (hhhh)'
+DMMVFH	EQU	*-5
+	DB	TAB,TAB,'RST 5:',32,32,32,32,32
+DMMR5	DB	'000.000',32,32,'(hhhh)'
+DMMR5H	EQU	*-5
+	DB	NL,'System Label FWA:',TAB
+DMMVG	DB	'000.000',TAB,' (hhhh)'
+DMMVGH	EQU	*-5
+	DB	TAB,TAB,'RST 4:',32,32,32,32,32
+DMMR4	DB	'000.000',32,32,'(hhhh)'
+DMMR4H	EQU	*-5
+	DB	NL,'HDOS Installed Size:',TAB
+DMMVH	DB	'000.000',TAB,' (hhhh)'
+DMMVHH	EQU	*-5
+	DB	TAB,TAB,'RST 3:',32,32,32,32,32
+DMMR3	DB	'000.000',32,32,'(hhhh)'
+DMMR3H	EQU	*-5
+	DB	NL,'HDOS Data Link Addr:',TAB
+DMMVI	DB	'000.000',TAB,' (hhhh)'
+DMMVIH	EQU	*-5
+	DB	TAB,TAB,'RST 2:',32,32,32,32,32
+DMMR2	DB	'000.000',32,32,'(hhhh)'
+DMMR2H	EQU	*-5
+	DB	NL,'SCALL Dispatcher:',TAB
+DMMVJ	DB	'000.000',TAB,' (hhhh)'
+DMMVJH	EQU	*-5
+	DB	TAB,TAB,'RST 1:',32,32,32,32,32
+DMMR1	DB	'000.000',32,32,'(hhhh)'
+DMMR1H	EQU	*-5
+	DB	NL,'Feature Mask Addr:',TAB
+DMMVK	DB	'000.000',TAB,' (hhhh)'
+DMMVKH	EQU	*-5
+	DB	TAB,TAB,'RST 0:',32,32,32,32,32
+DMMR0	DB	'000.000',32,32,'(hhhh)'
+DMMR0H	EQU	*-5
+	DB	ENL
+
+	XRA	A
+	SCALL	.EXIT
+
+NA$	DB	'Not Applicable '
+NA$L	EQU	*-NA$
+	STL	'  Subroutines'
+	EJECT
+	XTEXT	UOW
+	SPACE	4,10
+	XTEXT	UHW
+	SPACE	4,10
+	END	START

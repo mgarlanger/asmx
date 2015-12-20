@@ -1,0 +1,180 @@
+***	TIME - Display / Set System Time
+*
+*	TI[ME]		    --> Display Time
+*	TI[ME] /	    --> Display Time Continuous
+*	TI[ME] HH:MM[:SS]   --> Set Time
+
+TIME	POP	H			; Clear off pointer to line
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A			; Check for command line
+	JZ	DISPLA			; Nothing entered.  Show the time.
+	CPI	'/'
+	JE	CONTIM
+
+*	Decode time from command line
+
+	CALL	$DDD			; Decode hours
+	MOV	A,D
+	ANA	A
+	JNZ	TIMSYN			; Bad time given
+	MOV	A,E
+	CPI	24			; Only 24 hours in a day
+	JNC	TIMSYN
+	STA	HOURS
+	MVI	A,':'
+	CMP	M			; Require minutes
+	JNE	TIMSYN
+	INX	H
+	CALL	$DDD			; Decode minutes
+	MOV	A,D
+	ANA	A
+	JNZ	TIMSYN
+	MOV	A,E
+	CPI	60			; Only 60 minutes in an hour
+	JNC	TIMSYN
+	STA	MINUTES
+	XRA	A			; Get a 0
+	STA	SECONDS 		; Put into seconds in case none given
+	MVI	A,':'
+	CMP	M
+	JNE	SETTIM			; No seconds.  Go set the time.
+	INX	H
+	CALL	$DDD			; Decode seconds
+	MOV	A,D
+	ANA	A
+	JNZ	TIMSYN
+	MOV	A,E
+	CPI	60			; Only 60 seconds in a minute
+	JNC	TIMSYN
+	STA	SECONDS
+
+*	Have the time.	Convert to BCD and move it into place.
+
+SETTIM	MVI	A,3			; Three bytes
+	LXI	H,NEWTIM
+STLOOP	PUSH	PSW
+	PUSH	H
+	MOV	C,M
+	MVI	B,0
+	LXI	D,10
+	CALL	$DU66
+	MOV	A,L
+	RLC				; Shift to left nibble
+	RLC
+	RLC
+	RLC
+	ORA	E			; Bring in right nibble
+	POP	H
+	MOV	M,A			; A = bcd value
+	INX	H
+	POP	PSW
+	DCR	A			; Count down
+	JNZ	STLOOP			; Next byte
+
+	LXI	H,S.TIME
+	LXI	D,NEWTIM
+	LXI	B,3
+	CALL	$MOVE			; Set the time.
+	RST	SYSCMD
+
+NEWTIM	EQU	*
+HOURS	DB	0
+MINUTES DB	0
+SECONDS DB	0
+
+TIMSYN	MVI	A,EC.ITS
+	JMP	ERROR
+
+*	Display Time.
+
+DISPLA	MVI	A,200Q
+	STA	ENDTIM			; Set for display
+	CALL	PR.CS
+	CALL	$TYPTX
+	DB	'Time is',' '+200Q
+	CALL	DISPLA.
+	RST	SYSCMD
+
+DISPLA. MVI	C,3			; Three bytes
+	LXI	D,DISTIM
+	LXI	H,S.TIME		; HL => BCD time
+	CALL	DISPL
+	CALL	$TYPTX
+DISTIM	DB	'hh:mm:ss'
+ENDTIM	DB	200Q
+	RET
+
+DISPL	MOV	A,M
+	ANI	0F0H			; Mask high nibble
+	RRC				; Shift right
+	RRC
+	RRC
+	RRC
+	ADI	30H			; Make it ascii
+	STAX	D			; Poke it
+	INX	D
+	MOV	A,M
+	ANI	0FH			; Mask low nibble
+	ADI	30H			; Make it ascii
+	STAX	D			; Poke it
+	INX	D
+	INX	D			; Skip ':'
+	INX	H
+	DCR	C			; Count down
+	JNZ	DISPL			; Next byte
+	RET
+
+*	Continuous mode display.
+
+CONTIM	LDA	S.CLKTR 		; Is system clock task resident ?
+	ANA	A
+	JNZ	CONTIM0 		; Yes, let's go
+	MVI	A,EC.CNR
+	JMP	ERROR			; Clock Not Resident
+
+CONTIM0 CALL	TT.CE			; Set character mode/no echo
+	MVI	A,CR+200Q
+	STA	ENDTIM			; Set for continuous display
+
+	LDA	H19FLG
+	ANA	A
+	JZ	CONTIM1 		; Not H19
+	CALL	$TYPTX
+	DB	ESC,'x','5'+200Q	; Cursor off
+
+CONTIM1 CALL	DISPLA. 		; Display the time
+	LDA	S.TIME+2
+	MOV	C,A			; Save current second
+
+CONTIM2 SCALL	.SCIN
+	JNC	CONTIM3 		; Do it until he hits a key
+
+	LDA	S.TIME+2		; Get second
+	CMP	C			; Has it changed yet ?
+	JE	CONTIM2 		; No, Again ? ... Again !
+	MOV	C,A			; Yes, save new second
+	PUSH	B
+	CALL	DISPLA. 		; Show current time
+
+	LDA	ULTRA
+	ANA	A
+	JZ	CTIM			; Not Ultra
+
+	LDA	H19FLG
+	ANA	A
+	JZ	CTIM			; Not H19
+
+	MVI	A,CTLR
+	SCALL	.SCOUT			; Tick the clock !
+
+CTIM	POP	B
+	JMP	CONTIM2 		; One more time
+
+CONTIM3 LDA	H19FLG
+	ANA	A
+	JZ	CONTIM4 		; Not H19
+	CALL	$TYPTX
+	DB	ESC,'y','5'+200Q	; Cursor on
+
+CONTIM4 CALL	$CRLF			; Newline
+	RST	SYSCMD

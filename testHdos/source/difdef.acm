@@ -1,0 +1,11 @@
+DIFDEF	SPACE	4,10
+**	DIRECTORY FILE FLAGS.
+
+DIF.SYS EQU	10000000B		; System file
+DIF.LOC EQU	01000000B		; Locked from flag changes
+DIF.WP	EQU	00100000B		; Write protected
+DIF.CNT EQU	00010000B		; Contiguous file
+DIF.ARC EQU	00001000B		; File archive attribute	/3.0a/
+DIF.BAD EQU	00000100B		; File is damaged		/3.0a/
+DIF.DL	EQU	00000010B		; Locked against delete 	/3.0a/
+DIF.USR EQU	00000001B		; User-defined			/3.0a/

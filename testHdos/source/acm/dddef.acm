@@ -1,0 +1,22 @@
+	SPACE	3,10
+**	DEVICE DRIVER COMMUNICATION FLAGS.
+*
+
+	ORG	0
+
+DC.REA	DS	1			; READ
+DC.WRI	DS	1			; WRITE
+DC.RER	DS	1			; READ REGARDLESS
+DC.OPR	DS	1			; OPEN FOR READ
+DC.OPW	DS	1			; OPEN FOR WRITE
+DC.OPU	DS	1			; OPEN FOR UPDATE
+DC.CLO	DS	1			; CLOSE
+DC.ABT	DS	1			; ABORT
+DC.MOU	DS	1			; MOUNT DEVICE
+DC.LOD	DS	1			; LOAD DEVICE DRIVER
+DC.RDY	DS	1			; Device Ready
+DC.SET	DS	1			; Update SET parameters 	/3.0a/
+DC.UNL	DS	1			; Unload device driver		/3.0a/
+DC.INT	DS	1			; Interrupt			/3.0a/
+DC.DSF	DS	1			; Device-specific function	/3.0a/
+DC.MAX	DS	1			; MAXIMUM ENTRY INDEX

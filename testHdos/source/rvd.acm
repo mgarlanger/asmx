@@ -1,0 +1,39 @@
+	SPACE	4,10
+**	RVD	-  Require Valid Device
+*
+*	RVD requires a valid device
+*
+*		driver permanently in memory
+*		directory type device
+*		legal unit number
+*
+*
+*	ENTRY:	HL	=  Device table address
+*
+*	EXIT:	PSW	=  'C' clear if no errors
+*			=  'C' set   if not valid device
+*			    A  = error code
+*
+*	USES:	PSW,HL
+*
+
+RVD	EQU	*
+
+*	Let the stand-in device driver flag non-resident fatal errors
+
+	CALL	$INDLB
+	DW	DEV.FLG
+	ANI	DT.DD
+	MVI	A,EC.DNS
+	STC
+	RZ				; NOT DIRECTORY TYPE
+
+	CALL	$INDLB
+	DW	DEV.MNU
+	PUSH	H
+	LXI	H,UNIT
+	DCR	A
+	CMP	M			; 'C' SET IF  ( MAX NUM - 1 ) < CURRENT
+	POP	H
+	MVI	A,EC.UUN		; assume unknown unit
+	RET

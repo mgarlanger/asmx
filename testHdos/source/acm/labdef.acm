@@ -1,0 +1,42 @@
+	SPACE	3,10
+**	DISK LABEL SECTOR FORMATS.
+
+	ORG	0
+
+LAB.SER DS	1			; SERIAL NUMBER OF VOLUME
+LAB.IND DS	2			; INITIALIZATION DATE
+LAB.DIS DS	2			; SECTOR NUMBER OF 1ST DIRECTORY SECTOR
+LAB.GRT DS	2			; INDEX OF GRT SECTOR
+LAB.SPG DS	1			; SECTORS PER GROUP
+
+LAB.DAT EQU	0			; DATA VOLUME ONLY
+LAB.SYS EQU	1			; SYSTEM VOLUME
+LAB.NOD EQU	2			; VOLUME HAS NO DIRECTORY
+
+LAB.VLT DS	1			; VOLUME TYPE
+LAB.VER DS	1			; VERSION OF INIT17 THAT INITED DISK
+
+LAB.RGT DS	2			; RGT sector number
+
+LAB.VPR EQU	*			; Volume dependant data
+LAB.SIZ DS	2			;  Volume Size (Bytes/256)
+LAB.PSS DS	2			;  Physical Sector Size
+LAB.VFL DS	1			;  Volume dependant Flags
+VFL.NSD EQU	00000001B		;   Number of Sides:  1 => 2
+VFL.DTD EQU	00000010b		;   96 tracks per inch		/3.0a/
+VFL.80T EQU	VFL.DTD 		;   (ditto)
+VFL.FIX EQU	00000100b		;   Media is fixed		/3.0a/
+LAB.VPL EQU	*-LAB.VPR		; Length of volume dependant data
+
+	ERRMI	5-LAB.VPL
+	DS	5-LAB.VPL		; Reserved
+
+LAB.LAB DS	60			; LABEL
+LAB.LBL EQU	*-LAB.LAB		; LABEL LENGTH
+	DS	2			; Reserved for 0 bytes
+
+LAB.AUX EQU	*			; Auxiliary Data
+LAB.SPT DS	1			;  Sectors per Track
+LAB.AXL EQU	*-LAB.AUX		; Length of Aux. Data
+
+LAB.LVN DS	2			; Long volume number		/3.0a/

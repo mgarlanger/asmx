@@ -1,0 +1,43 @@
+***	VERIFY - SET/SHOW CURRENT VERIFY STATE
+*
+*	VERI[FY]	- SHOW CURRENT STATE
+*	VERI[FY] ON	- SET STATE ON
+*	VERI[FY] OF[F]	- SET STATE OFF
+
+VERIFY	POP	H			; Get pointer to command line
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	VFYX			; Just wants to see it
+	CALL	$HLIHL			; Get 1st 2 characters
+	LXI	D,'NO'			; 'ON'
+	CALL	$CDEHL
+	JE	VFYON			; Turn verify on
+	MVI	D,'F'			; 'OF'
+	CALL	$CDEHL
+	JNE	ILLSYN			; Illegal syntax.  Not ON or OFF.
+
+*	Turn verify off
+
+	LDA	S.FLAG
+	ANI	377Q-S.VFLG
+	JMP	VFY..
+
+*	Turn verify on
+
+VFYON	LDA	S.FLAG
+	ORI	S.VFLG
+VFY..	STA	S.FLAG			; Set flag byte
+	RST	SYSCMD			; Done ...
+
+VFYX	CALL	$TYPTX
+	DB	NL,'VERIFY is',' '+200Q
+	LDA	S.FLAG
+	ANI	S.VFLG
+	JZ	VFYOFF
+VFYXON	CALL	$TYPTX
+	DB	'O','N'+200Q
+	RST	SYSCMD			; Done ...
+
+VFYOFF	CALL	$TYPTX
+	DB	'OF','F'+200Q
+	RST	SYSCMD			; Done ...

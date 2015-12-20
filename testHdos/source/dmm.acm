@@ -1,0 +1,168 @@
+***	DMM - Display Main Memory Information
+*
+*	DM[M]
+
+DMM	POP	H			; Clear stack
+
+***	Calculate User Memory Size
+
+	LXI	H,USERFWA		; Start of user memory
+	CALL	$CHL
+	XCHG
+	LHLD	S.SYSM			; Start of system memory
+	DAD	D			; (HL) = User area size
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVH
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVHK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVHF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+*	Calculate HDOS Reserved Memory Size
+
+	LHLD	S.SYSM			; Get FWA of System reserved
+	CALL	$CHL
+	XCHG
+	LHLD	S.HIMEM
+	DAD	D
+	INX	H			; (HL) = Size of reserved area
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVG
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVGK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVGF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+*	Calculate HDOS Locked Memory Size
+
+	LHLD	S.RFWA			; Get FWA of HDOS reserved
+	CALL	$CHL
+	XCHG
+	LHLD	S.HIMEM
+	DAD	D
+	INX	H			; (HL) = Size of locked area
+	PUSH	H			; Save it
+	PUSH	H
+	MOV	B,H
+	MOV	C,L
+	LXI	H,DMMVF
+	MVI	A,5
+	CALL	$UDDS
+	POP	PSW			; (A) = High byte of size
+	ANI	11111100B
+	RRC
+	RRC				; Divide it by 4
+	MOV	C,A
+	MVI	B,0			; (BC) = # k (whole)
+	LXI	H,DMMVFK
+	MVI	A,2
+	CALL	$UDDS			; Put it in message
+
+	POP	H
+	LXI	D,5
+	DAD	D			; Round to 1/100 th K
+	MOV	A,H
+	ANI	11B
+	MOV	D,A
+	MOV	E,L
+	MVI	A,50
+	CALL	$MU86
+	MOV	B,H
+	MOV	C,L			; (BC) = Remainder*50
+	LXI	D,512			; (DE) = 1K / 2
+	CALL	$DU66
+	MOV	B,H
+	MOV	C,L			; (BC) = 00-99
+	MVI	A,2
+	LXI	H,DMMVFF		; .nnK
+	CALL	$UDD			; MUST pad with zeros in case = .01
+
+***	Tell the tale ...
+
+	CALL	$TYPTX
+	DB	NL
+	DB	'HDOS Locked:',TAB
+DMMVF	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL
+DMMVFK	EQU	*-9
+DMMVFF	EQU	*-6
+
+	DB	'HDOS Reserved:',TAB
+DMMVG	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL
+DMMVGK	EQU	*-9
+DMMVGF	EQU	*-6
+
+	DB	'User Memory:',TAB
+DMMVH	DB	'nnnnn Bytes',TAB,'(nn.nn k)',NL
+DMMVHK	EQU	*-9
+DMMVHF	EQU	*-6
+
+	DB	NL,'PIP is',' '+200Q
+
+	LDA	PIPMEM		Is PIP in memory ?
+	ANA	A
+	JNZ	DMM.Y
+	CALL	$TYPTX
+	DB	'NOT',' '+200Q
+
+DMM.Y	CALL	$TYPTX
+	DB	'in memory',ENL
+
+	RST	SYSCMD

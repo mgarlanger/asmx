@@ -1,0 +1,46 @@
+	SPACE	4,10
+***	Update Last Access date and Access Counter			/3.0a/
+*
+*	This routine will not perform the update to a disk
+*	created prior to HDOS 3.0.
+*
+*	Entry:	AIO.XXX setup
+*		 (hl) = address of entry in SECSCR
+*	Exit:	DIR.ACD and DIR.NOA updated
+*	Uses:	All
+
+uad.	equ	*
+
+	lxi	b,DIRIDL		; entry length
+	lhld	AIO.DES 		; sector number
+	call	lde..			; fetch it back
+	cc	S.FASER 		; shouldn't happen
+
+uad	equ	*
+
+	push	h
+	lhld	AIO.DTA 		; table address
+	lxi	d,DEV.UNT
+	dad	d			; ((hl)) = unit table for device
+	lda	AIO.UNI 		; (a) = unit
+	call	S.GUP			; (hl) = unit table for unit
+	ERRNZ	UNT.FLG
+	mvi	a,DT.P3 		; prior 3.0
+	ana	m			; well?
+	pop	h
+	rnz				; don't do this.
+
+	lxi	d,DIR.NOA
+	dad	d			; point to access counter
+	mvi	a,1
+	add	m			; count
+	sbi	0			; back out if overflow
+	mov	m,a			;  and set
+	sta	AIO.DIR+DIR.NOA 	; (also in AIO table)
+	xchg
+	lhld	S.DATC			; today's date
+	shld	AIO.DIR+DIR.ACD 	; set access date
+	xchg
+	call	$inds
+	dw	DIR.ACD-DIR.NOA
+	jmp	uds			; put the sector back to disk	

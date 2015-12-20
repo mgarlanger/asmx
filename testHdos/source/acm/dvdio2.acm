@@ -1,0 +1,92 @@
+OUTCHAR SPACE	4,10
+***	OUTCHAR - Output a Character
+*
+*	Entry:	(a) = character
+*	Exit:	None
+*	Uses:	a,f
+
+OUTCHAR PUSH	H
+	PUSH	PSW
+
+	CALL	WT8255			; wait for ready
+
+	LDA	D.PORT			; port address
+	MOV	H,A
+	MVI	L,PP.DA
+	POP	PSW			; (a) = character
+	CALL	OUT
+
+	MVI	L,PP.CTL
+	MVI	A,STB.OFF
+	CALL	OUT			; assert STROBE/
+
+	ERRNZ	STB.ON
+	XRA	A
+	CALL	OUT			; deassert STROBE/
+
+	POP	H
+	RET
+WT8255	SPACE	4,10
+***	WT8255 - Wait for Ready
+*
+
+WT8255	PUSH	H
+	PUSH	PSW
+
+	LDA	D.PORT
+	MOV	H,A
+	MVI	L,PP.DC
+
+WT8255. CALL	IN			; read status
+	ANI	LP.BSY
+	JZ	WT8255. 		; is busy
+
+	POP	PSW
+	POP	H
+
+	RET
+I8255	SPACE	4,10
+***	I8255 - Initialize 8255 PPI
+*
+
+I8255	LDA	D.PORT
+	MOV	H,A			; (h) = port address
+	MVI	L,PP.CTL		; (l) = control port offset
+
+	MVI	A,CT.MSF|CT.GA1|CT.GAC|CT.GBB
+	CALL	OUT
+
+	ERRNZ	STB.ON
+	XRA	A
+	JMP	OUT
+IN	SPACE	4,10
+***	IN - Input from I/O Port
+*
+*	Entry:	(h) = base port address
+*		(l) = port offset
+*	Exit:	(a) = data read
+*	Uses:	a,f
+
+IN	MOV	A,H
+	ADD	L			; (a) = actual port
+	STA	INADD			; set
+	IN	*-*
+INADD	EQU	*-1
+	RET
+OUT	SPACE	4,10
+***	OUT - Output to I/O Port
+*
+*	Entry:	(h) = base port address
+*		(l) = port offset
+*		(a) = data
+*	Exit:	None
+*	Uses:	None
+
+OUT	PUSH	PSW
+	MOV	A,H
+	ADD	L			; (a) = port
+	STA	OUTADD
+	POP	PSW
+	OUT	*-*
+OUTADD	EQU	*-1
+	RET

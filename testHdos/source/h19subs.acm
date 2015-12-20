@@ -1,0 +1,48 @@
+	SPACE	4,10
+***	CLRSCRN - CLEAR TERMINAL SCREEN.
+*
+*	ENTRY:	NONE
+*	EXIT:	NONE
+*	USES:	A,F
+
+CLRSCRN LDA	H19FLG
+	ANA	A
+	JZ	CLRSCR
+CLSCR	CALL	$TYPTX			; Send H19 ESC sequence
+	DB	ESC,'H' 		; Home cursor
+	DB	ESC,'E' 		; Clear Screen
+	DB	ESC,'G' 		; Exit graphics mode
+	DB	ESC,'q' 		; Exit reverse video mode
+	DB	ESC,'y1'		; Disable 25th line
+	DB	ESC,'y5'		; Cursor on
+	DB	CR+200Q 		; Reset Cursor Position to 1
+	RET
+
+CLRSCR	PUSH	B			; Save BC
+	MVI	C,24			; Send 24 blank lines
+CLRSC	MVI	A,NL
+	SCALL	.SCOUT
+	DCR	C
+	JNZ	CLRSC
+	POP	B			; Restore BC
+	RET
+	SPACE	4,10
+***	HLDSCRN - Set up HOLD SCREEN mode on the H19.
+*
+*	ENTRY:	None
+*	EXIT:	None
+*	USES:	A,F
+
+HLDSCRN LDA	H19FLG
+	ANA	A
+	RZ
+	CALL	$TYPTX
+	DB	ESC,'[',CR+200Q 	; Set HOLD SCREEN
+	RET
+
+HLDSCR2 LDA	H19FLG
+	ANA	A
+	RZ
+	CALL	$TYPTX
+	DB	ESC,'\'+200Q		; Clear HOLD SCREEN
+	RET

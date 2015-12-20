@@ -1,0 +1,94 @@
+	SPACE	4,10
+**	DDS	-  Decode Device Specification
+*
+*	DDS decodes the device specification, returning a two character
+*	device name, and one byte unit number.
+*
+*
+*	ENTRY:	BC	= Address of destination fields
+*		DE	= Address of default
+*		HL	= Address of string specifier
+*
+*	EXIT:	PSW	= 'C' SET   if ERROR
+*			  'C' CLEAR if NO ERROR
+*
+*	USES:	ALL
+*
+
+DDS	EQU	*
+
+*	Initialize the fields to the defaults
+
+	PUSH	B
+	CALL	DDS3
+	CALL	DDS3
+	LDAX	D
+	SUI	'0'
+	STAX	B
+	POP	B
+
+	MOV	A,M
+	ANA	A
+	RZ				; took the default
+
+*	Check the supplied name
+
+	CALL	$SOB			; skip the whitespace
+	CALL	DDS2
+	RC				; Not alpha
+	CALL	DDS2
+	RC				; Not alpha
+
+	MOV	A,M
+	CPI	':'
+	MVI	A,0			; assume unit 0
+	JZ	DDS1			; default to unit 0
+
+*	Check for a valid digit
+
+	MOV	A,M
+	SUI	'0'
+	RC				; Not digit
+	CPI	7+1
+	CMC
+	RC				; digit too large
+	INX	H
+
+DDS1	STAX	B
+	INX	B
+	MOV	A,M
+	INX	H
+	CPI	':'
+	STC
+	RNZ				; requires ':'
+
+	MOV	A,M
+	ANA	A
+	STC
+	RNZ				; require 'NULL'
+
+	ANA	A			; Clear ERROR flag
+	RET
+
+DDS2	MOV	A,M
+	INX	H
+	CALL	$MCU
+	CPI	'A'
+	RC				; Not alpha
+
+	CPI	'Z'+1
+	CMC
+	RC				; Not alpha
+
+	STAX	B
+	INX	B			; replace the default char
+	RET
+
+DDS3	LDAX	D
+	INX	D
+	CALL	$MCU			; Map to upper case
+	STAX	B
+	INX	B
+	RET
+	ERRNZ	IOC.UNI-IOC.DEV-2	; 2 byte device
+	ERRNZ	IOC.DIR-IOC.UNI-1	; 1 byte unit

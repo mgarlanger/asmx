@@ -1,0 +1,876 @@
+	STL	'BATCH Subroutines'
+	EJECT
+***	BATCH Facility
+
+***	B.BYTE - Get a byte from the BATCH facility
+
+B.BYTE	PUSH	H			; Save registers
+	PUSH	D
+	PUSH	B
+
+	CALL	B.BAT			; Get next byte
+B.XXX	EQU	*-2
+	MOV	C,A			; Save it
+
+	LXI	H,B.CNT 		; Point at byte count
+	INR	M			; Bump it
+	MOV	A,M			; Get it
+	CPI	101			; Is it 101 yet ?
+	MVI	A,EC.LBO		; Assume error
+	JE	ERROR			; Yes, abort BATCH job
+
+	LDA	S.FLAG
+	ANI	S.ECHO			; Do we echo ?
+	MOV	A,C			; Restore byte
+	JNZ	B.BR			; No
+	SCALL	.SCOUT			; Yes
+
+B.BR	POP	B			; Restore registers
+	POP	D
+	POP	H
+	RET
+
+B.CNT	DB	0			; Byte count
+
+B.BAT	CALL	B.GET			; Get next byte from Batch file
+	ANA	A
+	JNZ	B.B1			; Not a NUL
+
+B.B0	INR	A
+	STA	NULFLG			; Flag that NUL found
+	XRA	A			;  and return with a NUL
+	RET
+
+B.B1	CPI	'%'
+	RNE				; Not the magic char.
+
+*	CHECK FOR SUBSTITUTE MODE
+
+	CALL	B.GET			; Get next byte from Batch file
+	MOV	C,A			; Save actual char
+	CALL	$MCU			; Map to upper case
+	CPI	'N'
+	JE	B.DEV
+	CPI	'U'
+	JE	B.UNI
+	CPI	'X'
+	JE	B.EXT
+	CPI	':'
+	JE	B.XXN
+	CPI	'0'
+	JC	B.NSUB			; Less than '0'
+	JE	B.NAM			; User wants Batch file name
+	CPI	'9'+1
+	JNC	B.NSUB			; Greater than '9'
+
+*	FIND SUBSTITUTE STRING
+
+	SUI	'0'			; Make binary
+	MOV	C,A			; Save in C
+	LDA	S.SHIFT
+	ADD	C
+	MOV	C,A
+	LHLD	SUBBUF
+B.B4	CALL	$SOB
+	DCR	C
+	JZ	B.B6			; Got the one we want
+B.B5	MOV	A,M
+	ANA	A
+	JZ	B.B6			; Found end of buffer
+	INX	H
+	CPI	' '
+	JE	B.B4			; At end of word
+	CPI	TAB
+	JE	B.B4			; At end of word
+	JMP	B.B5			; Loop thru this argument
+
+B.DEV	LHLD	S.DFBLK
+	SHLD	B.ARGX
+	LXI	H,B.ARGX+2
+	JMP	B.ARG
+
+B.UNI	LDA	S.DFBLK+2
+	STA	B.ARGX
+	LXI	H,B.ARGX+1
+	JMP	B.ARG
+
+B.EXT	LXI	B,3
+	LXI	D,S.DFBLK+3
+	LXI	H,B.ARGX
+	CALL	$MOVE
+	JMP	B.ARG
+
+B.XXN	LXI	B,3
+	LXI	D,S.DFBLK
+	LXI	H,B.ARGX
+	CALL	$MOVE
+	MVI	M,':'
+	INX	H
+*	JMP	B.ARG
+	ERRNZ	*-B.ARG
+
+B.ARG	MVI	M,0
+	LXI	H,B.ARGX
+	JMP	B.B6
+
+B.ARGX	DB	0,0,0,0,0
+
+B.NAM	LXI	H,BATNAME		; Point to Batch file name
+
+*	SUBSTITUTE MODE
+
+B.B6	SHLD	SUBPTR			; Set pointer
+	LXI	H,B.SUB
+	SHLD	B.XXX			; Patch logic to substitute
+B.SUB	LHLD	SUBPTR			; Get pointer
+	MOV	A,M			; Get next byte from subst. buffer
+	ANA	A
+	JZ	B.B9			; NUL is end of buffer
+	CPI	' '
+	JE	B.B9			; SPACE is end of arg
+	CPI	TAB
+	JE	B.B9			; TAB is end of arg
+	INX	H			; Bump
+	SHLD	SUBPTR			;   and save pointer
+	RET
+
+*	INVALID % USAGE
+
+B.NSUB	MOV	A,C			; Restore actual char
+	STA	B.NX0			; Save byte after '%'
+	LXI	H,B.NEXT
+	SHLD	B.XXX			; Patch logic to get next char
+	MVI	A,'%'			; Force '%'
+	RET
+
+B.NEXT	LXI	H,B.BAT
+	SHLD	B.XXX			; Patch logic to normal input
+	MVI	A,0			; Restore byte after '%'
+B.NX0	EQU	*-1
+	ANA	A
+	JZ	B.B0
+	RET
+
+*	END OF SUBSTITUTION
+
+B.B9	LXI	H,B.BAT
+	SHLD	B.XXX			; Patch logic to normal input
+	JMP	B.BAT
+
+SUBPTR	DW	0			; Subst. buffer pointer
+
+*	GET A CHARACTER FROM THE BATCH FILE
+
+B.GET	LHLD	BATPTR			; Get pointer
+	XCHG				; Save in DE
+	LHLD	BATBUF			; Get buffer FWA
+	INR	H			; Make it LWA+1
+	CALL	$CDEHL			; Compare
+	CE	B.READ			; At end of buffer, get next sector
+	JC	B.GET0
+	LHLD	BATPTR
+	MOV	A,M			; Get next byte
+	INX	H			; Bump
+	SHLD	BATPTR			;  and save pointer
+	RET
+
+B.GET0	XRA	A			; Force NUL
+	RET
+	SPACE	4,10
+***	B.READ - Read next BATCH file sector
+
+B.READ	CALL	B.OPEN			; Reopen Batch file
+	LDA	BATSEC
+	INR	A			; Bump
+	STA	BATSEC			;  and save sector pointer
+	MOV	C,A
+	MVI	B,0			; BC = sector pointer
+	XRA	A			; Channel zero
+	SCALL	.POSIT
+	JNC	B.R1
+	CPI	EC.EOF
+	JNE	ERROR
+B.R0	XRA	A
+	SCALL	.CLOSE
+	JC	ERROR
+	STC
+	RET
+
+B.R1	LHLD	BATBUF
+	SHLD	BATPTR
+	XCHG
+	LXI	B,256
+	XRA	A
+	SCALL	.READ
+	JNC	B.R2
+	CPI	EC.EOF
+	JNE	ERROR
+	JMP	B.R0
+
+B.R2	XRA	A
+	SCALL	.CLOSE
+	JC	ERROR
+	RET
+	SPACE	4,10
+***	B.OPEN - Reopen BATCH file
+
+B.OPEN	MVI	A,4			; We will try three times
+	STA	REPCNT
+	CALL	$MOVEL			; Set proper device name
+	DW	3,BATNAME,BATDEV
+B.OPE1	LXI	H,BATNAME		; Current Batch file name
+	LXI	D,BATBLK		; Default block
+	XRA	A			; Channel zero
+	SCALL	.OPENR
+	JC	B.OPE2			; Something wrong
+	LHLD	AIO.DIR+DIR.FGN
+	XCHG
+	LHLD	BATGNS
+	CALL	$CDEHL
+	JNE	B.OPE3			; Right name but wrong file
+	RET				; All is well
+
+B.OPE2	CPI	EC.FNF
+	JE	B.OPE3
+	CPI	EC.UUN
+	JNE	ERROR			; Bad news !
+B.OPE3	CALL	$GNL
+	CALL	$TYPTX
+	DB	BELL,NL,'BATCH File Not Found',ENL
+	LDA	REPCNT
+	DCR	A			; Count Down
+	JZ	BATOFF			; Third time wasn't the charm
+	STA	REPCNT
+	LXI	H,BATDEV		; Device name
+	LXI	B,-1			; Use standard message
+	SCALL	.RESNMS
+	JC	ERROR			; Ouch
+	JMP	B.OPE1			; Try to find it now
+
+BATDEV	DB	'SY0:',0
+REPCNT	DB	0			; Repeat count
+
+CHKBAT	LDA	S.FLAG
+	ANI	S.BATCH
+	RNZ
+	JMP	ILLCMD
+	STL	'ECHO - Display text'
+	EJECT
+***	ECHO - Display text
+*
+*	EC[HO] [ON|OF[F]]	Show or Set ECHO state
+*	EC[HO] text		Print text to console
+
+ECHO	POP	H
+	CALL	$SOB
+	ANA	A
+	JZ	ECHOX			; Just show state
+	CALL	$MCU			; Map character to upper case
+	CPI	'O'
+	JNE	ECHOTT
+	INX	H
+	MOV	A,M
+	CALL	$MCU			; Map character to upper case
+	CPI	'N'
+	JE	ECHON
+	CPI	'F'
+	JE	ECHOFF
+	DCX	H
+ECHOTT	CALL	PROMPT$
+	RST	SYSCMD
+
+ECHON	LDA	S.FLAG
+	ANI	377Q-S.ECHO
+	JMP	ECHO.
+
+ECHOFF	LDA	S.FLAG
+	ORI	S.ECHO
+ECHO.	STA	S.FLAG
+	RST	SYSCMD
+
+ECHOX	CALL	$TYPTX
+	DB	NL,'ECHO is',' '+200Q
+	LDA	S.FLAG
+	ANI	S.ECHO
+	JZ	VFYXON
+	JMP	VFYOFF
+	STL	'REM - Remark'
+	EJECT
+***	REM - Remark
+*
+*	REM [text]		Comments, ignored by SYSCMD
+
+REM	POP	H			; Clear stack
+	RST	SYSCMD			; Do nothing
+	STL	'PAUSE/ASK - Display text and wait'
+	EJECT
+***	PAUSE - Display text and wait for user to touch a key
+*
+*	PAU[SE] [text]		Print text on console and wait for a key
+
+PAUSE	MVI	A,0C3H			; JMP code
+
+***	ASK - Display text and wait for user to touch a key
+*	      The ascii value of the key is saved for further processing
+*
+*	AS[K] [text]		Print text on console and wait for a key
+*				Ascii value saved at *SYSXITA*
+
+	DB	21H			; Fake LXI H,
+ASK	MVI	A,21H			; LXI H, code
+	STA	ASKX
+	POP	H
+	CALL	CHKBAT			; PAUSE & ASK valid ONLY in BATCH mode
+	CALL	$SOB
+	ANA	A
+	CNZ	PROMPT$
+	SCALL	.CLRCO
+	CALL	TT.CE			; Set character mode/no echo
+ASKX	JMP	PAUSE0
+ASK0	SCALL	.SCIN
+	JC	ASK0
+	SCALL	.SCOUT
+	CALL	$MCU
+	STA	SYSXITA
+	JMP	PAUSEX
+
+PAUSE0	CALL	$TYPTX
+	DB	'Touch a key when ready',' '+200Q
+PAUSE1	SCALL	.SCIN
+	JC	PAUSE1
+PAUSEX	CALL	$GNL
+	RST	SYSCMD
+	STL	'SHIFT - Shift arguments left one position'
+	EJECT
+***	SHIFT - Shift arguments left one position
+*
+*	SH[IFT]
+
+SHIFT	POP	H			; Clear stack
+	LXI	H,S.SHIFT
+	INR	M			; Increment Shift Counter
+	RST	SYSCMD
+	STL	'COUNT - Batch Loop Counter'
+	EJECT
+***	COUNT - Batch Loop Counter
+*
+*	COU[NT] 		- Zero counter
+*	COU[NT] [=] value	- Set counter to value (0..255)
+*	COU[NT] +		- Increment counter
+*	COU[NT] -		- Decrement counter
+
+COUNT	POP	H			; Pointer
+	CALL	$SOB			; Skip over blanks
+	ANA	A
+	JZ	C.ZERO			; No arg, just clear it
+	CPI	'+'
+	JE	C.INC			; Wants to add 1
+	CPI	'-'
+	JE	C.DEC			; Wants to subtract 1
+
+*	Set counter value
+
+	CPI	'='
+	JNE	COU1
+	INX	H
+	CALL	$SOB
+	ANA	A
+	JZ	C.ZERO			; Clear count
+
+COU1	CALL	$DDD			; DE = Decoded decimal digits
+	JC	ILLSYN			; Bad value
+	MOV	A,D
+	ANA	A
+	JNZ	ILLSYN			; Can't be > 255
+	MOV	A,E			; (A) = value
+	JMP	C.Z
+
+*	Increment counter
+
+C.INC	MVI	A,34H			; INR M code
+	DB	21H			; Fake LXI H,
+
+*	Decrement counter
+
+C.DEC	MVI	A,35H			; DCR M code
+	STA	C.TOG
+	LXI	H,S.COUNT
+C.TOG	INR	M
+	RST	SYSCMD
+
+*	Zero counter
+
+C.ZERO	XRA	A			; Zero A
+C.Z	STA	S.COUNT 		; Set value
+	RST	SYSCMD
+	STL	'BIT - Set or Clear a BIT Flag'
+	EJECT
+***	BIT - Set or Clear a BIT Flag
+*
+*	BIT S[ET]		- Set all BIT flags
+*	BIT S[ET] digit 	- Set specific BIT flag (0..7)
+*	BIT C[LEAR]		- Clear all BIT flags
+*	BIT C[LEAR] digit	- Clear specific BIT flag (0..7)
+
+BIT	MVI	A,377Q
+	STA	BIT.ALL+1		; Assume Set All
+
+	POP	H			; Pointer
+	CALL	M$SOB			;Map + Skip over blanks
+	ANA	A
+	JZ	ILLSYN
+	CPI	'S'
+	JE	BIT.X			; Wants to Set
+	CPI	'C'
+	JNE	ILLSYN
+	XRA	A			; Wants to Clear
+	STA	BIT.ALL+1		; Assume Clear All
+
+BIT.X	CALL	FNST
+	ANA	A
+	JZ	BIT.ALL 		; Set or Clear all bits
+	CALL	$SOB
+	ANA	A
+	JZ	BIT.ALL 		; Set or Clear all bits
+	CPI	'0'
+	JC	ILLSYN			; Less than 0
+	CPI	'7'+1
+	JNC	ILLSYN			; Greater than 7
+	SUI	'0'			; Make it binary
+	MOV	B,A
+	XRA	A
+	CALL	BITS
+	MOV	C,A			; (C) = MASK
+	LDA	BIT.ALL+1
+	ANA	A
+	JZ	BIT.CLR
+
+*	Set bits
+
+	LDA	S.BITS
+	ORA	C
+	JMP	BIT.S
+
+*	Clear bits
+
+BIT.CLR MVI	A,377Q
+	XRA	C
+	MOV	C,A
+	LDA	S.BITS
+	ANA	C
+	JMP	BIT.S
+
+BIT.ALL MVI	A,0
+BIT.S	STA	S.BITS			; Save BIT Flag
+	RST	SYSCMD
+	STL	'GOTO - Goto a label'
+	EJECT
+***	GOTO - Goto a label
+*
+*	GO[TO] label		Goto the label given
+*
+*	The search for the label starts at the beginning of the Batch file
+*	and proceeds to the end of the Batch file.
+
+GOTO	MVI	A,21H			; LXI H, code
+
+***	JUMP - Jump to a label
+*
+*	JU[MP] label		Jump to the label given
+*
+*	The search for the label starts with the next Batch command
+*	and proceeds to the end of the Batch file.
+
+	DB	21H			; Fake LXI H,
+JUMP	MVI	A,0C3H			; JMP code
+	STA	GOTOJ
+
+	POP	H
+	CALL	CHKBAT			; GOTO valid ONLY in BATCH mode
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	ILLSYN			; You forgot the label
+	MVI	C,0
+	LXI	D,LABEL 		; Save label spec
+GOTOL	MOV	A,M
+	STAX	D
+	INX	H
+	INX	D
+	INR	C
+	ANA	A
+	JNZ	GOTOL			; Found NUL, end of label
+
+	MOV	A,C
+	STA	STRCNT
+	STA	STRCNT1
+GOTOJ	JMP	GOTO1
+
+	XRA	A
+	STA	NULFLG			; Reset NULL flag
+
+	LHLD	BATBUF
+	SHLD	BATPTR			; Reset buffer pointer
+	LDA	BATSEC
+	ANA	A
+	JZ	GOTO1			; Sector zero already present
+	MVI	A,-1
+	STA	BATSEC
+	CALL	B.READ			; Rewind BATCH file
+	MVI	A,EC.EOF		; Assume End of File if Error
+	JC	ERROR			; Should never happen
+GOTO1	LDA	S.FLAG
+	STA	GOTOFB			; Save system flag byte
+	ORI	S.ECHO
+	STA	S.FLAG			; Force ECHO off
+
+*	Read lines from BATCH file
+
+GOTO2	LDA	NULFLG
+	ANA	A
+	JNZ	GOTOX			; End of file
+	STA	B.CNT			; Zero char counter
+	LXI	H,LINE
+	CALL	$RTL.
+	CALL	$SOB
+	CPI	':'			; Is it label marker
+	JNE	GOTO2			; No, try next line
+
+*	Have a marker, check for label
+
+	INX	H			; Skip over colon
+	CALL	$SOB
+	ANA	A
+	JZ	GOTO2			; No label here, try again
+
+*	Have a label, check for match
+
+	MVI	C,0			; String length
+STRCNT	EQU	*-1
+	LXI	D,LABEL
+	CALL	$COMP
+	JNZ	GOTO2			; No match, try some more
+
+*	Have match, next line is what we want
+
+	LDA	GOTOFB			; Restore system flag byte
+	STA	S.FLAG
+	RST	SYSCMD
+
+GOTOX	LDA	GOTOFB			; Restore system flag byte
+	STA	S.FLAG
+	CALL	$TYPTX
+	DB	NL,BELL,'Can''t find ','"'+200Q
+	LXI	H,LABEL
+	MVI	A,0
+STRCNT1 EQU	*-1
+	CALL	$TYPCC
+	CALL	$TYPTX
+	DB	'"'+200Q
+	JMP	BATOFF
+
+GOTOFB	DB	0
+	STL	'IF - If conditional'
+	EJECT
+***	IF - If conditional
+*
+*	IF [NOT] condition command
+*
+*	Valid conditionals:
+*		BIT digit		single digit
+*		COU[NT] = value 	8 bit value
+*		CRC = value		16 bit value
+*		ERR[OR] = value 	8 bit value
+*		EXI[ST] filename
+*		KEY = value		8 bit value
+*		string = string
+
+IF	MVI	A,302Q			; JNE code
+	STA	IFXX			; Set false jump
+	POP	H			; Get line pointer
+IF0	CALL	$SOB
+	ANA	A
+	JZ	ILLSYN
+	MVI	A,200Q
+	STA	VERB-1
+	XCHG				; DE = line pointer
+	LXI	H,VERB
+	CALL	IFCRAK			; Get first argument
+	PUSH	D			; Save line pointer
+	MVI	M,0
+	DCX	H
+	MOV	A,M
+	XRI	200Q
+	JP	ILLSYN
+	LXI	D,VERB
+	LXI	H,IFTAB
+	CALL	$FST
+	JNZ	IFEQ			; Not specific, MUST be string
+	MOV	A,M			; (A) = index
+	CALL	$TJMP
+
+IFNDX	DS	0
+
+I.IFB	EQU	*-IFNDX/2
+	DW	IFBIT
+
+I.IFC	EQU	*-IFNDX/2
+	DW	IFCNT
+
+I.CRC	EQU	*-IFNDX/2
+	DW	IFCRC
+
+I.ERR	EQU	*-IFNDX/2
+	DW	IFER
+
+I.EXI	EQU	*-IFNDX/2
+	DW	IFEX
+
+I.NOT	EQU	*-IFNDX/2
+	DW	IFNOT
+
+	DW	$FATAL			; Room for another
+	SPACE	4,10
+***	IF [NOT] string = string command
+
+IFEQ	POP	H			; Pointer
+
+	CALL	CKEQ			; Check for '=' and arg
+
+	PUSH	H			; Save second string pointer
+	PUSH	H			;  twice
+	CALL	FNST			; Find end of word
+	ANA	A
+	JZ	ILLSYN			; End of line
+	MVI	M,0			; Mark end of word
+	INX	H			; Bump past NUL
+	SHLD	IFPTR			; Command pointer
+	POP	D			; Get second string pointer
+	XCHG				; (HL) = start (DE) = end+2
+	CALL	$CHL			; Negate start
+	XCHG				; (HL) = end+2 (DE) = -start
+	DAD	D			; HL = length of string plus NUL
+	MOV	C,L			; C = length
+	POP	D			; (DE) = second string
+	LXI	H,VERB			; (HL) = first string
+	CALL	$COMP			; Compare strings
+	JMP	IFXX
+	SPACE	4,10
+***	IF NOT condition command
+
+IFNOT	POP	H			; Pointer
+	LDA	IFXX			; See if we were here before
+	CPI	312Q			; JE code
+	JE	ILLSYN			; Yes, naughty naughty
+	MVI	A,312Q			; No, flag opposite state
+	STA	IFXX			;  at jump point
+	JMP	IF0			; Process next item
+	SPACE	4,10
+***	IF [NOT] EX[IST] filename command
+
+IFEX	POP	H			; Pointer
+	CALL	$SOB
+	ANA	A
+	JZ	ILLSYN			; End of line
+	PUSH	H			; Save filename pointer
+	CALL	FNST			; Find end of word
+	ANA	A
+	JZ	ILLSYN			; End of line
+	SHLD	IFPTR			; Command pointer
+	POP	H			; (HL) = filename
+	LXI	D,SYSCB 		; (DE) = default
+	XRA	A			; channel 0
+	SCALL	.OPENR
+	JC	IFEX1			; Assume file not found
+	XRA	A
+	SCALL	.CLOSE
+	JC	ERROR			; Gasp !
+	XRA	A			; Set true state
+IFEX1	ANA	A			; Affect zero flag
+	JMP	IFXX
+	SPACE	4,10
+***	IF [NOT] BIT digit command
+
+IFBIT	POP	H			; Pointer
+	CALL	$SOB
+	CPI	'0'
+	JC	ILLSYN			; Less than 0
+	CPI	'7'+1
+	JNC	ILLSYN			; Greater than 7
+	INX	H			; Bump past digit
+	SHLD	IFPTR			; Command pointer
+	SUI	'0'			; Make it binary
+	MOV	B,A
+	XRA	A
+	CALL	BITS
+	MOV	B,A
+	LDA	S.BITS
+	ANA	B
+	XRA	B
+	JMP	IFXX
+	SPACE	4,10
+***	IF [NOT] CRC = value command
+
+IFCRC	POP	H
+
+	CALL	CKEQ			; Check for '=' and arg
+
+	CALL	$DDD			; DE = Decoded decimal digits
+	JC	ILLSYN			; Bad value
+	SHLD	IFPTR			; Command pointer
+	LHLD	.CRCSUM 		; Latest CRC value
+	CALL	$CDEHL			; Are they equal ?
+	JMP	IFXX
+	SPACE	4,10
+***	IF [NOT] COU[NT] = value command
+
+IFCNT	LXI	H,S.COUNT
+	JMP	IFER1
+
+***	IF [NOT] ERR[OR] = value command
+
+***	IF [NOT] KEY = value command
+
+IFER	LXI	H,SYSXITA
+IFER1	SHLD	IFDATA
+	POP	H			; Pointer
+
+	CALL	CKEQ			; Check for '=' and arg
+
+	CPI	''''			; Is he giving me ascii ?
+	JNE	IFER2			; No, decode number
+	INX	H			; Yes, bump past tick
+	MOV	A,M			; Get char
+	CALL	$MCU			; Map to upper case
+	MOV	E,A			; Save char
+	INX	H			; Bump past char
+	MOV	A,M			; Get byte
+	CPI	''''			; Is it a tick ?
+	JNE	ILLSYN			; Must have closing tick
+	INX	H			; Bump past tick
+	JMP	IFER3
+
+IFER2	CALL	$DDD			; DE = Decoded decimal digits
+	JC	ILLSYN			; Bad value
+	MOV	A,D
+	ANA	A
+	JNZ	ILLSYN			; Value > 255 NOT allowed
+
+IFER3	SHLD	IFPTR			; Command pointer
+	LDA	SYSXITA 		; Get error level
+IFDATA	EQU	*-2
+	CMP	E			; Compare to our value
+
+*	If user specifies NOT then a JE code is poked at *IFXX*
+
+IFXX	JNE	SYSCMD. 		; False
+
+	LXI	H,*-*			; True, get command pointer
+IFPTR	EQU	*-2
+	LXI	D,LINE
+IFXXL	MOV	A,M
+	STAX	D
+	ANA	A
+	JZ	PROMZZ			; Process command
+	INX	H
+	INX	D
+	JMP	IFXXL
+
+IFTAB	EQU	*
+
+	DB	'BIT',.,I.IFB
+	DB	'COU','N'+.,'T'+.,.,I.IFC
+	DB	'CRC',.,I.CRC
+	DB	'ERR','O'+.,'R'+.,.,I.ERR
+	DB	'EXI','S'+.,'T'+.,.,I.EXI
+	DB	'KEY',.,I.ERR
+	DB	'NOT',.,I.NOT
+	DB	0,0
+	DW	0,0,0,0
+	SPACE	4,10
+*	Find end of word by locating a NUL, a SPACE, or a TAB
+
+FNST	MOV	A,M			; Get character
+	CALL	$MCU			; Map character to upper case
+	MOV	M,A			; Put it back
+	ANA	A
+	RZ				; is NUL
+	CPI	' '
+	RE				; is SPACE
+	CPI	TAB
+	RE				; is TAB
+	INX	H			; Bump pointer
+	JMP	FNST			; Try again
+	SPACE	4,10
+*	Crack first IF argument, terminated by NUL, SPACE, TAB, or '='
+
+IFCRAK	LDAX	D
+	ANA	A
+	JZ	ILLSYN			; End of line
+	CPI	' '
+	RE				; is SPACE
+	CPI	TAB
+	RE				; is TAB
+	CPI	'='
+	RE				; is '='
+	CALL	$MCU			; Map character to upper case
+	MOV	M,A			; Add to verb
+	INX	H			; Bump
+	INX	D			;  pointers
+	JMP	IFCRAK
+	SPACE	4,10
+*	Check for '=' followed by an argument
+
+CKEQ	CALL	$SOB
+	ANA	A
+	JZ	ILLSYN			; End of line
+	CPI	'='
+	JNE	ILLSYN			; MUST have '=' between strings
+	INX	H			; Bump past =
+	CALL	$SOB
+	ANA	A
+	JZ	ILLSYN			; End of line
+	RET
+
+	STL	'WAIT - Wait for nnnnn seconds'
+	EJECT
+***	WAIT - Wait for nnnnn seconds, then continue
+*
+*	WAIT [nnnnn]		Default = 1 second
+
+WAIT	POP	H
+	LDA	S.CLKTR
+	ANA	A			; Is system clock there
+	JZ	SYSCMD. 		; No, do nothing
+
+	CALL	$SOB			; Yes, crack argument
+	ANA	A
+	LXI	D,1
+	JZ	WAIT0			; Default to 1 second
+	CALL	$DDD			; DE = Decoded decimal digits
+	JC	ILLSYN
+	MOV	A,D
+	ORA	E
+	JZ	SYSCMD. 		; He said WAIT 0
+
+WAIT0	LDA	S.TIME+2
+	MOV	C,A			; Save current second
+	INX	D			; Add 1 to skip first partial second
+
+WAIT1	LDA	S.TIME+2
+	CMP	C
+	JE	WAIT1
+	MOV	C,A			; Save new second
+	DCX	D			; Count down the seconds
+	MOV	A,D
+	ORA	E
+	JNZ	WAIT1			; Not there yet
+
+	RST	SYSCMD			; Time's up !
+	STL	'END - End Batch session'
+	EJECT
+***	END - End Batch session
+*
+*	END
+
+END	POP	H			; Clear stack
+	JMP	BATOFF			; Turn BATCH off

@@ -1,0 +1,15 @@
+	SPACE	4,10
+***	CPDEHL - Compare (HL) to (DE)
+*
+*	Entry:	NONE
+*	Exit:	'C' Set if (HL) < (DE)
+*		'Z' Set if (HL) = (DE)
+*		 else (HL) > (DE)
+*	Uses:	A,F
+
+CPDEHL	MOV	A,H
+	CMP	D
+	RNZ
+	MOV	A,L
+	CMP	E
+	RET

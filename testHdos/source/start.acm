@@ -1,0 +1,91 @@
+**	START - Load Real Time TASK file.
+*
+*	ST[ART] filename
+
+TSKSIZ	EQU	8*1024/256		; Task size in sectors
+
+PICLOA	POP	H			; Point to start of parameters
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	ILLSYN			; No name was given
+
+	SHLD	TSKBUF			; Stash name pointer away somewhere
+	CALL	$MOVEL			; Preset default
+	DW	6,TSKBLK,SYSBLK
+	LHLD	S.PATH
+	SHLD	PTHPTR			; Preset pointer
+
+PICLD	LHLD	TSKBUF			; Fetch back name pointer
+	LXI	D,SYSBLK		; Default
+	XRA	A
+	SCALL	.OPENR
+	JNC	PICLOA0 		; Found it
+
+*	File could not be opened so we assume it isn't there and try
+*	the next PATH entry.
+
+	CALL	PATH..			; Do error check first
+	MVI	A,EC.FNF		; Assume error
+	JZ	ERROR
+	JMP	PICLD
+
+PICLOA0 LXI	D,TSKBUF		; Task buffer
+	LXI	B,TSKSIZ+1*256		; Allow max. 8k tasks
+	XRA	A
+	SCALL	.READ
+	JC	PICLOA1 		; Had error.  (That's good)
+
+	XRA	A
+	SCALL	.CLEAR			; Clear the channel
+	MVI	A,EC.8KL		; Task too large (8K limit)
+	JMP	ERROR
+
+PICLOA1 CPI	EC.EOF			; Should have been EOF
+	JNE	ERROR			; huh??
+	XRA	A
+	SCALL	.CLOSE			; Close it nice
+
+	LHLD	TSKBUF			; Get file type/subtype
+	LXI	D,FT.REL*256+377Q	; 377 002 = TSK
+	CALL	$CDEHL
+	MVI	A,EC.NTF		; Not Task File
+	JNZ	ERROR
+
+PICLOA3 CALL	SYSXIT1 		; Clear out drivers, etc ...
+	CALL	LAD			; Lock in anything that's left
+
+	LHLD	TSKBUF+4		; Displacement to PIC table
+	PUSH	H			; Save it for later
+	LXI	D,-6			; Don't need task header
+	DAD	D			; (HL) = Actual code length
+	XTHL				; Save it.  (HL) = TSKBUF+4
+	LXI	D,TSKBUF
+	DAD	D			; (HL) = Addr. of PIC table
+	XTHL				; Save it.  Get back code length.
+	PUSH	H			; Save that again, too.
+	CALL	$CHL			; Make length negative
+	XCHG				; Put that in (DE)
+	LHLD	S.RFWA
+	DAD	D			; (HL) = New RFWA & Task destination
+	SHLD	S.SYSM
+	SHLD	S.RFWA			; Set it for HDOS
+	LXI	D,-6
+	DAD	D			; Offset since we won't need header
+	XCHG				; (DE) = Task destination address
+	POP	H			; (HL) = Code length
+	XTHL				; Swap it with PIC table address
+	LXI	B,TSKBUF
+	CALL	$REL			; Use H17 ROM to relocate it
+	LHLD	S.RFWA			; Code destination
+	LXI	D,TSKBUF+6		; Relocated code
+	POP	B			; Length we want to move
+	CALL	$MOVE			; Move it up
+	LHLD	S.RFWA			; Also entry point for code
+	CALL	$PCHL			; Go to it.
+	JNC	SYSXIT
+	SHLD	S.RFWA			; Set new system memory as provided
+	SHLD	S.SYSM			;  by the task
+
+	JMP	SYSXIT			; Go back to SYSCMD
+
+$PCHL	PCHL

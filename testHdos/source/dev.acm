@@ -1,0 +1,234 @@
+***	DEVICES - Show All Devices
+*
+*	DEV[ICES]		Show all devices
+*	DEV[ICES] xx[:] 	Show xx device
+
+DEVICE	CALL	$CRLF			; blank line for looks
+
+	POP	H			; get command address
+	CALL	M$SOB			; Map + Skip white space
+	ANA	A			; any argument?
+	JZ	DEVNA			; no, do all.
+
+*	have argument, check for valid device.
+
+	CALL	$HLIHL			; (hl) = name
+	XCHG				; in (de)
+	SCALL	.GDA			; get the driver's address
+	JC	ERROR			; gong.
+
+	MOV	H,B
+	MOV	L,C			; (hl) = table entry address
+	SHLD	DEVPTR			; save it
+	CALL	SHODEV			;  display the information
+
+	RST	SYSCMD			; exit.
+
+*	display all devices
+
+DEVNA	LHLD	S.DFWA			; get device FWA
+
+DEVLP	SHLD	DEVPTR			; save it
+	MOV	A,M			; see if anything there
+	ORA	A			; end of table
+	JZ	SYSCMD. 		; all done
+	DCR	A			; anything of importance
+	CNZ	SHODEV			; show the device
+	LHLD	DEVPTR			; get the pointer back
+	MVI	A,DEVELEN		; entry length
+	CALL	$DADA			; add it in
+	JMP	DEVLP			; try again
+	SPACE	3
+SHODEV	EQU	*			; show all about the device
+
+*	SHODEV -- This routine is used to show the status of all
+*	units of a specified device.
+
+	PUSH	H			; save it on the stack
+	CALL	$HLIHL			; get device characters in (HL)
+	SHLD	DEVNAM			; save it
+	POP	H			; get to the max unit
+	MVI	A,DEV.MNU		; maximum number of units available
+	CALL	$DADA			; add it in
+	MOV	A,M			; get it
+	STA	MAXUNI			; set maximum unit possible
+	XRA	A			; set current unit to zero
+	STA	CURUNI			; done
+UNITS	EQU	*			; show units till done
+	LDA	MAXUNI			; get maximum unit
+	MOV	B,A			; store it
+	LDA	CURUNI			; get that too ...
+	CMP	B			; is CURUNI >= MAXUNI
+	RNC				; yup, return
+	ORI	'0'			; make ascii
+	STA	DEVUNI			; set it in there
+
+*	Print device name at beginning of line
+
+	CALL	$GNL			; get a new line
+
+	CALL	$TYPTX
+DEVNAM	DB	'XX'
+DEVUNI	DB	'X:',240Q		; device name out
+
+*	Next, The residence code '++' = in memory
+*				 '**' = in memory & locked
+*				 '##' = fixed in memory
+*				 '--' = unload pending
+
+	LHLD	DEVPTR			; get our pointer back
+	MVI	A,DEV.RES		; get to it's flag
+	CALL	$DADA			; add it in
+	MOV	A,M			; see if in memory
+	ANI	377Q-DR.SPL		; mask off set preamble length
+	JZ	SHOCAP			; no, show capabilities
+	ANI	DR.FX
+	MVI	A,'#'			; fixed in memory
+	JNZ	RES.
+	MOV	A,M
+	ANI	DR.UNL
+	MVI	A,'-'			; unload pending
+	JNZ	RES.
+	MOV	A,M
+	ANI	DR.PR
+	MVI	A,'*'			; in memory and locked
+	JNZ	RES.
+	MVI	A,'+'			; in memory
+RES.	SCALL	.SCOUT
+	SCALL	.SCOUT
+	MVI	A,DEV.FLG-DEV.RES	; get to the device flag
+	CALL	$DADA			; do it
+	MOV	A,M			; now test the bits of directory
+	ANI	DT.DD			; is it directory
+	JZ	SHOCAP			; sho capabilities
+	MVI	A,DEV.MUM-DEV.FLG	; get to the mounted units
+	CALL	$DADA			; do it
+	MOV	C,M			; get the value
+	LDA	CURUNI			; get the current unit
+	MOV	B,A			; put it in (B) for BITS
+	XRA	A
+	CALL	BITS			; set the correct bits
+	ANA	C			; and it through mounted units
+	JZ	SHOCAP			; show capabilities
+
+***	Got a mounted unit on a device
+*
+*	Calculate free areas on the disk
+
+	LHLD	DEVPTR			; get the pointer
+	MVI	A,DEV.UNT		; set to unit specific data
+	CALL	$DADA			; get to it
+	CALL	$HLIHL			; got the pointer
+	LDA	CURUNI			; get the unit
+UNT$LP	ORA	A			; is this the block
+	JZ	GOTUNT			; got unit specific data
+	PUSH	PSW			; save it
+	MVI	A,UNT.SIZ		; get the length
+	CALL	$DADA			; add it in
+	POP	PSW			; get back unit
+	DCR	A
+	JMP	UNT$LP			; loop through again
+
+GOTUNT	EQU	*			; got the unit specific data for it
+	MVI	A,UNT.SPG		; get sectors / group
+	CALL	$DADA			; got it
+	MOV	A,M			; get and save
+	PUSH	PSW			; save for multiply
+	INX	H			; bump to GRT address
+	ERRNZ	UNT.GRT-UNT.SPG-1
+	CALL	$HLIHL			; get GRT address
+	LXI	B,0			; going to count groups
+GRPCNT	MOV	A,M			; get it's value
+	INX	B
+	ORA	A			; is it null
+	MOV	L,A			; put it in there
+	JNZ	GRPCNT			; count another group
+	DCX	B			; drop counter by one
+	POP	PSW			; restore SPG
+	PUSH	B
+	POP	D			; put it in DE
+	CALL	$MU86			; multiply it
+	PUSH	H
+	POP	B
+	MVI	A,5
+	LXI	H,DEVFRE		; free areas
+	CALL	$UDDN			; unpack 'em
+	CALL	$TYPTX
+	DB	9,'Mounted',9,'['
+DEVFRE	DB	'/DTC/]',211Q		; tab for label buffer
+
+*	Now print Label buffer
+
+	LHLD	DEVPTR			; set up a jump to it
+	MVI	A,DEV.JMP		; jump vector
+	CALL	$DADA			; add it in
+	SHLD	DEVADD			; set device address
+	LXI	H,9			; sector 9
+	LXI	D,LABEL
+	LXI	B,256
+	LDA	CURUNI
+	STA	AIO.UNI			; set up the unit
+	MVI	A,DC.RER		; if H17, were reading TR. 0
+	CALL	CC.OFF			; Prohibit Control Char.
+	CALL	*-*			; do the call
+DEVADD	EQU	*-2
+	PUSH	PSW
+	CALL	CC.ON			; Allow Control Char.
+	POP	PSW
+	JC	NXTUNI			; do the next unit
+	LXI	H,LABEL+LAB.LAB 	; get to label
+	CALL	$DTB			; delete trailing blanks
+DPRINT	MOV	A,M			; get the value
+	ORA	A			; null
+	JZ	NXTUNI			; do the next unit
+	SCALL	.SCOUT			; print it
+	INX	H
+	JMP	DPRINT			; try again
+
+SHOCAP	EQU	*			; Show capabilities
+	CALL	$TYPTX
+	DB	TAB,TAB+200Q		; TAB over a few
+	LHLD	DEVPTR			; get the pointer
+	MVI	A,DEV.FLG
+	CALL	$DADA			; add to it
+	MOV	A,M			; get the value
+	LXI	H,SHO.F 		; point at flags
+	MVI	C,8			; check all 8
+SHO.0	RRC				; rotate right to test next bit
+	PUSH	PSW			; save magic byte
+	MOV	A,M			; get flag
+	JC	SHO.1			; it was on so show it
+	MVI	A,'-'			; it wasn't on so pad it
+SHO.1	SCALL	.SCOUT			; show flag or pad char
+	INX	H			; bump flag pointer
+	POP	PSW			; restore byte
+	DCR	C			; count down
+	JNZ	SHO.0			; more to go
+
+NXTUNI	LXI	H,CURUNI
+	INR	M			; bump it
+	JMP	UNITS			; try again
+
+$DTB	EQU	*			; delete trailing blanks
+	PUSH	H			; save it
+	CALL	$DTB.
+	POP	H
+	RET				; to caller
+
+$DTB.	MOV	A,M			; look for null
+	INX	H
+	ORA	A
+	JNZ	$DTB.			; try again
+	DCX	H
+$DTB..	DCX	H			; drop again
+	MOV	A,M			; check for space
+	CPI	' '			; is it
+	RNZ				; nope
+	MVI	M,0
+	JMP	$DTB..			; try again
+
+DEVPTR	DW	0
+CURUNI	DB	0
+MAXUNI	DB	0
+
+SHO.F	DB	'DRWUCF?N'

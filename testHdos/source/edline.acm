@@ -1,0 +1,398 @@
+**	EDLINE - SYSCMD.SYS Command Line Editor 		/3.0a/
+
+*	Invoked by CTRL-A at the SYSCMD prompt.
+*	Edit previous command string.
+
+*	Command 	Description
+
+*	nSPACE BAR	advance cursor right by 'n' characters (default =1)
+*			each character is displayed as cursor moves.
+
+*	nBACK SPACE	move cursor left by 'n' characters (default =1)
+*			each character is blanked as cursor moves but is
+*			NOT removed from buffer.
+
+*	nDELETE 	same as BACK SPACE but characters are ALSO deleted
+*			from buffer and any characters to the right are
+*			brought back to fill the space.
+
+*	A		ABORT current editing and restart editor with
+*			original buffer contents.
+
+*	C		enter CHANGE mode (overstrike). as user types new
+*			characters they replace buffer contents at cursor
+*			position. mode is exited with ESC or CR (below).
+
+*	nD		DELETE 'n' characters to right of cursor (default =1)
+*			delimit deleted text so user can see if he needs to
+*			abort and try again.
+
+*	H		HACK off rest of buffer and enter INSERT mode.
+
+*	I		enter INSERT mode. as user types new characters
+*			they push buffer contents to right so they fit in.
+*			horn toots if buffer full. mode is exited with
+*			ESC or CR (below).
+
+*	xKc		KILL (delete) characters until the 'x'th occurence
+*			of the character 'c'. delimits deleted text. if
+*			character not found then uses rest of line.
+
+*	L		LIST rest of line buffer and positions cursor at
+*			start of line.
+
+*	Q or CTL-D	QUIT editor and return to SYSCMD prompt. original
+*			previous command still in tact.
+
+*	xSc		SEARCH for 'x'th occurence of the character 'c'
+*			and position cursor there.  all previous characters
+*			are displayed.
+
+*	X		add EXTRA text at end of line. position cursor at
+*			end of line and enter INSERT mode.
+
+*	ESC		ESCAPE from INSERT or CHANGE mode. still in editor
+*			waiting for next command.
+
+*	CR		RETURN (or ENTER) KEY. exit INSERT or CHANGE mode,
+*			if user is in either, and return to SYSCMD with
+*			edited command ready for execution.
+
+EDLINE	EQU	*
+	LXI	H,0
+	MVI	A,CTLA
+	SCALL	.CTLC		disable ctl-a
+	SCALL	.CLRCO		clear console buffer
+	LXI	SP,STACK	reset stack
+	CALL	TT.CE		set character mode/no echo
+
+EL0	LXI	H,LABEL 	edline work buffer addr
+	SHLD	ELPTR		reset pointer
+	MVI	B,ELBUFL
+	CALL	$ZERO		fill buffer with nulls
+	LHLD	S.EDLIN
+	LXI	D,LABEL
+EL1	MOV	A,M		move command buffer to edit buffer
+	STAX	D
+	INX	H
+	INX	D
+	ORA	A
+	JNZ	EL1
+	CALL	$CRLF		new line
+	CALL	ELPL		print buffer
+	SHLD	ELPTR		set pointer at end of command
+
+ELRC	XRA	A
+	STA	ELCNT		reset count
+EL3	CALL	ELCHR		get a keystroke
+	CALL	$MCU		map it to upper case
+	CPI	'A'		abort
+	JZ	EL0
+	CPI	'C'		change
+	JZ	ELC
+	CPI	'D'		delete
+	JZ	ELD
+	CPI	'H'		hack
+	JZ	ELH
+	CPI	'I'		insert
+	JZ	ELI
+	CPI	'K'		kill
+	JZ	ELK
+	CPI	'L'		list
+	JZ	ELL
+	CPI	'Q'		quit
+	JZ	ELQ
+	CPI	CTLD		^D
+	JZ	ELCD
+	CPI	'S'		search
+	JZ	ELS
+	CPI	'X'		extra
+	JZ	ELX
+	CPI	' '		space bar
+	JZ	ELSP
+	CPI	BS		back space
+	JZ	ELBS
+	CPI	DEL		delete key
+	JZ	ELDEL
+	CPI	NL		enter key
+	JZ	ELNL
+	CPI	'0'
+	JC	EL4
+	CPI	'9'+1
+	JNC	EL4
+	SUI	'0'		accumulate count
+	PUSH	PSW
+	LDA	ELCNT
+	ADD	A		x2
+	MOV	C,A
+	ADD	A		x4
+	ADD	A		x8
+	ADD	C		x10
+	MOV	C,A
+	POP	PSW
+	ADD	C
+	STA	ELCNT		update count
+	JMP	EL3
+
+EL4	MVI	A,BELL		toot
+	SCALL	.SCOUT
+	JMP	EL3
+
+ELC	EQU	*		change
+ELC0	LHLD	ELPTR
+ELC1	MOV	A,M
+	ANA	A
+	JZ	ELC3
+ELC2	CALL	ELCHR
+	CPI	ESC
+	JZ	ELRC		reset count and return
+	CPI	CTLD		^D
+	JZ	ELCD		quit
+	CPI	NL
+	JZ	ELNL
+	CPI	' '		other control codes NOT allowed
+	JC	ELC2
+	CPI	DEL		not even delete
+	JZ	ELC2
+	SCALL	.SCOUT		else, print it
+	LHLD	ELPTR
+	MOV	M,A		and poke it
+	INX	H		bump pointer
+	SHLD	ELPTR
+	JMP	ELC1		loop for more til ESC or CTLD
+
+ELC3	MVI	A,BELL
+	SCALL	.SCOUT
+	JMP	ELRC		reset count and return
+
+ELK	EQU	*		kill
+	CALL	ELTRGT		get count to target
+*	JMP	ELD		process delete command
+	ERRNZ	*-ELD
+
+ELD	EQU	*		delete
+ELD0	LHLD	ELPTR
+	MOV	A,M
+	ANA	A
+	JZ	ELC3		at end of line
+	MVI	A,'{'		delimiter
+	SCALL	.SCOUT
+	CALL	ELFC		fetch count
+	MOV	C,A		save in C
+ELD1	LHLD	ELPTR
+	MOV	A,M
+	ANA	A
+	JZ	ELD2		at end of line
+	SCALL	.SCOUT		print character as we go
+	INX	H
+	CALL	ELSHL.		shift buffer left
+	DCR	C
+	JNZ	ELD1		loop for count
+ELD2	MVI	A,'}'		delimiter
+	SCALL	.SCOUT
+	JMP	ELRC		reset count and return
+
+ELH	EQU	*		hack & insert
+	LHLD	ELPTR
+ELH0	MOV	A,M		clear buffer until a NUL
+	ORA	A
+	JZ	ELI
+	XRA	A
+	MOV	M,A
+	INX	H
+	JMP	ELH0
+
+ELX	EQU	*		extra & insert
+	CALL	ELPL		print rest of line
+	SHLD	ELPTR		save new pointer
+*	JMP	ELI		process insert command
+	ERRNZ	*-ELI
+
+ELI	EQU	*		insert
+	LHLD	ELPTR
+ELI0	CALL	ELCHR		get keystroke
+	CPI	ESC		escape
+	JZ	ELRC		reset count and return
+	CPI	CTLD		^D
+	JZ	ELCD		quit
+	CPI	NL
+	JZ	ELNL
+	CPI	BS		backspace
+	JZ	ELIBS
+	CPI	DEL		delete key
+	JZ	ELIDEL
+	CPI	' '		test for valid character
+	JNC	ELI2
+ELI1	MVI	A,BELL		toot
+	SCALL	.SCOUT
+	JMP	ELI0
+ELI2	PUSH	PSW
+	LXI	D,LABEL+ELBUFL-2
+	LDAX	D
+	ORA	A		test for buffer full
+	JZ	ELI3		if not
+	POP	PSW
+	JMP	ELI1		if full
+ELI3	INX	D		shift buffer right
+	STAX	D
+	DCX	D
+	CALL	$CDEHL		until we reach pointer
+	JZ	ELI4
+	DCX	D
+	LDAX	D
+	JMP	ELI3
+ELI4	POP	PSW
+	SCALL	.SCOUT
+	MOV	M,A		insert character
+	INX	H		bump pointer
+ELI5	SHLD	ELPTR		save in case we exit next
+	JMP	ELI0
+
+ELIBS	LXI	D,LABEL 	backspace in INSERT mode
+	CALL	$CDEHL		test for start of line
+	JZ	ELI1		if so, bail out
+	CALL	$TYPTX		back up a character
+	DB	BS,' ',BS+80H
+	DCX	H		back up pointer
+	JMP	ELI5
+
+ELIDEL	LXI	D,LABEL 	delete key in INSERT mode
+	CALL	$CDEHL		test for start of line
+	JZ	ELI1		if so, bail out
+	CALL	ELSHL		shift buffer left
+	JMP	ELI5
+
+ELL	EQU	*		list
+	CALL	ELPL		print rest of line
+	CALL	$CRLF		go to next line
+	LXI	H,LABEL
+	SHLD	ELPTR		reset pointer
+	JMP	ELRC		reset count and return
+
+ELCD	CALL	$TYPTX		^D
+	DB	'^','D'+200Q
+
+ELQ	EQU	*		quit
+	RST	SYSCMD		return to SYSCMD
+
+ELS	EQU	*		search
+	CALL	ELTRGT		get count to target
+*	JMP	ELSP		process space bar command
+	ERRNZ	*-ELSP
+
+ELSP	EQU	*		space bar
+ELSP0	CALL	ELFC		fetch count
+	MOV	C,A		save in C
+	LHLD	ELPTR
+ELSP1	MOV	A,M
+	ORA	A		test for NUL
+	JZ	ELSP2		if so, bail out
+	SCALL	.SCOUT		if not, print it
+	INX	H		bump pointer
+	DCR	C
+	JNZ	ELSP1		loop for count
+ELSP2	SHLD	ELPTR		save new pointer
+	JMP	ELRC		reset count and return
+
+ELBS	EQU	*		backspace
+	CALL	ELFC		fetch count
+	MOV	C,A		save in C
+	LHLD	ELPTR
+ELBS0	LXI	D,LABEL
+	CALL	$CDEHL		test for start of line
+	JZ	ELBS1		if so, bail out
+	CALL	$TYPTX		back up a character
+	DB	BS,' ',BS+80H
+	DCX	H		back up pointer
+	DCR	C
+	JNZ	ELBS0		loop for count
+ELBS1	SHLD	ELPTR		save new pointer
+	JMP	ELRC		reset count and return
+
+ELDEL	EQU	*		delete key
+	CALL	ELFC		fetch count
+	MOV	C,A		save in C
+	LHLD	ELPTR
+ELDEL0	LXI	D,LABEL
+	CALL	$CDEHL		test for start of line
+	JZ	ELDEL3		if so, bail out
+	CALL	ELSHL		shift buffer left
+	DCR	C
+	JNZ	ELDEL0		loop for count
+ELDEL3	SHLD	ELPTR		save new pointer
+	JMP	ELRC		reset count and return
+
+ELNL	EQU	*		return key
+	CALL	ELPL
+	LXI	H,LABEL
+	LXI	D,LINE
+ELNL0	MOV	A,M		move buffer back to command line
+	STAX	D
+	INX	H
+	INX	D
+	ORA	A
+	JNZ	ELNL0
+	CALL	TT.CCM		clear special console modes
+	CALL	$CRLF
+	LXI	H,LINE
+	JMP	PROMZ		return to SYSCMD with a command
+
+ELFC	EQU	*		fetch count
+	LDA	ELCNT
+	ORA	A
+	JZ	ELFC0		if zero, make one
+	CPI	ELBUFL
+	RC
+	MVI	A,ELBUFL-1	if > buffer length, make = buffer length
+ELFC0	INR	A
+	RET
+
+ELCHR	SCALL	.SCIN
+	JC	ELCHR
+	RET
+
+ELSHL	CALL	$TYPTX		back up a character
+	DB	BS,' ',BS+80H
+ELSHL.	PUSH	H		shift buffer left
+ELSHL1	MOV	A,M
+	DCX	H
+	MOV	M,A
+	INX	H
+	INX	H
+	ORA	A		test for NUL
+	JNZ	ELSHL1		if not, loop
+	POP	H
+	DCX	H		back up pointer
+	RET
+
+ELTRGT	CALL	ELCHR		get target character
+	MOV	C,A		save it
+	MVI	B,0		zero delete count
+	CALL	ELFC		fetch count
+	MOV	E,A		save in E
+	LHLD	ELPTR
+ELT2	INX	H		search for target character
+	INR	B		bump delete count
+	MOV	A,M
+	ORA	A		test for NUL
+	JZ	ELT3		if so, bail out
+	CMP	C		test for target
+	JNZ	ELT2		if not
+	DCR	E
+	JNZ	ELT2
+ELT3	MOV	A,B
+	STA	ELCNT		save delete count as count
+	RET
+
+ELPL	LHLD	ELPTR		print rest of line
+ELPL0	MOV	A,M
+	ORA	A		test for NUL
+	RZ
+	SCALL	.SCOUT		print character
+	INX	H		bump pointer
+	JMP	ELPL0
+
+ELCNT	DB	0		count
+ELPTR	DW	LABEL		pointer
+
+ELBUFL	EQU	101		buffer length

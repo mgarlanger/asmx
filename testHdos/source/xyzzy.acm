@@ -1,0 +1,11 @@
+***	XYZZY - DISPLAY EXIT CODE ?
+*
+*	XYZZY		- TOGGLE STATE OF FLAG
+
+XYZZY	POP	H			; Clear stack
+
+	LDA	S.FLAG			; Get System Flag
+	XRI	S.EXITC 		; Toggle XYZZY bit
+	STA	S.FLAG			; Save System Flag
+
+	RST	SYSCMD

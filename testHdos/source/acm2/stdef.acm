@@ -1,0 +1,14 @@
+	SPACE	4,10
+**	SYMBOL DEFINITION TYPES.				/80.03.gc/
+
+ST.UND	EQU	       0	UNDEFINED
+ST.LAB	EQU	       1	LABEL
+ST.EQU	EQU	       2	DEFINED VIA *EQU*
+ST.SET	EQU	       3	DEFINED VIA *SET*
+ST.MSK	EQU	00000111B	Mask for definition classes
+
+ST.NRF	EQU	00001000B	No Cross References are to be taken
+ST.DNA	EQU	00010000B	Definition of symbol not allowed
+
+ST.REL	EQU	01000000B	Relocatable
+ST.DBL	EQU	10000000B	Doubly defined	

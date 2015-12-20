@@ -1,0 +1,9 @@
+***	CLS - CLEAR CONSOLE SCREEN
+*
+*	CLS
+
+CLS	EQU	*
+
+	CALL	CLRSCRN 		; Clear Screen, Graphics & Reverse
+
+	RST	SYSCMD

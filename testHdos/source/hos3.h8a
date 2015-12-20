@@ -1,0 +1,5216 @@
+	TITLE	'HDOS, Version 3.0'
+***	SYSTEM I/O HANDLER.
+*
+*	JG LETWIN, 10/77
+*
+*	COPYRIGHT HEATH COMPANY.
+*
+*	G. Chandler,	78/10	Maintenence Release
+*			79/04\
+*			79/05 > Release  #50.04.00
+*			79/06/
+*			79/10	Release  #50.05.00
+*			80	Release  #50.06.00
+*				 /2.0a/ = /80.09.gc/
+*				 /2.0b/	= /80.10.gc/
+*				 /2.0c/ = /80.11.gc/
+*			85-86	Release  #50.07.00
+*				 /3.0a/ = /86.08.bp/
+*
+*			86	Released into Public Domain
+*				 by Heath Company,
+*				 August 16, 1986.
+
+*	Boolean constants
+
+FALSE	equ	0
+TRUE	equ	!FALSE
+
+REV	EQU	0			; revision level
+
+*	Conditional Assembly
+
+DEBUG	EQU	FALSE
+	LON	LCH
+	SPACE	4,10
+***	THE SYSTEM I/O HANDLER HANDLES SYSTEM REQUESTS FOR
+*	READS AND WRITES.
+*
+*	IF A MASS STORAGE DEVICE, THIS DOES THE CORRECT STORAGE
+*	MANAGEMENT. IF A SERIAL DEVICE, THE COMMAND IS PASSED
+*	ONTO THE DEVICE DRIVER.
+	STL	'Symbol Definitions'
+	EJECT
+**	MACHINE INSTRUCTIONS
+
+MI.JMP	EQU	303Q
+MI.LXID equ	021Q
+
+**	SYSTEM SYMBOLS
+
+	XTEXT	ASCII
+	XTEXT	MTR
+	XTEXT	MTRRAM
+	XTEXT	HDSROM
+	XTEXT	FILDEF
+	XTEXT	HOSDEF
+	XTEXT	DEVDEF
+	XTEXT	DIRDEF
+	XTEXT	DISDEF
+	XTEXT	IOCDEF
+	XTEXT	DDDEF
+	XTEXT	ECDEF
+	XTEXT	DDFDEF
+	XTEXT	LABDEF
+	XTEXT	ABSDEF
+	XTEXT	PICDEF
+	XTEXT	DVDDEF
+	XTEXT	DIFDEF
+	XTEXT	NAMDEF
+	XTEXT	MTRDEF
+	XTEXT	HOSBASE
+	XTEXT	HOSEQU
+	XTEXT	ECVEC
+	XTEXT	ESVAL
+	XTEXT	ESINT
+	XTEXT	FLTDEF
+	XTEXT	BOODEF
+	TITLE	'HDOS System Boot Code'
+	STL	'Boot Mainline'
+	EJECT
+**	TEMP INITIALIZE
+
+	CODE	P,SB.ORG+PIC.COD	; POSITION INDEPENDENT CODE
+	CODE	-R			; THIS CODE WILL NOT BE RELOCATED
+
+HOSBOOT JMP	HOSBOO1 		; PERFORM BOOT
+
+
+*	DEFAULT VALUES FOR SYSTEM
+
+HOSTAB	EQU	*			; DEFAULT VALUE TABLE
+
+	ERRNZ	*-HOSTAB-FLT.MNC
+	DB	7			; Total number of channels	
+
+	ERRNZ	*-HOSTAB-FLT.OPT
+	DB	0			; System Options
+
+	ERRNZ	*-HOSTAB-FLT.PBO
+	DB	PBO.DAT 		; Permanent Boot Options
+	SPACE	3
+*	START OF BOOT CODE.
+*
+*	(HL) = FWA OF SY.DVD
+*	(DE) = FWA OF TT.DVD
+
+HOSBOO1	EQU	*
+
+	LXI	SP,STACK		; SET UP THE NEW STACK
+
+*	SAVE DRIVER ADDRESSES
+
+	SHLD	SYFWA
+	XCHG
+	SHLD	TTFWA
+
+*	CLEAR MEMORY
+
+	CALL	SBD			; save boot data
+
+	LXI	H,S.TIME
+	MVI	B,AIO.CHA-S.TIME
+	CALL	$ZERO			; ZERO OUT LOTS OF MEMORY
+
+	CALL	RBD			; restore boot data
+
+*	PLACES, EVERYONE!
+
+	DI				; SAFE
+
+	CALL	GO0			; GO ORG-0 (RETURN WITH DI)
+
+	CALL	RRH			; RELOCATE RESIDENT HDOS CODE
+
+	CALL	SLR			; SET LOW MEMORY REFERENCES
+	CALL	ADB			; ALLOCATE DYNAMIC BUFFERS
+
+	EI				; EVERYONE IN PLACE
+
+	CALL	SFM			; SET FEATURE MASK
+
+	CALL	RTT			; RUN TT.DVD
+	CALL	RSY			; RUN SY.DVD
+
+	CALL	GVM			; SHOW A SIGN OF LIFE
+
+	CALL	FSM			; FAKE SYSTEM MOUNT
+
+	CALL	SDT			; SETUP DEVICE TABLES
+
+	CALL	ACT			; Allocate Channel Table
+
+	CALL	ASG			; Allocate system GRTs
+
+	CALL	SSD			; Set System Date
+
+	CALL	MSD			; Mount System Diskette
+
+	CALL	UBP			; Update Boot Parameters
+
+*	want prologue.sys?
+
+	LDA	S.BOOTF
+	ANI	BOOT.P
+	JZ	HOSB2			; IGNORE PROLOGUE FILE
+
+	LXI	H,HOSBA
+	SCALL	.LINK			; TRY TO LINK TO PROLOGUE
+
+HOSB2	XRA	A			; COULDN'T FIND PROLOGUE,
+	SCALL	.EXIT			;  SO TRY NORMAL EXIT
+
+HOSBA	DB	'SY0:PROLOGUE.SYS',0	; PROLOGUE FILE
+	STL	'SBD - Save Boot Data'
+	EJECT
+***	SBD - Save Boot Data
+*
+
+SBD	equ	*
+
+	LDA	S.CDB			; console descriptor
+	STA	SBDA
+
+	LHLD	S.BAUD			; 8250 baud rate
+	SHLD	SBDB
+
+	LDA	S.CONTY 		; console type
+	STA	SBDC
+
+	LDA	S.BOOTF 		; boot flags
+	STA	SBDD
+
+	LDA	AIO.UNI 		; boot device unit
+	STA	SUNIT
+
+	RET
+
+SBDA	DC	1,#0
+SBDB	DC	2,#0
+SBDC	DC	1,#0
+SBDD	DC	1,#0
+	STL	'RBD - Restore Boot Data'
+	EJECT
+***	RBD - Restore Boot Data
+*
+
+RBD	equ	*
+
+	LDA	SBDA
+	STA	S.CDB			; console descriptor
+
+	LHLD	SBDB
+	SHLD	S.BAUD			; 8250 baud rate
+
+	LDA	SBDC
+	STA	S.CONTY 		; console type
+
+	LDA	SBDD
+	STA	S.BOOTF 		; boot flags
+
+	LDA	SUNIT
+	STA	AIO.UNI 		; boot device unit
+
+	RET
+	STL	'GO0 - GO ORG-0'
+	EJECT
+***	GO0 - GO ORG-0
+*
+*	GO0 IS CALLED TO SET THE SYSTEM UP FOR ORG-0 OPERATION.
+*	THIS INCLUDES COPYING THE H17 ROM INTO RAM, ENABLING RAM
+*	FROM 000000A THRU 037377A, COPYING THE H17 ROM IMAGE BACK
+*	INTO PLACE IN RAM, AND SETTING CERTAIN BASE PAGE VALUES.
+*
+*	ENTRY:	INTERRUPTS OFF
+*	EXIT:	NONE
+*	USES:	ALL
+
+H17ROM	EQU	030000A 		; FWA OF H17 ROM
+H17ROML EQU	010000A 		; LENGTH OF H17 ROM
+
+ROMBUF	EQU	USERFWA+256		; PLACE TO SAVE H17 ROM
+
+GO0	EQU	*
+
+*	COPY THE ROM
+
+	XRA	A
+	OUT	OP2.CTL 		; GET REAL ROM
+
+	ERRMI	SB.ORG-ROMBUF-H17ROML	; MAKE SURE DON'T SQUISH BOOT CODE
+
+	LXI	D,H17ROM
+	LXI	H,ROMBUF
+	LXI	B,H17ROML
+	CALL	$MOVE			; COPY THE IMAGE
+
+*	ENABLE RAM AND DETERMINE MACHINE TYPE
+
+	MVI	A,CB2.ORG+CB2.CLI
+	OUT	OP2.CTL 		; TURN ON LOW RAM
+	STA	.CTL2FL 		; SET CONTROL VALUE
+
+	LXI	H,B.NMI 		; POINT TO NMI VECTOR
+	MOV	A,M			; GET BYTE
+	INR	M			; DOES IT
+	CMP	M			;  CHANGE?
+	JZ	*			; NO, STOP RIGHT HERE!
+
+	MVI	M,MI.JMP
+	INX	H
+	LXI	D,GO0NMI		; SERVICE CODE
+	MOV	M,E
+	INX	H
+	MOV	M,D			; VECTOR INSTALLED
+
+	MVI	C,CB.SPK+CB.CLI+CB.SSI	; INITIAL .CTLFLG (ASSUMES H8)
+	IN	IP.PAD			; TRY AN H8 PORT, CAUSES NMI IN H89
+
+	MOV	A,C			; GET FLAG
+	ANA	A			; IS H89?
+	JZ	GO0.1			; YES.
+
+	OUT	OP.CTL			; ARM H8 CLOCK
+
+GO0.1	STA	.CTLFLG 		; =0 IF H89
+
+*	COPY THE "ROM" BACK
+
+	LXI	H,ROMBUF		; WHERE WE PUT IT
+	LXI	D,H17ROM
+	LXI	B,H17ROML
+
+GO0.2	MOV	A,M
+	STAX	D			; COPY A BYTE
+	INX	H
+	INX	D
+	DCX	B
+	MOV	A,B
+	ORA	C			; DONE?
+	JNZ	GO0.2			; NEGATORY, GOOD BUDDY.
+
+*	FIN
+
+	RET
+	SPACE	4,10
+*	NMI vector for hardware test
+
+GO0NMI	MVI	C,0			; set new .CTLFLG
+
+	DB	0EDH,045H		; <RETN>
+	STL	'RRH - Relocate HDOS Resident Code'
+	EJECT
+**	RRH - RELOCATE CODE.
+*
+*	RRH IS CALLED TO RELOCATE THE HOS CODE INTO HIGH MEMORY.
+*
+*	Modified:	Aug-80
+*			 64K RAM System support
+*
+*	ENTRY	NONE
+*	EXIT	(DE) = DISPLACEMENT FACTOR
+*	USES	ALL
+
+RRH	EQU	*
+
+*	DETERMINE HIGH MEMORY
+
+	LXI	H,RRH2+255		; START AT RRH2
+	MVI	L,0			; START AT NEXT 256 BOUNDARY
+RRH1	INR	H			; TRY NEXT BLOCK
+	JZ	RRH1.5			; Wrap through high memory
+	MOV	A,M
+	INR	M
+	CMP	M
+	MOV	M,A			; RESTORE
+	JNE	RRH1			; WAS RAM
+RRH1.5	DCX	H			; (HL) = HIGHMEM
+
+*	(HL) = HIGHMEM ADDRESS
+
+RRH2	EQU	*
+
+	SHLD	S.HIMEM 		; SET HARDWARE HIGH MEM
+
+*	set up for signon
+
+	LXI	B,1
+	DAD	B
+	MOV	A,H			; (h) = # pages, 'C' if 256.
+	RAR
+	RAR
+	ANI	01111111B
+	MOV	C,A
+	MVI	A,2
+	LXI	H,GVMA
+	CALL	$UDD
+
+*	move the system
+
+RRH3	LXI	H,HOSBASE		; Destination of HDOS
+	LXI	D,FWAREL
+	MOV	A,L
+	SUB	E
+	MOV	C,A
+	MOV	A,H
+	SBB	D
+	MOV	B,A			; (BC) = DISPLACEMENT
+	PUSH	B			; SAVE
+	LXI	B,LENSYS		; (BC) = SYSTEM RESIDENCE LENGTH
+	CALL	$MOVE			; MOVE INTO PLACE
+
+*	RELOCATE REFERENCEES
+
+	POP	D			; (DE) = RELOCATION FACTOR
+	LHLD	SB.ORG+PIC.PTR
+	LXI	B,SB.ORG
+	DAD	B			; (HL) = REL TABLE ADDRESS
+
+*	RELOCATE CELLS IN BOOT CODE ITSELF
+
+RRH4	PUSH	D			; SAVE RELOCATION FACTOR
+	MOV	E,M
+	INX	H
+	MOV	D,M
+	INX	H			; (DE) = REL ADDRESS OF WORD TO RELOCATE
+	MOV	A,D
+	ORA	E
+	JZ	RRH6			; ALL DONE
+
+*	SEE IF ADDRESS IS BEYOND FWAREL
+
+	LXI	B,FWAREL		; (BC) = BREAK BETWEEN ABS PRESET AND REL HDOS
+	MOV	A,E
+	SUB	C
+	MOV	A,D
+	SBB	B
+	JC	RRH5			; NOT BEYOND
+
+*	LET REL ROUTINE RELOCATE REST OF CODE
+
+RRH6	LXI	B,-2
+	DAD	B			; BACKUP (HL)
+	POP	B			; (BC) = REL FACTOR
+	JMP	REL.			; RELOCATE AND EXIT
+
+*	(DE) = INDEX OF WORD TO RELOCATE
+*	(HL) = RELOCATION TABLE ADDRESS
+*	(BC) = CODE DISPLACEMENT FACTOR
+*	((SP)) = CODE RELOCATION FACTOR
+
+RRH5	XTHL				; (HL) = CODE REL FACTOR
+	LDAX	D
+	ADD	L			; RELOCATE WORD OF CODE
+	STAX	D
+	INX	D
+	LDAX	D
+	ADC	H
+	STAX	D			; RELOCATE
+	XCHG				; (DE) = RELOCATION FACTOR
+	POP	H			; (HL) = RELOCATION TABLE ENTRY ADDRESS
+	JMP	RRH4			; DO IT AGAIN
+	STL	'SLR - Set Low Memory References'
+	EJECT
+**	SLR - SETUP LOW MEMORY REFERENCES.
+*
+
+SLR	EQU	*
+
+*	SETUP EXIT VECTOR AT 40100A
+
+	CALL	$MOVEL
+	DW	SLRAL,SLRA,040100A
+
+*	SETUP LOW-MEMORY STUFF
+
+	LHLD	S.HIMEM 		; LAST BYTE
+	INX	H
+	SHLD	S.SYSM			; SET SYSTEM FWA
+	SHLD	S.RFWA			; SET RESIDENT CODE FWA
+	LXI	H,USERFWA
+	SHLD	S.USRM			; SET LWA USER MEMORY
+
+	LXI	H,HIGHDAT
+	SHLD	S.DLINK 		; SET DATA LINK
+
+*	SETUP JUMP VECTORS
+
+	MVI	A,MI.JMP
+	STA	AIO.VEC
+	CALL	$MOVEL
+	DW	SLRBL,SLRB,S.JUMPS	; SETUP JUMP VECTORS
+
+*	SETUP .UIVEC TABLE
+
+	CALL	$MOVEL
+	DW	SLRCL,SLRC,.UIVEC
+
+*	No reentry via H17
+
+	LXI	H,S.FASER
+	SHLD	030001A 		; fix vector
+
+*	CLEAR CLOCK PROCESSING
+
+	XRA	A
+	STA	.MFLAG
+
+	RET
+	SPACE	3,10
+*	Exit Vector Routine
+
+SLRA	EQU	*			; CODE FOR 040100A
+
+	XRA	A
+	STA	SYSMODE
+	MVI	A,1			; FLAG RESET
+	SCALL	.EXIT
+
+SLRAL	EQU	*-SLRA
+	ERRMI	8-SLRAL 		; ONLY ROOM FOR 8 BYTES
+	SPACE	3,10
+*	S.JUMPS Vectors
+
+SLRB	EQU	*			; JUMP VECTOR CONTENTS
+
+	ERRNZ	*-SLRB+S.JUMPS-S.SDD
+	JMP	SDD			; S.SDD
+
+	ERRNZ	*-SLRB+S.JUMPS-S.FASER
+	JMP	FATSERR 		; S.FASER
+
+	ERRNZ	*-SLRB+S.JUMPS-S.DIREA
+	JMP	DIREAD			; S.DIREA
+
+	ERRNZ	*-SLRB+S.JUMPS-S.FCI
+	JMP	FCI			; S.FCI
+
+	ERRNZ	*-SLRB+S.JUMPS-S.SCI
+	JMP	SCI			; S.SCI
+
+	ERRNZ	*-SLRB+S.JUMPS-S.GUP
+	JMP	GUP			; S.GUP
+
+SLRBL	EQU	*-SLRB
+	SPACE	3,10
+*	.UIVEC Vectors
+
+SLRC	EQU	*
+
+	JMP	EIRET
+	JMP	EIRET
+	JMP	EIRET
+	JMP	EIRET
+	JMP	EIRET
+	JMP	EIRET
+	JMP	SYSCAL
+
+SLRCL	EQU	*-SLRC
+	STL	'ADB - Allocate Dynamic Buffers'
+	EJECT
+***	ADB - Allocate Dynamic Buffers
+*
+
+ADB	equ	*
+
+	LHLD	SYFWA			; system driver address
+	LXI	D,DVD.MNU
+	DAD	D			; offset to # of units
+	MOV	A,M			; get
+	CMA
+	INR	A			; make negative
+	MOV	D,A
+	MVI	E,0			; (de) = space req'd for GRTs
+
+	LHLD	S.RFWA
+	DAD	D			; (hl) = SY: GRTs
+	SHLD	ASGA			; save
+
+	LXI	D,-512
+	DAD	D
+	SHLD	S.SCR			; system scratch (must page align!)
+
+	SHLD	S.RFWA			; fix
+	SHLD	S.SYSM			;  pointers
+
+*	clear prompt
+
+	LHLD	S.PRMT
+	MVI	M,0			; clear prompt buffer
+
+*	Copy default search path
+
+	LXI	D,MSDA
+	LXI	B,MSDAL
+	LHLD	S.PATH
+	JMP	$MOVE
+	STL	'RTT - Relocate TT.DVD'
+	EJECT
+***	RTT - Relocate TT.DVD
+*
+
+RTT	equ	*
+
+	LHLD	TTFWA			; location of driver
+	CALL	RDD			; set it up
+
+	SHLD	TTFWA
+
+	MVI	A,DC.LOD
+	PCHL				; load device driver
+
+TTFWA	DB	'TT'
+	STL	'RSY - Relocate SY.DVD'
+	EJECT
+***	RSY - Relocate SY.DVD
+*
+
+RSY	equ	*
+
+	LHLD	SYFWA			; location of driver
+	CALL	RDD			; set it up
+
+	SHLD	SYFWA
+
+	MVI	A,DC.LOD
+	CALL	THRUHL			; load device driver
+
+	XRA	A			; System Unit
+	STA	AIO.UNI 		; Set the Boot Unit
+
+	LXI	H,ISY
+	SHLD	SYDD+1			; Stuff new SYDD
+
+	LHLD	SYFWA
+	SHLD	MSYDD			; install system vector
+
+	RET
+
+SYFWA	DB	'SY'
+	STL	'RDD - Relocate Device Driver'
+	EJECT
+***	RDD - RELOCATE DEVICE DRIVER
+*
+*	ENTRY:	(HL) = FWA OF DRIVER IMAGE
+*	EXIT:	(HL) = ADDRESS OF DRIVER CODE
+*		(DE) = LENGTH OF DRIVER CODE
+*	USES:	ALL
+
+RDD	EQU	*
+
+	SHLD	RDDA			; save file FWA
+
+	PUSH	H
+	PUSH	H
+	PUSH	H
+
+*	calculate locations and offsets
+
+	LXI	D,DVD.V30
+	DAD	D
+	MVI	A,DVDFLV
+	CMP	M			; is 3.0+?
+	MVI	A,0			; assume default
+	JNZ	RDD0			; pre 3.0
+	ERRNZ	DVD.SPL-DVD.V30-1
+	INX	H
+	MOV	A,M			; preamble length (sectors/2-1)
+RDD0	INR	A			; bump
+	ADD	A			; *2 makes sectors
+	STA	RDDE			; save
+	MOV	D,A
+	MVI	E,0			; (de) = length of SET preamble
+	POP	H
+	DAD	D
+	SHLD	RDDB			; save address of code
+
+	POP	H
+	LXI	D,PIC.PTR
+	DAD	D
+	CALL	$HLIHL			; (hl) = offset to PIC table
+	POP	D
+	DAD	D			; (hl) = address of PIC table
+	SHLD	RDDC
+
+	XCHG				; (de) = address of PIC table
+	LHLD	RDDB			; (hl) = address of driver
+	CALL	$CHL
+	DAD	D			; (hl) = length of driver
+	SHLD	RDDD			; save
+
+	CALL	$CHL
+	XCHG				; (de) = -length
+	LHLD	S.RFWA			; top of memory
+	DAD	D			; (hl) = load address for driver
+	SHLD	S.RFWA			; save system
+	SHLD	S.SYSM			;  values
+
+*	relocate the driver image in place
+
+	XCHG				; (de) = destination address
+	LDA	RDDE			; (a) = preamble length (pages)
+	SUB	D
+	CMA
+	INR	A
+	MOV	D,A			; adjusted location in (de)
+	LHLD	RDDA
+	MOV	B,H
+	MOV	C,L			; (bc) = FWA of driver
+	LHLD	RDDC			; (hl) = PIC table address
+	CALL	REL
+
+*	have relocated driver, now move it to final destination
+
+	LHLD	RDDB
+	XCHG				; (de) = driver address
+	LHLD	RDDD
+	MOV	B,H
+	MOV	C,L			; (bc) = driver length (code)
+	LHLD	S.RFWA			; (hl) = final resting place
+	CALL	$MOVE			; copy it up.
+
+*	return
+
+	LHLD	S.RFWA
+
+	RET
+	SPACE	3,7
+*	work cells
+
+RDDA	DC	2,#0			; file FWA
+RDDB	DC	2,#0			; start of driver code
+RDDC	DC	2,#0			; start of PIC table
+RDDD	DC	2,#0			; length of driver code (less SET)
+RDDE	DC	2,#0			; length of SET preamble (sectors)
+	STL	'SFM - Set Feature Mask'
+	EJECT
+***	SFM - Set Feature Mask
+*
+
+SFM	equ	*
+
+*	find machine type
+
+	LDA	.CTLFLG
+	ANA	A			; 0 if H89
+	MVI	A,F.H89 		; assume is
+	JZ	SFM1
+
+	ERRNZ	F.H8
+	XRA	A			; is H8
+
+SFM1	MOV	B,A			; (b) = feature mask
+
+*	find CPU type
+
+	MVI	A,01111111B
+	INR	A			; test for Z80
+	MVI	A,F.Z80 		; assume Z80
+	JPE	SFM2			; yep.
+
+	XRA	A
+	ANA	A			; test for 8085
+	DAA
+	ERRNZ	F.8080			; assume is 8080
+	JZ	SFM2			; is 8080
+
+	MVI	A,F.8085		;  else must be 8085
+
+SFM2	ORA	B
+	MOV	B,A			; (b) = updated mask
+
+*	find clock speed
+
+	LXI	H,.TICCNT		; point to clock
+
+	CALL	SFM9			; wait for start of interval
+	CALL	SFM9			; now time it, (de) = counter
+
+	MOV	A,D			; (a) = 0 if 2MHz, 1 if 4MHz, 2 if 6 MHz
+	ERRNZ	F.2MHZ
+	ERRNZ	F.4MHZ-1
+	ERRNZ	F.6MHZ-2
+
+	ORA	B			; combine clock speed
+	MOV	B,A
+
+	IFT	0
+*	find terminal type
+
+	ANI	F.MACH			; isolate machine type
+	CPI	F.H89			; is an H89?
+	MVI	A,F.H19 		; if so, assume is an H19.
+	JZ	SFM3			; yep.
+
+	ERRNZ	F.TTY
+	XRA	A			; else assume TTY (let TT: set it)
+
+SFM3	ORA	B			; combine
+	ENDIF
+
+	STA	S.FMASK 		; set mask
+	RET
+	SPACE	4,10
+*	clock timing routine
+*
+*	This loop runs approximately 525 times in 2 ms at 6 MHz,
+*	342 times at 4 MHz, and 164 times at 2 MHz. Speeds other
+*	than these are not tested. Behavior in systems where the
+*	clock is turned up and down on the fly is not guaranteed.
+*	In other words, pick a speed and stay with it!
+
+SFM9	LXI	D,0			; clear counter
+	MOV	A,M			; get #.TICCNT
+SFM9.5	CMP	M			; ticked yet?
+	INX	D			; count a loop
+	JZ	SFM9.5			; no change
+	RET
+	STL	'GVM - Give Version Message'
+	EJECT
+***	GVM - Give Version Message
+*
+*	if we see an H19, do a little Hollywood.
+
+GVM	equ	*
+
+	CALL	$CRLF
+
+	LDA	S.FMASK
+	ANI	F.TERM			; terminal type
+	CPI	F.H19			; is H19?
+	JNZ	GVM1
+
+	CALL	$TYPTX
+
+	DB	ESC,'E' 		; clear the screen
+	DB	ESC,'F' 		; enter graphics mode
+
+	DB	'facfacfaaaacfaaaacfaaaac     faaaac  faaaac',NL
+	DB	'` ed `` vc `` fc `` aaat     esaa `  ` fc `',NL
+	DB	'` fc `` vd `` ed `vaaa `     fuaa `fc` ed `',NL
+	DB	'eadeadeaaaadeaaaadeaaaad     eaaaadedeaaaad',NL
+	DB	'  faaacfaaaacfaaaacfacfacfaaaac     '
+	DB	'faaac faaaac  faaaacfaaaac  faaaacfaaaac',NL
+	DB	'  ec fd` aaat` aaat` `` `` aasd     '
+	DB	'` aauc` fc `  ` fc `eaac `  ` fc `` fc `',NL
+	DB	'  fd ecvaaa `vaaa `` ed `` aauc     '
+	DB	'vaaa `` ed `fc` ed `   ` `fc` ed `` ed `',NL
+	DB	'  eaaadeaaaadeaaaadeaaaadeaaaad     '
+	DB	'eaaaadeaaaadedeaaaad   eadedeaaaadeaaaad',NL
+
+	DB	ESC,'G'+EOL		; exit graphics mode
+
+	JMP	GVM2
+
+GVM1	CALL	$TYPTX
+	db	'HDOS, Version ',VERS/16+'0','.',VERS%16+'0',NL
+	db	' Issue # 50.07.00',ENL
+
+GVM2	CALL	$TYPTX
+	db	NL
+	db	'System has '
+GVMA	db	'xxK of RAM',NL
+	db	ENL
+
+	RET
+	STL	'FSM - Fake System Mount'
+	EJECT
+***	FSM - Fake System Mount
+*
+
+FSM	EQU	*
+
+	MVI	A,DC.ABT
+	CALL	SYDD
+
+*	read volume label
+
+	LXI	H,0			; Mount as
+	MVI	A,DC.MOU		;  volume
+	CALL	SYDD			;   zero
+
+	LXI	B,256
+	LXI	D,SYSLAB
+	LXI	H,DDF.LAB
+	ERRNZ	DC.REA
+	XRA	A
+	CALL	SYDD			; READ LABEL
+	CC	BOOTERR
+
+*	mount the device so volume parameters are set up
+
+	LDA	SYSLAB+LAB.SER
+	MOV	L,A
+	MVI	H,0			; (HL) = VOLUME SERIAL
+	MVI	A,DC.MOU
+	CALL	SYDD			; mount
+	CC	BOOTERR
+
+*	save parameters
+
+	LHLD	SYSLAB+LAB.GRT
+	SHLD	AIO.GRT 		; GRT sector
+
+	LDA	SYSLAB+LAB.SPG
+	STA	AIO.SPG 		; sectors/group
+
+	RET
+	STL	'SDT - Setup Device Table'
+	EJECT
+**	SDT - SETUP DEVICE TABLE.
+*
+*	SDT SCANS THE SYSTEM DISK DIRECTORY LOOKING FOR FILES IN
+*	THE FORM:
+*
+*	XX	.DVD
+*
+*	THESE ENTRYS ARE BUILT INTO THE DEVICE TABLE
+*
+*	Modified to dynamically allocate the device table and
+*	to provide an audit trail as drivers are found.
+
+SDT	EQU	*
+
+	CALL	$TYPTX
+	DB	'Drivers found ','-'+EOL
+
+	XRA	A			; do count only the first time
+	CALL	SDT0
+
+*	allocate the table
+
+	LDA	SDTD			; get count			
+	LXI	D,DEVELEN		; entry length
+	CALL	$MU86			;  times number of entries
+	INX	H			;   plus terminating byte
+
+	CALL	$CHL			; negate it
+	XCHG
+	LHLD	S.RFWA			; system start
+	DAD	D			; subtract
+	SHLD	S.RFWA			; new start
+	SHLD	S.SYSM
+	SHLD	S.DFWA			; set device table address
+
+*	clear the table
+
+	ERRNZ	DV.EL
+
+	LDA	SDTD			; number of entries
+	MOV	C,A
+	LHLD	S.DFWA			; start of table
+SDT0.5	MVI	B,DEVELEN
+	CALL	$ZERO
+	DCR	C
+	JNZ	SDT0.5
+
+	CALL	$CRLF
+
+*	done with allocation. build it for real.
+
+	MVI	A,-1							
+	ERRNZ	*-SDT0
+
+SDT0	EQU	*
+
+	STA	SDTC			; remember what we're doing
+
+	LHLD	SYSLAB+LAB.DIS
+	SHLD	SDTA+DIS.LNK		; SET SECTOR NUMBER TO READ
+
+*	READ NEXT SECTOR
+
+SDT1	LHLD	SDTA+DIS.LNK
+	MOV	A,H
+	ORA	L
+	RZ				; NO MORE DIRECTORY, AM DONE
+	LXI	D,SDTA
+	LXI	B,512
+	CALL	S.READ			; READ DIRECTORY
+
+*	RUN DOWN THROUGH ENTRYS LOOKING FOR XX.DVD
+
+	LXI	H,SDTA
+SDT2	MOV	A,M
+	ANA	A
+	JZ	SDT1			; END OF SECTOR
+	ERRNZ	DF.EMP-377Q
+	INR	A
+	JZ	SDT4			; ENTRY IS EMPTY
+	ERRNZ	DF.CLR-376Q
+	INR	A
+	RZ				; NO MORE IN DIRECTORY
+	PUSH	H
+	INX	H
+	MOV	A,M
+	ANA	A
+	JZ	SDT3			; IS ONE-CHARACTER NAME
+	INX	H
+	LXI	D,SDTB
+	LXI	B,SDTBL
+	CALL	$COMP			; COMPARE
+	JNE	SDT3			; NOT MATCH
+
+*	got one. see what we should do with it.
+
+	LDA	SDTC			; operation			
+	ANA	A
+	JZ	SDT2.5			; count only
+
+*	enter a device into the table
+
+	POP	H
+	PUSH	H			; (HL) = ENTRY FWA
+	CALL	EDL			; ENTER DRIVER IN LIST
+
+	JMP	SDT3			; skip
+
+*	count the device
+
+SDT2.5	LXI	H,SDTD							
+	INR	M
+
+	POP	H			; entry FWA
+	PUSH	H
+	CALL	$HLIHL			; (HL) = device name
+	SHLD	SDTE
+
+	CALL	$TYPTX
+	DB	' '
+SDTE	DB	'XX',':'+EOL
+
+*	TRY ANOTHER ENTRY
+
+SDT3	POP	H			; (HL) = ENTRY FWA
+SDT4	LDA	SDTA+DIS.ENL
+	CALL	$DADA.			; ADVANCE
+	JMP	SDT2			; TRY NEXT
+	SPACE	3
+SDTB	DB	0,0,0,0,0,0,'DVD'	; REQUIRED EXTENSION
+SDTBL	EQU	*-SDTB			; LENGTH OF PATTERN
+
+SDTC	DB	0			; operation (0=count only)	
+SDTD	DB	0			; number of devices found
+	SPACE	4,10
+**	EDL - ENTER DEVICE IN DEVICE LIST.
+*
+*	EDL ENTERS DEVICE DRIVER INFORMATION INTO THE
+*	DEVLST.
+*
+*	THE FILE IS READ TO SETUP THE DEVICE TABLE ENTRY.
+*
+*	ENTRY	(HL) = FWA DIRECTROY ENTRY FOR DRIVER
+*	EXIT	DRIVER IN DEVLST IF ALL OK
+*		DRIVER IGNORED IF PROBLEMS
+*	USES	ALL
+
+EDL	EQU	*
+
+	MOV	E,M
+	INX	H
+	MOV	D,M			; (DE) = NAME
+	XCHG
+	SHLD	EDLNAM			; SET NAME FIELD IN DEVLST ENTRY
+	SHLD	EDLD			; SET NAME FOR MESSAGE
+
+*	SETUP SECTOR ADDRESS FOR DRIVER
+
+	LXI	H,DIR.FGN-1
+	DAD	D			; (HL) = #DIR.FGN
+	MOV	A,M			; (A) = FIRST GROUP
+	STA	EDLDVG			; SET DRIVER FIRST GROUP
+
+*	READ FIRST SECTOR OF DRIVER FILE
+
+	MOV	E,A
+	MVI	D,0			; (DE) = GROUP
+	LDA	SYSLAB+LAB.SPG		; A  = Sectors/Group
+	CALL	$MU86			; (HL) = SECTOR ADDRESS OF 1ST GROUP
+	LXI	D,BUFF
+	LXI	B,256
+	CALL	S.READ			; READ IT
+
+*	SEE IF PIC FILE
+
+	LHLD	BUFF
+	INR	L
+	JNZ	EDL5			; NOT BINARY
+	MVI	A,FT.PIC
+	CMP	H
+	JNE	EDL5			; NOT PIC
+
+*	SET DEVICE CAPABILITY BYTE
+
+	LDA	BUFF+DVD.DVD		; (A) = DRIVER FLAG
+	CPI	DVDFLV			; SEE IF DRIVER
+	JNE	EDL5			; NOT DRIVER
+	LDA	BUFF+DVD.CAP
+	STA	EDLCAP			; SET DEVICE CAPABILITY FLAGS
+	LDA	BUFF+DVD.MUM
+	STA	EDLMUM			; SET UP MOUNTED UNITS MASK
+	LDA	BUFF+DVD.MNU
+	STA	EDLMNU			; SET MAXIMUM NUMBER OF UNITS
+
+*	set SET preamble length
+
+	LDA	BUFF+DVD.V30
+	CPI	DVDFLV			; is 3.0+ driver?
+	MVI	A,0
+	JNZ	EDL.0			; no. use default.
+
+	LDA	BUFF+DVD.SPL		; preamble length
+
+	ERRNZ	DR.SPL-11100000B
+EDL.0	RRC				; rotate
+	RRC				;  into
+	RRC				;   place...
+	ANI	DR.SPL			; mask
+	STA	EDLRES			;  and save
+
+*	ALLOCATE UNIT DESCRIPTOR TABLES
+
+	LDA	BUFF+DVD.MNU		; A  = MAX. NUMBER OF UNITS
+	LXI	D,UNT.SIZ
+	CALL	$MU86			; HL = MEMORY TO ALLOCATE
+	CALL	$CHL
+	XCHG
+	LHLD	S.RFWA
+	DAD	D			; HL = NEW FWA
+
+	SHLD	S.RFWA
+	SHLD	S.SYSM
+	SHLD	EDLPTR
+
+	PUSH	H
+
+	LDA	BUFF+DVD.MNU		; NUMBER OF UNITS
+	ADD	A			; *2
+	ADD	A			; *4
+	ADD	A			; *8 - (A) = TOTAL SIZE OF TABLE
+	ERRNZ	UNT.SIZ-8
+	MOV	B,A
+	CALL	$ZERO			; CLEAR IT OUT
+
+	POP	H
+
+*	INITIALIZE THE UNIT DESCRIPTOR TABLE
+
+	LDA	BUFF+DVD.CAP
+	MOV	B,A			; B  = DEVICE CAPABILITY FLAGS
+	LXI	D,BUFF+DVD.UFL
+	LDA	BUFF+DVD.MNU
+
+EDL0	DCR	A
+	JM	EDL0.5			; FINISHED WITH THE UNITS
+
+	PUSH	PSW
+	LDAX	D			; A  = FLAG VALUE FOR THIS UNIT
+	ANA	B			; MAP OUT ILLEGAL BITS
+	CALL	$INDSB
+	DW	UNT.FLG
+	PUSH	D
+	LXI	D,UNT.SIZ
+	DAD	D			; HL = NEXT UNIT DESCRIPTOR
+	POP	D
+	INX	D			; MOVE TO NEXT UNIT
+	POP	PSW
+	JMP	EDL0
+
+EDL0.5	EQU	*
+
+*	SET LENGTH
+
+	LDA	EDLRES			; get residence (and SPL)
+	ANI	DR.SPL
+	ERRNZ	DR.SPL-11100000B
+	RLC				; shift
+	RLC				;  to low
+	RLC				;   order bits
+	INR	A			; adjust
+	ADD	A			; *2
+	CMA
+	INR	A			; negate
+	MOV	B,A
+	MVI	C,0			; (BC) = -LENGTH
+	LHLD	BUFF+PIC.PTR
+	DAD	B			; (HL) = DRIVER LENGTH
+	JNC	EDL5			; huh???
+	SHLD	EDLDVL
+
+*	HAVE BUILT ENTRY FOR DEVLST. INSERT.
+
+	LHLD	S.DFWA
+	LDA	SDTD			; get size of table		
+	MOV	B,A
+	LXI	D,DEVELEN
+
+EDL1	MOV	A,M
+	ANA	A
+	ERRNZ	DV.EL			; DEVICE END OF LIST FLAG
+	JZ	EDL3			; GOT ONE
+	DAD	D			; next place
+	DCR	B
+	JNZ	EDL1			; TRY NEXT
+
+*	NO ROOM FOR IT. (THIS SHOULD NEVER HAPPEN!!!)
+
+	CALL	$TYPTX
+	DB	NL,BELL,'?01 Too Many Device Drivers.',' '+EOL
+EDL2	LXI	H,EDLD			; TYPE NAME
+	MVI	A,10
+	CALL	$TYPCC			; TYPE NAME
+	CALL	$TYPTX
+	DB	' - Ignored.',ENL
+	RET
+
+*	GOT SPOT. PUT IT IN.
+
+EDL3	LXI	D,EDLDEV
+	LXI	B,DEVELEN
+	CALL	$MOVE			; COPY INTO TABLE
+	MVI	M,0			; CLEAR NEXT ENTRY
+	RET				; RETURN
+
+*	ERROR IN DRIVER FORMAT
+
+EDL5	CALL	$TYPTX
+	DB	NL,BELL,'?01 Format Error in Driver File',' '+EOL
+	JMP	EDL2
+
+EDLD	DB	'XX.DVD',0		; Device Name
+
+EDLDEV	EQU	*
+	ERRNZ	*-EDLDEV-DEV.NAM
+EDLNAM	DB	'  '			; DEVICE NAME
+	ERRNZ	*-EDLDEV-DEV.RES
+EDLRES	DB	0			; NOT RESIDENT
+	ERRNZ	*-EDLDEV-DEV.JMP
+	DB	MI.JMP			; JUMP OPCODE
+	ERRNZ	*-EDLDEV-DEV.DDA
+	DW	SDD			; DRIVER ADDRESS (STAND-IN DEVICE DRIVER)
+	ERRNZ	*-EDLDEV-DEV.FLG
+EDLCAP	DB	0			; FLAGS
+	ERRNZ	*-EDLDEV-DEV.MUM
+EDLMUM	DB	0			; MOUNTED UNIT MASK
+	ERRNZ	*-EDLDEV-DEV.MNU
+EDLMNU	DB	1			; MAXIMUM NUMBER OF UNITS
+	ERRNZ	*-EDLDEV-DEV.UNT
+EDLPTR	DW	0			; UNIT POINTER
+	ERRNZ	*-EDLDEV-DEV.DVL
+EDLDVL	DW	0			; DRIVER LENGTH
+	ERRNZ	*-EDLDEV-DEV.DVG
+EDLDVG	DB	0			; DRIVER SECTOR FIRST GROUP NUMBER
+	ERRNZ	*-EDLDEV-DEVELEN
+	STL	'ASG - Allocate System GRT Tables'
+	EJECT
+***	ASG - Allocate System GRTs
+*
+
+*	allocate GRTs for SY: and update unit table
+
+ASG	EQU	*
+
+	LHLD	MSDA
+	XCHG				; DE = SYSTEM DEVICE NAME
+	SCALL	.GDA			; (BC) = TABLE ENTRY ADDRESS
+
+	LXI	H,DEV.UNT
+	DAD	B
+	CALL	$HLIHL			; (HL) = UNIT TABLE ADDRESS
+	XCHG				; UNIT TABLE ADDRESS IN (DE)
+
+	LXI	H,DEV.MNU
+	DAD	B
+	MOV	A,M			; (A) = NUMBER OF UNITS
+
+	LHLD	ASGA			; base of GRTs (also SY0: GRT address)
+	SHLD	DMOA			; save for dismount/mount
+
+*	(DE) = Unit Specific Table Address
+*	(HL) = Base of GRTs
+*	 (A) = # of units
+
+	XCHG				; (HL) = TABLE ADDRESS, (DE) = GRT
+	LXI	B,UNT.SIZ		; size of table entry
+
+ASG1	CALL	$INDS			; INSTALL IN TABLE
+	DW	UNT.GRT
+	DAD	B
+	INR	D			; bump up GRT address by 256
+	DCR	A
+	JNZ	ASG1
+
+	RET
+
+ASGA	DW	0			; address of SY: GRTs
+	STL	'ACT - Allocate Channel Table'
+	EJECT
+***	ACT - Allocate Channel Table					
+*
+*	ACT allocates a channel table of length determined by the
+*	value contained at FLT.MNC.
+
+ACT	EQU	*							
+
+	LDA	HOSTAB+FLT.MNC		; number of channels
+	LXI	D,IOCELEN		; length of table entry
+	CALL	$MU86			; (hl) = total length of table
+
+	CALL	$CHL			; negate it
+	XCHG
+	LHLD	S.RFWA			; old system FWA
+	DAD	D			; subtract table size
+	SHLD	S.RFWA			; new system FWA
+	SHLD	S.SYSM
+	SHLD	S.CFWA			; set channel table FWA
+
+*	connect the links
+
+	LDA	HOSTAB+FLT.MNC		; number of channels
+	DCR	A			;  (only the first N-1)
+	LXI	B,IOCELEN		; entry size
+
+ACT1	PUSH	PSW			; save loop counter
+	MOV	D,H			; (de) = address of this entry
+	MOV	E,L
+	DAD	B			; (hl) = address of next entry
+	XCHG				; swap
+	MOV	M,E			; install
+	INX	H			;  the link
+	MOV	M,D
+	INX	H
+	ERRNZ	IOCELEN/256
+	MVI	B,IOCELEN-2
+	CALL	$ZERO			; clear the rest of the entry
+	POP	PSW
+	DCR	A			; done?
+	JNZ	ACT1			; no, loop.
+
+*	clear the entry
+
+	ERRNZ	IOCELEN/256
+	MOV	B,C			; (b) = size of entire entry
+	JMP	$ZERO			; clear, including link.
+	STL	'MSD - Mount System Diskette'
+	EJECT
+**	MSD - Mount System Diskette
+*
+
+MSD	EQU	*
+
+	CALL	$CRLF			; for aesthetics
+
+*	Fix device table for SY: and TT:
+
+	LXI	D,'TT'
+	LHLD	TTFWA			; FWA of TT.DVD
+	CALL	MSD1
+
+	LHLD	MSDA
+	XCHG				; DE = DEVICE NAME
+	LXI	H,ISY
+	CALL	MSD1
+
+	MOV	H,B
+	MOV	L,C
+	SHLD	GSPA			; save devtab address for SY:
+
+*	Mount the volume
+
+	LXI	H,MSDA
+	SCALL	.MOUNT			; Mount the volume
+
+	PUSH	PSW
+
+	CALL	$CRLF			; for aesthetics
+
+	MVI	A,1
+	STA	S.MOUNT 		; flag system disk mounted
+
+	POP	PSW
+	JC	MSD0			; ERROR in mount
+
+*	Setup work cells for LDD
+
+	LHLD	GSPA			; find table entry for SY:
+	LXI	D,DEV.UNT
+	DAD	D
+	CALL	$HLIHL			; (hl) = address of SY0: unit table
+	INX	H
+	ERRNZ	UNT.SPG-1
+	MOV	A,M			; (a) = sectors/group
+	STA	LDD8B
+	INX	H
+	ERRNZ	UNT.GRT-UNT.SPG-1
+	CALL	$HLIHL			; (hl) = GRT address for SY0:
+	SHLD	LDD8A
+
+	ANA	A
+	RET
+
+*	An error in mount
+
+MSD0	CALL	$TYPTX
+	DB	NL
+	DB	'?01 Unable To Mount System Disk.',ENL
+	JMP	BOOTABT
+
+*	fix system driver entry
+
+MSD1	PUSH	H			; SAVE FWA
+
+	SCALL	.GDA			; (BC) = TABLE ENTRY ADDRESS
+
+	LXI	H,DEV.RES		; RESIDENCE FLAG
+	DAD	B
+	MVI	A,DR.IM+DR.PR+DR.FX	; IN/PERMANENT/FIXED
+	ORA	M
+	MOV	M,A			; SET
+
+	LXI	H,DEV.DDA		; DRIVER ENTRY
+	DAD	B
+	POP	D			; (DE) = DRIVER FWA
+	MOV	M,E			; INSTALL
+	INX	H
+	MOV	M,D
+
+	RET
+	SPACE	3
+MSDA	DB	'SY0:',0		; Device specification
+MSDAL	EQU	*-MSDA
+	SPACE	4,10
+**	BOOTERR - ERROR DURING BOOT.
+*
+*	I/O ERRORS COME HERE
+
+BOOTERR CALL	$TYPTX
+	DB	NL,BELL,'?01 Disk I/O Error During Boot.',ENL
+*	JMP	BOOTABT
+	ERRNZ	*-BOOTABT
+	SPACE	4,10
+**	BOOTABT - ABORT BOOT.
+*
+
+BOOTABT	CALL	$TYPTX
+	DB	'  Boot Aborted','.'+EOL				
+
+	JMP	*
+	STL	'Boot Subroutines'
+	EJECT
+**	SSD - SET SYSTEM DATE.
+*
+*	SSD PROMPTS THE USER AS
+*
+*	Date <DD-MMM-YY> ?
+*
+*	THE 'DD-MMM-YY' FIELD IS REPLACED BY THE CURRENT
+*	SYSTEM DATE, IF A VALID ONE IS IN MEMORY.
+*
+*	Modified:	If a valid date is not in memory, use
+*			the default from the disk being booted.
+*
+*			If a valid date *IS* in memory, don't
+*			even bother the user with it.			
+*
+*	ENTRY	NONE
+*	EXIT	NONE
+*	USES	ALL
+
+SSD	EQU	*
+
+	LDA	HOSTAB+FLT.PBO
+	ANI	PBO.DAT
+	JNZ	SSD0			; User Wants the Date
+
+	LXI	H,0
+	JMP	SSD8			; Stuff the Date
+
+SSD0	XRA	A
+	STA	SSDA			; Flag default legal
+	LHLD	S.DATC
+	XCHG				; DE = Compressed Date
+	LXI	H,SSDB			; HL = Date Field
+	MOV	A,D
+	ORA	E
+	JZ	SSD1			; No-Date is Illegal Here
+	CALL	$DAD
+	JC	SSD1			; Illegal Coded Date
+
+*	Compare Decoded date against RAM date
+
+	LXI	B,9
+	LXI	D,S.DATE
+	LXI	H,SSDB
+	CALL	$COMP
+	RZ				; Date field assumed legal	
+
+*	Set a new default date
+
+SSD1	LHLD	SB.DAT
+	SHLD	S.DATC			; Set new default date
+	XCHG				; DE = Compressed Date
+	LXI	H,S.DATE		; HL = Date Field
+	MOV	A,D
+	ORA	E
+	JZ	SSD1.5			; No-Date
+	CALL	$DAD
+	JNC	SSD1.7			; Legal default date
+SSD1.5	MVI	A,1
+	STA	SSDA			; Set Default Illegal
+
+SSD1.7	CALL	$CRLF			; for looks
+
+*	Get date from user
+
+SSD2	CALL	$TYPTX
+	DB	'Date ','<'+EOL
+	LDA	SSDA
+	ANA	A
+	JZ	SSD3			; Legal Default Date
+
+	CALL	$TYPTX
+	DB	'dd-mmm-y','y'+EOL
+	JMP	SSD4
+
+SSD3	MVI	A,9
+	LXI	H,S.DATE
+	CALL	$TYPCC			; Type a good date
+
+*	GET REPLY
+
+SSD4	CALL	$TYPTX
+	DB	'> ?',' '+EOL
+	LXI	H,SSDB
+	CALL	$RTL.			; READ TEXT LINE (UPPER CASE)
+	JC	SSD2			; CTL-D STRUCK
+	MOV	A,M
+	ANA	A
+	JNZ	SSD5			; GIVEN REPLY
+
+*	HE DEFAULTED. SEE IF DEFAULT ALLOWED
+
+	LDA	SSDA	
+	ANA	A
+	rz				; default ok, exit
+	JMP	SSD6			; MAKE IT CLEAR WHAT WE WANT
+
+*	CRACK DATE
+
+SSD5	CALL	$CAD			; CONVERT AUGUSTAN DATE
+	JNC	SSD7			; DATE GOOD
+
+*	HIS REPLY BAD. TRY AGAIN
+
+SSD6	CALL	$TYPTX
+	DB	BELL,' Enter date as dd-mmm-yy (eg., '
+	DATE
+	DB	')',ENL
+	JMP	SSD2			; TRY AGAIN
+
+*	DATE IS GOOD. SETUP TWO DATE FIELDS FOR SYSTEM
+
+SSD7	XCHG
+SSD8	SHLD	S.DATC			; SET DATE CODE
+	XCHG
+	LXI	H,S.DATE
+	jmp	$dad			; DECODE DATE INTO ASCII
+
+SSDA	DB	0			; =0 IFF DEFAULT DATE ALLOWED
+	SPACE	4,10
+**	UBP	- Update Boot Parameters
+*
+*	UBP updates the boot parameters by rewriting sector
+*	zero.  Since track 0 is written as volume zero, the
+*	volume number must be temporarily adjusted.
+*
+*	ENTRY:	S.DATC	= Current Compressed Date
+*
+*	EXIT:	None
+*
+*	USES:	ALL
+*
+
+UBP	EQU	*
+
+	LDA	SB.VER
+	CPI	VERS
+	RNZ				; Only Update if versions match
+
+	LXI	B,UBPAL
+	LXI	D,SB.VER
+	LXI	H,UBPA
+	CALL	$MOVE			; Get the original parameters
+
+	LHLD	S.DATC
+	SHLD	UBPA-SB.VER+SB.DAT	; Update Date
+	LHLD	S.BAUD
+	SHLD	UBPA-SB.VER+SB.BAU	; Update Baud-Rate
+
+	MVI	C,UBPAL
+	LXI	D,SB.VER
+	LXI	H,UBPA
+	CALL	$COMP
+	RZ				; No change in parameters
+
+	LXI	B,UBPAL
+	LXI	D,UBPA
+	LXI	H,SB.VER
+	CALL	$MOVE			; Move the new data into parameter area
+
+	LXI	H,0
+	MVI	A,DC.MOU
+	CALL	SYDD			; Mount the disk as volume zero
+	CC	S.FASER
+
+	LXI	B,256
+	LXI	D,SB.BOO
+	LXI	H,0
+	ERRNZ	DC.WRI-1
+	MOV	A,B
+	CALL	SYDD			; Re-Write the Sector
+	JNC	UBP1
+	CPI	EC.WP
+	JZ	UBP1			; Ignore Write-Protect Error
+
+	CALL	S.FASER 		; Other errors are fatal
+
+UBP1	LDA	SYSLAB+LAB.SER
+	MOV	L,A
+	MVI	H,0			; HL = Volume number
+	MVI	A,DC.MOU
+	CALL	SYDD			; Re-Mount the disk
+	CC	S.FASER
+
+	RET
+
+UBPA	DC	SB.BPE-SB.VER,#0	; Reserve Space for temporary	
+UBPAL	EQU	*-UBPA
+	STL	'Boot Common Decks'
+	EJECT
+	LON	C
+	XTEXT	MLU
+	XTEXT	MOVEL
+	XTEXT	RTL
+	XTEXT	CAD
+	XTEXT	DAD
+	XTEXT	DDD
+	XTEXT	UDDX
+	STL	'Boot Patch Area and Buffer Definitions'
+	EJECT
+**	"what" identification
+
+	db	'@(#)HDOS 3.0 by Bill Parrott',NL
+	dw	.date.
+	dw	.time.
+	SPACE	3
+**	PATCH - PATCH AREA
+
+PATCH	EQU	*
+	DB	'Another fine Heath software product',NL
+	DB	'Created by loyal HDOS users',ENL
+
+	ERRMI	64-*+PATCH
+	DC	64-*+PATCH,#0AAH
+	SPACE	4,10
+******************************************************************************
+**									    **
+**	BE VERY CAREFUL ABOUT THE PLACEMENT OF THESE BUFFERS.		    **
+**									    **
+******************************************************************************
+
+SSDB	equ	DDF.BOL*256+USERFWA	; date buffer
+
+SDTA	equ	SSDB+128		; 512 byte buffer
+	ERRNZ	#SDTA
+
+SYSLAB	equ	SDTA+512		; 256 byte buffer
+
+BUFF	equ	SYSLAB+256		; 256 byte buffer
+BUFFE	equ	BUFF+256
+
+	ERRMI	SB.ORG-BUFFE
+	TITLE	'HDOS - Resident HDOS Code'
+	STL	'Base Page Code'
+	EJECT
+**	Relocation begins here
+
+FWAREL	EQU	*			; ABS ADDRESS TO START RELOCATION
+
+	CODE	+R			; REMAINING CELLS ARE RELOCATED
+
+FWASYS	EQU	*			; SYSTEM FWA
+
+***	Base Page Code
+*
+
+.	set	252Q
+
+BUFFWA	SET	034000A 		; start of free buffer area
+
+*	Interrupt vector table and base page
+*
+*	See HOSBASE.ACM for a more complete description of
+*	each of these cells.
+
+	ERRNZ	*-FWASYS-B.INT0
+
+rst0	jmp	S.FASER 		; reserved (do not use!!)
+
+	ERRNZ	*-FWASYS-S.LABEL
+slabel	dw	BUFFWA			; label buffer address
+BUFFWA	set	BUFFWA+256
+
+	ERRNZ	*-FWASYS-S.FMASK
+fmask	db	0			; feature mask
+
+syslwa	dw	LWASYS			; lwa+1 of HDOS
+
+	ERRNZ	*-FWASYS-B.INT1
+rst1	jmp	hostic
+
+	ERRNZ	*-FWASYS-S.REV
+	db	.Z80.&200Q+REV		; revision level (bit7=1 if .Z80.)
+	dw	.DATE.			; date assembled
+	dw	.TIME.			; time assembled
+
+	ERRNZ	*-FWASYS-B.INT2
+rst2	jmp	.UIVEC+3
+
+	dc	5,#.
+
+	ERRNZ	*-FWASYS-B.INT3
+rst3	jmp	.UIVEC+6
+
+	dc	5,#.
+
+	ERRNZ	*-FWASYS-B.INT4
+rst4	jmp	.UIVEC+9
+
+	dc	5,#.
+
+	ERRNZ	*-FWASYS-B.INT5
+rst5	jmp	.UIVEC+12
+
+	ERRNZ	*-FWASYS-S.DLY
+	jmp	hosdly
+
+	dc	2,#.
+
+	ERRNZ	*-FWASYS-B.INT6
+rst6	jmp	.UIVEC+15
+
+	dc	5,#.
+
+	ERRNZ	*-FWASYS-B.INT7
+rst7	jmp	.UIVEC+18
+
+	ERRNZ	*-FWASYS-B.SCALL
+	jmp	syscal			; vector directly to SYSCAL
+
+	ERRNZ	*-FWASYS-CSLIBUF
+	dw	BUFFWA. 		; console type-ahead buffer addr.
+
+	ERRNZ	*-FWASYS-BATNAME
+	db	'SY0:AUTOEXEC.BAT',0	; complete batch file name
+
+	ERRNZ	*-FWASYS-BATSEC
+	db	0			; current sector index in batch file
+
+	ERRNZ	*-FWASYS-BATGNS
+	db	0,0			; batch file group numbers
+
+	ERRNZ	*-FWASYS-BATBUF
+	dw	BUFFWA			; address of batch buffer
+
+	ERRNZ	*-FWASYS-BATPTR
+	dw	BUFFWA			; address of next char. in BATBUF
+BUFFWA	set	BUFFWA+256
+
+	ERRNZ	*-FWASYS-SUBBUF
+	dw	BUFFWA			; address of substitution buffer
+BUFFWA	set	BUFFWA+101
+
+	ERRNZ	*-FWASYS-S.PATH
+	dw	BUFFWA			; address of path buffer
+BUFFWA	set	BUFFWA+101
+
+	ERRNZ	*-FWASYS-S.PRMT
+	dw	BUFFWA			; address of prompt buffer
+BUFFWA	set	BUFFWA+101
+
+	ERRNZ	*-FWASYS-S.EDLIN
+	dw	BUFFWA			; address of line buffer
+BUFFWA	set	BUFFWA+101
+
+BUFFWA. equ	BUFFWA
+
+	ERRNZ	*-FWASYS-S.COUNT
+	db	0			; counter
+
+	ERRNZ	*-FWASYS-S.SHIFT
+	db	0			; shift count
+
+	ERRNZ	*-FWASYS-S.BITS
+	db	0			; bit flags
+
+	dc	3,#.
+
+	ERRNZ	*-FWASYS-B.NMI
+	jmp	hosnmi
+
+	ERRNZ	*-FWASYS-B.NMIFL
+nmifl	db	0			; NMI flag (0=no NMI occured)
+
+	ERRNZ	*-FWASYS-S.DFBLK
+	db	'SY0ABS'		; system wide default block
+
+	ERRNZ	*-FWASYS-S.CVEC
+
+	ERRNZ	*-FWASYS-..SCIN
+.scin.	jmp	0			; vector to .SCIN
+
+	ERRNZ	*-FWASYS-..SCOUT
+.scout. jmp	0			; vector to .SCOUT
+
+	ERRNZ	*-FWASYS-..PRINT
+.print. jmp	0			; vector to .PRINT
+
+	ERRNZ	*-FWASYS-..CONSL
+.consl. jmp	0			; vector to .CONSL
+
+	ERRNZ	*-FWASYS-..CLRCO
+.clrco. jmp	0			; vector to .CLRCO
+
+	ERRNZ	*-FWASYS-S.FLAG
+	db	0			; system flags
+
+	ERRNZ	*-FWASYS-B.END
+	STL	'SCALL Dispatch'
+	EJECT
+***	SYSCALL DISPATCH.
+*
+*	THE SYSCALL DISPATCH HANDLER IS ENTERED VIA A SYSCALL INSTRUCTION.
+*
+*	ENTRY	(SP) = RET
+*		(RET) = SYSCALL INDEX
+*	EXIT	'C' SET IF ILLEGAL CODE
+*		 (A) = EC.ILC
+*		TO PROCESSOR IF A GOOD LOAD
+*		(SP) = PSW
+*		(SP+2) = RETURN ADDRESS (ADVANCED PAST CODE)
+*	USES	A,F
+
+SYSCAL	EQU	*
+
+	STA	S.CACC			; SAVE (A)
+	XTHL
+	MOV	A,M			; (A) = CODE
+	STA	S.CODE			; SET SYSTEM CODE
+	INX	H			; ADVANCE RETURN ADDRESS
+	XTHL
+
+*	Special case calls which may need mass storage device drivers
+
+	CPI	.MOUNT
+	JZ	SYS0
+	CPI	.MONMS
+	JZ	SYS0
+	CPI	.RESET
+	JZ	SYS0
+	CPI	.RESNMS
+	JNZ	SYS3
+SYS0	LDA	S.CODE
+	PUSH	PSW
+	LDA	S.CACC
+	PUSH	PSW
+	PUSH	H
+	SCALL	.LOADD			; preface .MOUNT by .LOADD
+	POP	H			; restore device descriptor
+	JNC	SYS1
+
+*	Discard saved original parameters
+
+	POP	B
+	POP	B
+	RET				; exit with error
+
+*	Restore original parameters
+
+SYS1	POP	PSW
+	STA	S.CACC
+	POP	PSW
+	STA	S.CODE
+
+SYS3	CALL	SYS6			; ALL SYSCALLS RETURN HERE	
+
+*	ALL SYSCALLS RETURN HERE.
+
+	push	h
+	push	psw
+
+*	Check for and process any pending driver load
+
+	lda	S.DDLDA+1		; load address
+	ana	a			; well?
+	cnz	ldd			; load it.
+
+*	Check for CTRL/C or CTRL/Z was struck.
+
+	di				; Interlock
+	LXI	H,SYSMODE
+	DCR	M			; DECREMENT NESTED SYSCAL COUNT
+	CALL	CPA			; CHECK PENDING ABORT
+
+*	Return to the caller
+
+	POP	PSW
+	POP	H			; RESTORE USER (HL)
+
+EIRET	EI
+	RET				; EXIT
+	SPACE	3,10
+*	Do the SYSCALL
+
+SYS6	PUSH	H			; SAVE (HL)			
+	LXI	H,SYSMODE
+	INR	M			; COUNT NESTED SYSCALL
+
+	CPI	.SYSRES 		; is resident?
+	JC	SYS8			; yes
+
+	CPI	.LINK			; is in overlay?
+	JC	SYS7			; illegal.
+	CPI	.LOADD+1		; in range?
+	JNC	SYS6A			; no, try other.
+	LXI	H,SYSCALB		; point to 2nd dispatch table
+	SUI	.LINK			; adjust
+	JMP	SYS9			;  and go.
+
+SYS6A	CPI	.MOUNT			; is mount/dismount type?
+	JC	SYS7			; no, is illegal.
+	CPI	.DAD+1			; in range?
+	JNC	SYS7			; no, gong!
+	LXI	H,SYSCALC		; point to 3rd dispatch table
+	SUI	.MOUNT			; adjust
+	JMP	SYS9			;  and go.
+
+*	Illegal SCALL
+
+SYS7	POP	H			; clear stack
+ERRILC	MVI	A,EC.ILC
+	STC
+	RET				; ERROR
+
+*	DISPATCH RESIDENT CALLS
+
+SYS8	LXI	H,SYSCALA		; point to 1st dispatch table
+SYS9	ADD	A			; (A) = CODE*2
+	CALL	$DADA.			; (HL) = TABLE ADDRESS
+	CALL	$HLIHL			; Get code address
+	XTHL				; PUT ON STACK
+	LDA	S.CACC			; (A) = (ACC) UPON CALL
+	RET				; ENTER PROCESSOR CODE
+	EJECT
+**	SCALL Dispatch Tables.
+*
+*	DW	ADDR		ENTRY ADDRESS
+
+SYSCALA EQU	*
+
+	ERRNZ	(*-SYSCALA)/2-.EXIT
+	DW	EXIT			; RETURN TO MONITOR
+
+	ERRNZ	(*-SYSCALA)/2-.SCIN
+	DW	.SCIN.			; READ FROM SYSTEM CONSOLE
+
+	ERRNZ	(*-SYSCALA)/2-.SCOUT
+	DW	.SCOUT. 		; WRITE TO SYSTEM CONSOLE
+
+	ERRNZ	(*-SYSCALA)/2-.PRINT
+	DW	.PRINT. 		; WRITE LINE TO SYSTEM CONSOLE
+
+	ERRNZ	(*-SYSCALA)/2-.READ
+	DW	READ			; READ DATA
+
+	ERRNZ	(*-SYSCALA)/2-.WRITE
+	DW	WRITE			; WRITE DATA
+
+	ERRNZ	(*-SYSCALA)/2-.CONSL
+	DW	.CONSL. 		; SET/READ CONSOLE OPTIONS
+
+	ERRNZ	(*-SYSCALA)/2-.CLRCO
+	DW	.CLRCO. 		; CLEAR CONSOLE TYPE AHEAD
+
+	ERRNZ	(*-SYSCALA)/2-.LOADO
+	DW	LOADO			; LOAD SPECIFIED OVERLAY
+
+	ERRNZ	(*-SYSCALA)/2-.VERS
+	DW	VERSN			; RETURN HDOS VERSION
+
+	ERRNZ	(*-SYSCALA)/2-.GDA
+	DW	GDA			; GET DEVICE DRIVER ADDRESS
+
+	ERRNZ	(*-SYSCALA)/2-.CRC16
+	DW	CRC16			; CRC-16 A BLOCK OF MEMORY
+
+	ERRNZ	(*-SYSCALA)/2-.SYSRES	; MAKE SURE WE GOT 'EM ALL
+	SPACE	3,10
+SYSCALB EQU	*
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.LINK
+	DW	LINK
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.CTLC
+	DW	SCTLC
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.OPENR
+	DW	OPENR
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.OPENW
+	DW	OPENW
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.OPENU
+	DW	OPENU
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.OPENC
+	DW	OPENC
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.CLOSE
+	DW	CLOSE
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.POSIT
+	DW	POSIT
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.DELET
+	DW	DELETE
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.RENAM
+	DW	RENAME
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.SETTP
+	DW	SETTOP
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.DECODE
+	DW	DECODE
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.NAME
+	DW	NAME
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.CLEAR
+	DW	CLEAR
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.CLEARA
+	DW	CLRALL
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.ERROR
+	DW	ERROR
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.CHFLG
+	DW	CHFLG
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.DISMT
+	DW	DMOUNT
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-.LOADD
+	DW	LOADD
+
+	ERRNZ	(*-SYSCALB)/2+.LINK-(.LOADD+1)
+	SPACE	3,10
+SYSCALC EQU	*
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.MOUNT
+	DW	MOUNT			; Mount drive
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.DMOUN
+	DW	DMOUNT			; Dismount drive
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.MONMS
+	DW	MOUNMS			; Mount drive (no message)
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.DMNMS
+	DW	DMONMS			; Dismount drive (no message)
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.RESET
+	DW	RESET			; Reset (dismount/mount) drive
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.RESNMS
+	DW	RESNMS			; Reset drive (no message)
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-.DAD
+	DW	DADD			; Dismount *all* drives
+
+	ERRNZ	(*-SYSCALC)/2+.MOUNT-(.DAD+1)
+	SPACE	4
+*	FATAL SYSTEM ERROR
+
+FATSERR	CALL	$TYPTX
+	DB	NL,BELL,'?02 Fatal system error!!',BELL,ENL
+
+	DI
+	JMP	*			; stop the system
+	STL	'EXIT - Process .EXIT SCALL'
+	EJECT
+***	EXIT - EXIT USER PROGRAM.
+*
+*	EXIT IS CALLED TO RETURN CONTROL TO THE SYSTEM COMMAND
+*	PROGRAM.
+*
+*	MVI	A,FLAG		=0 FOR NORMAL, =1 FOR ABORT
+*	SCALL	.EXIT
+*
+*	FOR A NORMAL EXIT, THE CONTROL CHARACTER VECTORS ARE CLEARED,
+*	AND SYSCMD IS ENTERED.
+*
+*	FOR AN ABORT EXIT, THE DISK DRIVER IS RESET.
+
+EXIT	EQU	*
+
+	LXI	SP,STACK		; RESET STACK
+	STA	EXITD			; SAVE CODE FOR LINKED PROGRAM
+	ANA	A			; SET CONDITION CODES
+	JZ	EXIT1			; NOT TO ABORT
+
+	XRA	A			; System unit
+	STA	AIO.UNI 		; SET SYSTEM DISK
+	MVI	A,DC.ABT
+	CALL	SYDD			; ABORT SYSTEM DISK
+
+	ERRNZ	I.CSLMD
+EXIT1	XRA	A
+	MOV	B,A
+	MVI	C,CSL.ECH|CSL.CHR
+	SCALL	.CONSL
+
+	SCALL	.CLEARA 		; CLEAR ALL BUT THE LINK CHANNEL
+
+*	LOAD EXIT PROGRAM (SYSCMD.SYS)
+
+EXIT2	LDA	EXITD			; RESTORE LINK CODE
+	LXI	H,EXITA
+	LXI	SP,STACK		; RESET STACK
+	SCALL	.LINK			; LINK TO EXIT PROCESSOR
+
+*	COULD NOT LINK
+
+	PUSH	PSW			; SAVE CODE
+	LDA	S.MOUNT
+	ANA	A
+	JNZ	EXIT4			; CONSIDERED FATAL BECAUSE SYSTEM DISK
+
+*	See if SY0: is mounted at all
+
+	POP	PSW
+	CPI	EC.UUN			; not mounted error?
+	JZ	EXIT31			; yes, go mount and try again.
+
+*	SYSCMD.SYS NOT FOUND - TRY ANOTHER DISK
+
+	MVI	A,-1
+	SCALL	.CLEAR			; CLEAR THE LINK CHANNEL
+
+*	RESET SY0:
+
+	LXI	H,EXITE
+	SCALL	.DMOUNT 		; dismount
+
+EXIT30	MVI	A,DC.ABT
+	CALL	SYDD
+
+	LXI	H,EXITF
+	SCALL	.PRINT			; SAY WE COULDN'T FIND IT
+
+	SCALL	.CLRCO			; zap type-ahead
+
+EXIT3	SCALL	.SCIN
+	JC	EXIT3
+	CPI	NL
+	JNZ	EXIT3
+
+EXIT31	MVI	A,DC.RDY
+	CALL	SYDD			; is device ready?
+	JC	EXIT30			; no, go prompt (again)
+
+	LXI	H,EXITE
+	SCALL	.MOUNT
+	JNC	EXIT2
+
+	PUSH	PSW
+
+*	ERROR - COULD NOT LINK TO  *SY0:SYSCMD.SYS*
+
+EXIT4	LXI	H,EXITB
+	SCALL	.PRINT			; PRINT MESSAGE
+	POP	PSW			; (A) = CODE
+	MVI	H,7
+	SCALL	.ERROR			; TYPE ERROR
+	CALL	S.FASER 		; HALT
+
+EXITB	DB	NL,BELL,'?02 Can''t Run '
+EXITA	DB	'SY0:SYSCMD.SYS',0,ENL	; command processor
+EXITD	DB	0
+EXITE	DB	'SY0:',0
+EXITF	DB	NL
+	DB	'SYSCMD.SYS is not present on SY0:',NL
+	DB	NL
+	DB	'Place an HDOS '
+	DB	VERS/16+'0','.',VERS%16+'0'
+	DB	' system disk into SY0: and press',NL
+	DB	'the RETURN key to continue','.'+EOL
+	STL	'READ - Process .READ Command'
+	EJECT
+***	READ - PROCESS READ SYSCALL.
+*
+*	READ PROCESSES READ SYSCALLS. IF A SERIAL DEVICE, PASS TO
+*	DRIVER. IF A STORAGE DEVICE, HANDLE STORAGE MAPPING.
+*
+*	MVI	A,CHAN
+*	LXI	B,COUNT		MUST BE MULTIPLE OF 256
+*	LXI	D,ADDR
+*	SCALL	.READ		READ DATA FROM CHANNEL
+*
+*	ENTRY	(A) = I/O CHANNEL NUMBER
+*		(BC) = DATA COUNT
+*		(DE) = ADDRESS FOR DATA
+*	EXIT	(BC) = COUNT LEFT
+*		(DE) = NEXT UNUSED ADDRESS
+*		'C' CLEAR IF ALL OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+READ	CALL	FCI			; FETCH CHANNEL INFO
+	RC				; ERROR
+	ANA	A
+	JZ	ERR.FNO 		; FILE NOT OPEN
+	ERRNZ	FT.OR-2
+	RAR
+	RAR
+	JNC	ERR.ILR 		; ILLEGAL REQUEST
+	ERRNZ	FT.DD-1
+	RAL
+	MVI	A,DC.REA		; (A) = DEVICE CODE
+	JNC	AIO.VEC 		; IF NOT DIRECTORY DEVICE, CALL DRIVER
+	CALL	DIREAD			; DIRECTORIED READ
+	JMP	SCI			; STORE CHANNEL INFORMATION AND EXIT
+	STL	'WRITE - Process .WRITE Command'
+	EJECT
+***	WRITE - PROCESS WRITE SYSCALL.
+*
+*	MVI	A,CHAN
+*	LXI	B,COUNT		MUST BE MULTIPLE OF 256
+*	LXI	D,ADDR
+*	SCALL	.WRITE		WRITE DATA TO CHANNEL
+*
+*	ENTRY	(A) = CHANNEL #
+*		(BC) = DATA COUNT
+*		(DE) = ADDRESS
+*	EXIT	(BC) = COUNT LEFT
+*		(DE) = NEXT ADDRESS
+*		'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+WRITE	CALL	FCI			; FETCH CHANNEL INFORMATION
+	RC				; ERROR
+	ANA	A
+	JZ	ERR.FNO 		; FILE NOT OPEN
+	MOV	H,A			; SAVE COPY IN H
+	ANI	FT.OW			; SEE IF OPEN FOR WRITE
+	JZ	ERR.ILR 		; ILLEGAL REQUEST
+	MOV	A,H
+	ERRNZ	FT.DD-1
+	RAR
+	MVI	A,DC.WRI		; REQUEST WRITE
+	JNC	AIO.VEC 		; NOT DIRECTORY DEVICE
+	CALL	DIWRITE 		; DIRECTOREID WRITE
+	JMP	SCI			; STORE CHANNEL INFO
+	STL	'LOADO - Load Specified Overlay'
+	EJECT
+***	LOADO	- LOAD SPECIFIED OVERLAY
+*
+*	This performs no operation under HDOS 3.0 due to the
+*	lack of overlays. Success is always returned for the
+*	benefit of programs who use this SCALL.
+*
+*	Entry:	None
+*	Exit:	'C' Clear
+*	Uses:	a,f
+
+LOADO	EQU	*
+
+	ERRNZ	*-VERSN 		; no reason same code won't do
+	STL	'VERSN - Return HDOS Version Number'
+	EJECT
+**	VERSN	- RETURN HDOS VERSION NUMBER'
+*
+*	VERSN RETURNS THE HDOS VERSION NUMBER AS A ONE BYTE BCD NUMBER.
+*	A DECIMAL IS ASSUMED BETWEEN THE HIGH AND LOW ORDER NIBLES.
+*
+*
+*	ENTRY:	NONE
+*	EXIT:	(A) = VERSION NUMBER
+*	USES:	A,F
+
+VERSN	MVI	A,VERS
+	ANA	A			; CLEAR CARRY
+	RET
+	STL	'GDA - GET DEVICE DRIVER ADDRESS'
+	EJECT
+***	GDA - Get Device Driver Address
+*
+*	Entry:	(DE) = Device Name
+*	Exit:	'C' Clear
+*		 (HL) = Driver address
+*		 (BC) = Table address for this device
+*		'C' Set if error
+*		 (A) = Error Code
+*		 (HL) = (BC) = 0
+*	Uses:	A,F,H,L,B,C
+
+GDA	LHLD	S.DFWA			; start of device table
+
+GDA1	MOV	A,M			; get 1st byte of name
+	ANA	A			; end of table?
+	JZ	GDA3			; yep.
+
+	PUSH	H			; save this address
+	CALL	$HLIHL			; (HL) = name of this entry
+	CALL	$CDEHL			; ours?
+	POP	B
+	JNE	GDA2			; no, try next.
+
+	LXI	H,DEV.JMP
+	DAD	B			; (HL) = Vector to driver
+
+	XRA	A			; clear 'C'
+	RET
+
+GDA2	LXI	H,DEVELEN
+	DAD	B			; find next
+	JMP	GDA1
+
+*	When no device is found, return zeros instead of addresses
+
+GDA3	MOV	H,A
+	MOV	L,A
+	MOV	B,A
+	MOV	C,A
+
+	MVI	A,EC.UND		; unknown device
+	STC
+	RET
+	STL	'CRC16 - CRC-16 A BLOCK OF MEMORY'
+	EJECT
+***	CRC16 - CRC-16 A BLOCK OF MEMORY
+*
+*	Entry:	(HL) = BUFFER ADDRESS
+*		(DE) = INITIAL CRC-16
+*		(BC) = LENGTH OF DATA
+*	Exit:	(HL) = ADVANCED PAST BUFFER
+*		(DE) = UPDATED CRC-16
+*		(BC) = 0
+*	Uses:	ALL
+
+CRC16	XCHG				; (HL) = CRC, (DE) = BUFFER
+
+CRC161	LDAX	D			; GET A BYTE
+	CALL	CRC16.			; CRC IT
+	INX	D
+	DCX	B			; COUNT
+	MOV	A,B
+	ORA	C			; DONE?
+	JNZ	CRC161			; NOT YET.
+
+	XCHG				; (DE) = FINAL CRC
+	RET
+	SPACE	3
+***	CRC16. - CRC-16 A BYTE
+*
+*	ENTRY:	(HL) = INITIAL CRC-16
+*		 (A) = BYTE
+*	EXIT:	(HL) = UPDATED CRC-16
+*	USES:	A,F,H,L
+
+CRC16.	PUSH	B
+	MVI	B,8			; BIT COUNT
+
+CRC16.1 RLC
+	MOV	C,A			; (C) = BIT
+	DAD	H
+	MOV	A,H
+	RAL
+	XRA	C
+	RRC
+	JNC	CRC16.2 		; IF NOT TO XOR
+	MVI	A,80H
+	XRA	H
+	MOV	H,A
+	MVI	A,05H
+	XRA	L
+	MOV	L,A
+
+CRC16.2 MOV	A,C
+	DCR	B
+	JNZ	CRC16.1
+
+	POP	B
+	RET
+	STL	'LINK - PROCESS LINK SYSCALL.'
+	EJECT
+***	LINK - PROCESS LINK SYSCALL.
+*
+*	LINK LOADS IN AND RUNS ANOTHER PROGRAM. THE OPEN FILES,
+*	SYSTEM TABLES, AND STACK ARE NOT DISTURBED.
+*
+*	ENTRY	(HL) = ADDRESS OF PROGRAM FILE DESCRIPTOR
+*	EXIT	TO LINKED PROGRAM, IF OK
+*		 (A) UNCHANGED
+*		 (SP) = VALUE AT 'LINK' SYSCALL
+*		TO CALLER IF ERROR
+*		 'C' SET
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+LINK	EQU	*
+
+	CALL	DFA			; DECODE FILE INTO AIO.XXX
+	RC				; ERROR
+	CMA				; SEE IF DIRECTOR, FOR READ
+	ANI	FT.DD+FT.OR
+	MVI	A,EC.DNS		; ASSUME NOT SUITABLE
+	STC
+	RNZ				; NOT SUITABLE
+	MVI	M,FT.DD+FT.OR		; SET OPEN FOR READ
+	CALL	LDE.			; LOCATE DIRECTORY ENTRY
+	RC				; ERROR
+	CALL	CFI			; COPY FILE INFO FROM DIRECTORY ENTRY
+
+*	READ 1ST SECTOR TO GET LOAD ADDRESS AND LENGTH INFORMATION.
+
+	LXI	B,256
+	XCHG
+	LHLD	S.SCR
+	XCHG				; DE = SECTOR SCRATCH AREA
+	CALL	S.DIREA 		; READ IT
+	RC				; ERROR
+
+*	SEE IF ABS FILE
+
+	LHLD	S.SCR
+	MOV	A,M
+	ERRNZ	ABS.ID
+	INR	A
+	MVI	A,EC.IFC		; ILLEGAL FILE CONTENTS
+	STC
+	RNZ				; FILE IS NOT BINARY TYPE
+
+	INX	H
+	MOV	A,M
+	ERRNZ	FT.ABS
+	ANA	A
+	MVI	A,EC.IFC
+	STC				; ASSUME NOT FT.ABS
+	RNE				; NOT ABS
+
+*	Don't allow load below USERFWA.
+
+	inx	h
+	ERRNZ	ABS.LDA-ABS.ID-2
+	call	ildehl			; (de) = load address
+	push	h			; remember			
+	lxi	h,USERFWA		; base of program area
+	xchg				; (hl) = load address, (de) = USERFWA
+	call	cpdehl			; 'C' if (hl) < (de)
+	xchg
+	pop	h
+	mvi	a,EC.ILA		; illegal load address
+	rc				; gong!
+
+*	see if enough room, (de) = load address
+
+	PUSH	D
+	CALL	ILDEHL
+	ERRNZ	ABS.LEN-ABS.LDA-2
+	XCHG				; HL = LOAD LENGTH
+	POP	D
+
+	DAD	D			; (HL) = LWA+1
+	XCHG				; (DE) = LWA+1
+	LHLD	S.SYSM			; (HL) = HIGHEST AVAILABLE ADDRESS
+	CALL	$CHL			; COMPLEMENT (HL)
+	DAD	D
+	MVI	A,EC.NEM		; ASSUME NOT ENOUGN MEM
+	RC				; NOT ENOUGH MEM
+	XCHG				; (HL) = LOAD LWA
+	CALL	SETTOP
+	RC
+
+*	ENOUGH MEMORY FOR LOAD. COPY 1ST PARTIAL SECTOR INTO PLACE
+
+	LXI	B,256-ABS.COD
+	LHLD	S.SCR
+	CALL	$INDL
+	DW	ABS.LDA
+	PUSH	D			; SAVE LOAD ADDRESS
+	LXI	D,ABS.COD
+	DAD	D
+	XCHG				; DE = FWA OF CODE
+	POP	H			; HL = LOAD ADDRESS
+
+	CALL	$MOVE
+
+*	COMPUTE SECTOR COUNT FOR REMAINDER OF LOAD
+
+	PUSH	H			; SAVE LOAD ADDRESS
+	LHLD	S.SCR
+	CALL	$INDL
+	DW	ABS.LEN 		; DE = LENGTH
+	LXI	H,ABS.COD
+	DAD	D			; ADD BYTES FOR ABS HEADER
+	MVI	C,0
+	MOV	A,L
+	ADI	377Q
+	MOV	A,H
+	ADC	C
+	MOV	B,A			; (BC) = SECTOR COUNT*256
+	DCR	B			; COUNT SECTOR READ
+	POP	D			; RESTORE LOAD ADDRESS
+	CALL	S.DIREA 		; READ IT
+
+*	update directory
+
+	lhld	S.SCR							
+	call	$INDL
+	dw	ABS.ENT
+	xchg				; (hl) = program entry
+	shld	linka			; save it
+
+	call	uad.			; update last access date
+
+*	UPDATE CHANNEL TABLE SO CHANNEL -1 IS THE FILE LOADED
+
+	LXI	B,IOCELEN-IOC.DDA
+	LXI	D,AIO.DDA
+	LHLD	S.CFWA
+	ERRNZ	IOCCTD-1		; ASSUME FIRST IN CHANTAB IS 377Q
+	ERRNZ	IOC.DDA-2
+	INX	H
+	INX	H			; (HL) = #IOC.DDA IN CHANNEL
+	CALL	$MOVE			; MOVE INFO INTO CHANNEL
+
+*	SETUP SYSTEM FOR TRANSFER OF CONTROL.
+*
+*	1) CLEAR CONTROL CHARACTER PROCESS TABLE
+*	2) CLEAR SYSMODE FLAG
+*	3) CLEAR USER CODE SWAPPED FLAGS
+
+	DI				; interlock while going to user mode
+	LXI	H,S.CAADR
+	MVI	B,8
+	CALL	$ZERO			; CLEAR VECTOR TABLE, AND PENDING VECTOR
+	LHLD	S.DLINK 		; (HL) = HIGHMEM POINTER
+	ERRNZ	M.SYSM			; CLEAR SYSMODE
+	MVI	M,0
+	lxi	h,4							
+	dad	sp			; fix the stack
+	SPHL				;  and set it.
+
+*	enter program
+
+	LDA	S.CACC			; RESTORE (A)
+	EI
+	jmp	0			; enter code
+linka	equ	*-2			;  (installed above)
+	STL	'SCTLC - SET CONTROL CHARACTER ADDRESS'
+	EJECT
+***	SCTLC - SET CONTROL CHARACTER ADDRESS
+*
+*	THE .CTLC SYSCALL IS USED TO SETUP HANDLING FOR
+*	THE CONTROL CHARACTERS CTL-A, CTL-B, AND CTL-C.
+*
+*	A SEPERATE ADDRESS IS SPECIFIABLE FOR EACH CHARACTER. IF
+*	AN ADDRESS OF 0 IS SPECIFIED, PROCESSING OF THAT CHARACTER
+*	IS SUSPENDED.
+*
+*	THE PROCESS ADDRESS MUST BE > 255A.
+*
+*	ENTRY	(A) = CONTROL CHARACTER WHOSE PROCESS ADDRESS IS
+*			TO CHANGE (CTL-A, CTL-B, OR CTL-C)
+*		(HL) = NEW ADDRESS (=0 TO CLEAR PROCESSING)
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	A,F,H,L
+
+SCTLC	EQU	*
+
+	DCR	A
+	JM	ERRILC			; ILLEGAL CODE
+	CPI	3
+	JNC	ERRILC			; ILLEGAL CODE
+	XCHG				; (DE) = PROCESS ADDRESS
+	LXI	H,S.CCTAB
+	ADD	A			; (A) = 2*INDEX
+	CALL	$DADA.			; (HL) = ADDRESS FOR ADDRESS STORAGEE
+	MOV	M,E
+	INX	H
+	MOV	M,D
+	ANA	A			; CLEAR CARRY
+	RET
+	STL	'OPEN SYSCALL PROCESSOR'
+	EJECT
+***	OPENR - OPENR SYSCALL PROCESSOR.
+*
+*	OPENR IS CALLED TO OPEN A CHANNEL FOR READ.
+*
+*	THE CALLER SUPPLIES A FILE NAME, A DEFAULT BLOCK FOR THE DEVICE
+*	AND EXTENSION, AND A CHANNEL NUMBER.
+*
+*	DEFAULT BLOCK FORMAT:
+*
+*	DB	'DDD'		DEFAULT DEVICE
+*	DB	'XXX'		DEFAULT EXTENSION
+*
+*	ENTRY	(DE) = DEFAULT BLOCK ADDRESS
+*		(HL) = NAME ADDRESS
+*		(A) = CHANNEL NUMBER
+*	EXIT	'C' CLEAR IF OK
+*		(HL) = ADVANCED PAST FILE NAME
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+OPENR	EQU	*
+
+	PUSH	B			; SAVE (BC)
+	CALL	OPENR1			; PROCESS OPEN
+
+**	OPENR, OPENW, OPENU RETURN HERE
+*
+*	(A) = EXIT CODE.
+
+OPENX	JC	OPENEX			; ERROR EXIT
+	push	h
+	CALL	AIO.VEC 		; OPEN DEVICE CODE
+	pop	h
+
+*	update access date
+
+	lda	AIO.FLG 		; device flag			
+	ani	FT.DD			; only do this for disks
+	jrz	openx2			; skip, is not disk.
+
+	lda	S.CODE			; what kind of open?
+	cpi	.OPENR			; read?
+	jz	openx1			; yes, do update.
+	cpi	.OPENU			; update?
+	jnz	openx2			; no, skip.
+
+openx1	call	uad			; update access date and count
+
+openx2	LHLD	AIO.CHA
+	LXI	D,AIO.DDA
+	LXI	B,IOCELEN-IOC.DDA
+	CALL	$MOVE			; RESTORE TO IO CHANNEL
+
+	ANA	A			; CLEAR CARRY
+OPENEX	POP	B
+	LXI	H,0			; (HL) POINTS TO NEXT FILE (SET BY DFA)
+OPENHL	EQU	*-2
+	RET
+
+*	PROCESS OPENR
+
+OPENR1	CALL	DFC			; DECODE FILE AND CHANNEL
+	RC				; ERROR
+	ANI	DT.CR			; SEE IF CAPABLE OF READING
+	MVI	A,EC.DNS
+	STC
+	RZ				; DEVICE NOT READ TYPE
+
+*	MUST FIND DIRECTORY ENTRY
+
+	MOV	A,M			; (A) = TYPE
+	ANI	FT.DD+FT.OR		; OPEN
+	MOV	M,A			; SET TYPE
+	RAR
+	ERRNZ	FT.DD-1
+	JNC	OPENR2			; NOT DIRECTORY DEVICE
+	CALL	CFC			; CHECK FOR CONFLICT IF DIRECTORY
+	ANI	FT.OW			; CANT HAVE ANY WRITES
+	MVI	A,EC.FUC		; FILE USAGE CONFLICT
+	STC
+	RNZ				; HAVE CONFLICT
+	CALL	LDE.			; LOCATE DIRECTORY ENTRY
+	RC				; IF ERROR
+	CALL	CFI			; COPY FILE INFO FROM DIRECTORY ENTRY
+OPENR2	MVI	A,DC.OPR		; SET CODE
+	RET
+	STL	'OPENW - OPEN FILE FOR WRITE'
+	EJECT
+***	OPENW - OPEN FILE FOR WRITE
+*
+*	OPENW IS CALLED TO OPEN A CHANNEL FOR WRITE.
+*
+*	THE FILE IS ENTERED IN THE CHANNEL TABLE, BUT NOT ON THE
+*	DISK. IT WILL BE ENTERED IN THE DIRECTORY AT CLOSE TIME.
+*
+*	THE CALLER SUPPLIES A FILE NAME, A DEFAULT BLOCK FOR THE DEVICE
+*	AND EXTENSION, AND A CHANNEL NUMBER.
+*
+*	DEFAULT BLOCK FORMAT:
+*
+*	DB	'DDD'		DEFAULT DEVICE
+*	DB	'XXX'		DEFAULT EXTENSION
+*
+*	ENTRY	(DE) = DEFAULT BLOCK ADDRESS
+*		(HL) = NAME ADDRESS
+*		(A) = CHANNEL NUMBER
+*	EXIT	'C' CLEAR IF OK
+*		(HL) = ADVANCED PAST FILE NAME
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+*
+
+OPENW	EQU	*
+
+	PUSH	B			; SAVE (BC)
+	CALL	OPENW1			; PERFORM OPEN
+	JMP	OPENX			; FINISH IN COMMON CODE
+
+*	PROCESS OPENW
+
+OPENW1	CALL	DFC			; DECODE FILE AND CHANNEL
+	RC				; ERROR
+	ANI	DT.CW
+	MVI	A,EC.DIW		; DEVICE IS NOT WRITABLE
+	STC
+	RZ				; NOT SUITABLE
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	FT.OW+FT.DD+FT.OR	; SET OPEN FOR WRITE (AND MAYBE READ)
+	MOV	M,A
+	ERRNZ	FT.DD-1
+	RAR
+	JNC	OPENW3			; NOT DIRECTORY TYPE
+	CALL	CFP			; CHECK FOR POSESSION
+	RC				; IF ERROR
+	CALL	LDE.			; LOCATE ENTRY IN DIRECTORY
+	JC	OPENW2			; NO ENTRY IN DIRECTORY
+
+*	HAVE EXISTING ENTRY IN DIRECTORY. SEE IF WE HAVE WRITE PERMISSION,
+*	SINCE WE WILL DELETE THIS ENTRY WHEN WE CLOSE.
+
+	LXI	D,DIR.FLG
+	DAD	D			; (HL) = ADDRESS OF DIR.FLG IN ENTRY
+	MOV	A,M			; (A) = DIR.FLG
+	ANI	DIF.WP+DIF.DL		; Write-protect or delete lock	
+	JZ	OPENW2			; have neither
+
+*	A file we can't delete.
+
+	ANI	DIF.WP			; check for write-protect
+	MVI	A,EC.WPV		; ASSUME WRITE PROTECT VIOLATION
+	STC				; make an error
+	RNZ				; is write-protect violation,
+
+	MVI	A,EC.LAD		;  else delete lock error
+	RET
+
+*	ALLOCATE AND LINK THE FILE'S FIRST GROUP
+
+OPENW2	MVI	C,0			; NEEDENT BE CONTIGUOUS
+	MOV	D,C			; NO BLOCK PREFERENCES
+	CALL	FFB			; FIND FREE BLOCK
+
+	MVI	A,EC.EOM
+	RC				; NO FREE BLOCK TO HAVE
+	MOV	A,M			; (A) = NEXT BLOCK IN FREE CHAIN
+	MVI	M,0			; THIS BLOCK IS LAST (AND FIRST) FOR THE FILE
+	MOV	D,L			; (D) = INDEX OF NEW BLOCK
+	MOV	L,E			; (HL) = ADDRESS OF PREVIOUS BLOCK
+	MOV	M,A			; UNCHAIN ALLOCATED BLOCK FROM FREE LIST
+	MOV	L,D			; (L) = GROUP INDEX
+	MVI	H,0			; (H) = SECTOR INDEX
+	SHLD	AIO.CGN
+	ERRNZ	AIO.CSI-AIO.CGN-1
+	SHLD	AIO.LGN 		; SET FIRST=LAST
+	ERRNZ	AIO.LSI-AIO.LGN-1
+	MOV	A,L
+	STA	AIO.DIR+DIR.FGN 	; SET FIRST GROUP NUMBER
+
+OPENW2A LHLD	S.DATC
+	SHLD	AIO.DIR+DIR.CRD 	; SET CREATION DATE
+	lhld	S.TIME							
+	shld	AIO.DIR+DIR.CTH 	; also time
+	ERRNZ	DIR.CTM-DIR.CTH-1
+
+OPENW3	MVI	A,DC.OPW		; SET OPENW OPERATION
+	RET				; EXIT
+	STL	'OPENU - OPEN FILE FOR UPDATE.'
+	EJECT
+***	OPENU - OPEN FILE FOR UPDATE.
+*
+*	OPENU IS CALLED TO OPEN A CHANNEL FOR UPDATE.
+*
+*	UPDATE IS JUST LIKE READ, BUT THE FILE MAY BE WRITTEN ALSO.
+*
+*	THE CALLER SUPPLIES A FILE NAME, A DEFAULT BLOCK FOR THE DEVICE
+*	AND EXTENSION, AND A CHANNEL NUMBER.
+*
+*	DEFAULT BLOCK FORMAT:
+*
+*	DB	'DDD'		DEFAULT DEVICE
+*	DB	'XXX'		DEFAULT EXTENSION
+*
+*	ENTRY	(DE) = DEFAULT BLOCK ADDRESS
+*		(HL) = NAME ADDRESS
+*		(A) = CHANNEL NUMBER
+*	EXIT	'C' CLEAR IF OK
+*		(HL) = ADVANCED PAST FILE NAME
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+OPENU	EQU	*
+
+	PUSH	B			; SAVE (BC)
+	CALL	OPENU1			; PROCESS OPEN
+	JMP	OPENX			; FINISH IN COMMON CODE
+
+*	PROCESS OPENU
+
+OPENU1	CALL	DFC			; DECODE FILE AND CHANNEL
+	RC				; ERROR
+	CMA
+	ANI	DT.DD+DT.CR+DT.CW	; MUST BE DIRECTORY/READ/WRITE
+	STC
+	MVI	A,EC.DNS
+	RNZ				; DEVICE DOSENT MEET ALL REQUIREMENTS
+
+*	FIND DIRECTORY ENTRY
+
+	MOV	A,M
+	ANI	FT.OR+FT.OW+FT.DD
+	ORI	FT.OU			; SET OPEN FOR UPDATE
+	MOV	M,A
+	CALL	CFP			; CHECK FOR POSESSION
+	RC				; FILE USAGE CONFLICT
+	CALL	LDE.			; FIND ENTRY
+	RC				; ERROR
+	CALL	CFI			; COPY FILE INFO FROM DIRECTORY ENTRY
+
+*	SEE IF WE HAVE WRITE PERMISSION
+
+	LDA	AIO.DIR+DIR.FLG
+	ANI	DIF.WP
+	MVI	A,EC.WPV		; ASSUME WRITE PERMISSION VIOLATION
+	STC
+	RNZ				; IN ERROR
+
+*	clear the 'A' flag
+
+	XCHG				; (de) = address in SECSCR
+	LXI	H,DIR.FLG
+	DAD	D
+	MVI	A,~DIF.ARC
+	ANA	M			; mask off 'A'
+	MOV	M,A
+	XCHG
+
+*	finish in common code
+
+	MVI	A,DC.OPU
+	RET				; EXIT TO COMMON CODE
+	STL	'OPENC - OPEN CONTIGUOUS FILE'
+	EJECT
+***	OPENC - OPEN CONTIGUOUS FILE FOR WRITE
+*
+*	OPENC IS CALLED TO OPEN A CHANNEL FOR WRITE.
+*
+*	THE FILE IS ENTERED IN THE CHANNEL TABLE, BUT NOT ON THE
+*	DISK. IT WILL BE ENTERED IN THE DIRECTORY AT CLOSE TIME.
+*
+*	THE CALLER SUPPLIES A FILE NAME, A DEFAULT BLOCK FOR THE DEVICE
+*	AND EXTENSION, AND A CHANNEL NUMBER.
+*
+*	DEFAULT BLOCK FORMAT:
+*
+*	DB	'DDD'		DEFAULT DEVICE
+*	DB	'XXX'		DEFAULT EXTENSION
+*
+*	ENTRY	(BC) = SECTOR COUNT
+*		(DE) = DEFAULT BLOCK ADDRESS
+*		(HL) = NAME ADDRESS
+*		(A) = CHANNEL NUMBER
+*	EXIT	'C' CLEAR IF OK
+*		(HL) = ADVANCED PAST FILE NAME
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+*
+
+OPENC	EQU	*
+
+	PUSH	B			; SAVE (BC)
+	CALL	OPENC1			; PERFORM OPEN
+	JMP	OPENX			; FINISH IN COMMON CODE
+
+*	PROCESS OPENC
+
+OPENC1	PUSH	B			; SAVE COUNT
+	CALL	DFC			; DECODE FILE AND CHANNEL
+	POP	B
+	RC				; ERROR
+
+	ANI	DT.CW
+	MVI	A,EC.DIW		; DEVICE IS NOT WRITABLE
+	STC
+	RZ				; NOT SUITABLE
+
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	FT.OW+FT.DD+FT.OR	; SET OPEN FOR READ AND WRITE
+	MOV	M,A
+	ERRNZ	FT.DD-1
+	RAR
+	JNC	OPENC9			; NOT DIRECTORY TYPE
+
+*	Compute the number of groups required
+
+	LDA	AIO.SPG
+	STA	OPENCB			; Initialize Sector Index
+	MOV	E,A
+	MVI	D,0			; DE = SPG
+	CALL	$DU66			; HL = BC / DE
+
+	MOV	A,E			; A  = Remainder
+	ANA	A
+	JZ	OPENC2
+	STA	OPENCB			; Set the sector index
+	INR	L			; Round up sector count
+OPENC2	MOV	A,L			; A = Sector Count
+	STA	OPENCA
+
+	CALL	CFP			; CHECK FOR POSESSION
+	RC				; IF ERROR
+
+	CALL	LDE.			; LOCATE ENTRY IN DIRECTORY
+	MVI	A,EC.FAP		; FILE ALREADY PRESENT
+	CMC
+	RC				; IF PRESENT
+
+*	READY TO TRY TO FIND THE CONTINUOUS AREA.
+
+	LHLD	AIO.GRT
+	MOV	D,L			; (D) = PREVIOUS BLOCK INDEX
+	MOV	L,M			; (HL) = ADDRESS IF FIRST FREE BLOCK
+
+*	AM AT HEAD OF A NEW CONTIGUOUS GROUP OF FREE BLOCKS
+*	(MAY BE ONLY 1 BLOCK, CONTIGUOUS WITH ITSELF!)
+
+OPENC3	MOV	A,L			; SEE IF NO MORE BLOCKS
+	ANA	A
+	MVI	A,EC.EOM		; ASSUME EOM
+	STC
+	RZ				; EOM
+	PUSH	D			; SAVE INDEX OF GROUP BEFORE THIS ONE
+	MVI	B,0			; (B) = GROUP COUNT
+OPENCA	EQU	*-1
+
+*	FOLLOW BLOCKS IN CHAIN, LOOKING FOR GAP
+
+OPENC4	DCR	B
+	JZ	OPENC5			; GOTEM
+	MOV	A,L
+	MOV	D,L			; (D) = INDEX OF LAST BLOCK
+	MOV	L,M			; FOLLOW LINK
+	INR	A
+	CMP	L
+	JE	OPENC4			; STILL CONTIGOUS
+
+*	BREAK IN CONTINUITY. START COUNTING OVER AGAIN
+
+	POP	B			; DISCARD OLD ADDRESS
+	JMP	OPENC3			; TRY AGAIN
+
+*	GOT THE BLOCKS WE NEED.
+*
+*	(L) = LAST BLOCK
+*	((SP)) = INDEX OF BLOCK BEFORE FIRST
+*
+*	WE MUST
+*
+*	1) REMOVE THIS BLOCK OF GROUPS BY LINKING
+*	   THE GROUP BEFORE IT TO THE GROUP AFTER IT
+*	2) TERMINATE THIS CHAIN OF GROUPS BY ZEROING THE LAST LINK
+*	3) SETUP THE FILE POINTERS IN THE AIO.XXX FIELD
+
+OPENC5	POP	D			; (D) = INDEX OF GROUP BEFORE FIRST IN BLOCK
+	MOV	B,M			; (B) = FIRST FREE GROUP AFTER BLOCK
+	MVI	M,0			; CLEAR CHAIN IN LAST GROUP OF BLOCK
+	MOV	E,L			; (E) = LAST GROUP NUMBER IN BLOCK
+	MOV	L,D			; (L) = LAST FREE BLOCK BEFORE GROUP
+	MOV	A,M			; (A) = FIRST GROUP OF BLOCK
+	MOV	M,B			; CHAIN FREE AROUND GROUP
+	STA	AIO.DIR+DIR.FGN 	; SET FIRST GROUP
+	MVI	L,1
+	MOV	M,L			; FLAG CHANGE IN GRT
+	MOV	L,A
+	MVI	H,0
+	SHLD	AIO.CGN 		; SET CURRENT GROUP AND INDEX
+	MOV	L,E			; (L) = LAST GROUP IN BLOCK
+	LDA	OPENCB			; A = Last Group Sector Index
+	MOV	H,A
+	SHLD	AIO.LGN 		; SET LAST GROUP AND SECTOR
+	SHLD	AIO.DIR+DIR.LGN
+	LXI	H,AIO.DIR+DIR.FLG
+	MOV	A,M			; (A) = FLAG
+	ORI	DIF.CNT 		; FLAG CONTIGUOUS
+	MOV	M,A			; REPLACE
+
+*	OPEN COMPLETE. SET CODE AND EXIT
+
+OPENC9	JMP	OPENW2A 		; finish like .OPENW
+
+OPENCB	DB	0			; Last Group Sector Index
+	STL	'CLOSE - PROCESS CLOSE SYSCALL'
+	EJECT
+***	CLOSE - PROCESS CLOSE SYSCALL.
+*
+*	CLOSE PROCESSING DEPENDS UPON THE FILE AND DEVICE TYPE.
+*
+*	FOR A WRITE/DIRECTORY TYPE, THE DIRECTORY IS SEARCHED FOR A
+*	PREVIOUS ENTRY. IF FOUND, IT IS DELETED. THE NEW ENTRY IS THEN
+*	INSERTED
+*
+*	FOR A UPDATE/DIRECTORY TYPE, THE PREVIOUS ENTRY IS UPDATED.
+*
+*	FOR ALL FILES, THE DRIVER IS CALLED WITH THE DC.CLO FUNCTION.
+*	THE CHANNEL IS RELEASED.
+*
+*	ENTRY	(A) = CHANNEL #
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = CODE
+*	USES	ALL
+
+CLOSE	EQU	*
+
+	CALL	FCC			; FETCH COMPLETE CHANNEL
+	RC				; ERROR
+	ANA	A
+	JZ	ERR.FNO 		; FILE NOT OPEN
+
+	CMA
+	ANI	FT.DD+FT.OW		; Check for Directory and Open for Write
+	CZ	CLOSE0			; Extra processing for DIR and WRITE
+	RC
+
+*	CLOSE I/O CHANNEL
+
+	LHLD	AIO.CHA
+	ERRNZ	IOC.FLG-IOC.DDA-2
+	INX	H
+	INX	H			; (HL) = ADDRESS OF IOC.FLG
+	MVI	M,0			; CLEAR
+
+*	CALL CLOSE IN DEVICE DRIVER
+
+	MVI	A,DC.CLO
+	JMP	AIO.VEC 		; CLOSE AND RETURN
+	SPACE	4,10
+*	FILE IS DIRECTORY FILE, AND WAS WRITTEN TO
+
+CLOSE0	MOV	A,M			; (A) = AIO.FLG
+	ANI	FT.OU
+	LXI	H,CLOSE2		; ASSUME WAS UPDATE TYPE
+	JNZ	CLOSE1			; IS UPDATE
+	LXI	H,CLOSE3		; IS OPEN FOR WRITE
+CLOSE1	PUSH	H			; SAVE PROCESS AS RETURN ADDRESS
+	LHLD	AIO.DES 		; (HL) = DIRECTORY SECTOR #
+	LXI	B,DIRIDL		; (BC) = DIRECTORY NAME LENGTH
+	MOV	A,H
+	ORA	L
+	STC				; ASSUME NO PREVIOUS ENTRY
+	JNZ	LDE..			; HAVE PREVIOUS ENTRY
+	RET				; EXIT TO CLOSE2 OR CLOSE3
+
+*	AM OPEN FOR UPDATE
+
+CLOSE2	CC	S.FASER 		; FATAL ERROR: COULDNT FIND IT
+	XCHG				; (DE) = ENTRY ADDRESS
+	XRA	A			; No blocks to return to GRT
+	JMP	CLOSE7			; UPDATE DIRECTORY ENTRY
+
+*	AM OPEN FOR WRITE. DELETE ANY EXISTING FILE OF THAT NAME
+
+CLOSE3	JC	CLOSE4			; NONE YET EXIST
+	CALL	$INDLB			; A = Head of list to return
+	DW	DIR.FGN
+	JMP	CLOSE6			; SET CREATION DATE AND UPDATE DIRECTORY
+
+*	FIND EMPTY SPOT FOR THE FILE NAME
+
+CLOSE4	CALL	FOE			; FIND OPEN ENTRY
+	RC				; DIRECTORY FULL UP
+	XRA	A			; No blocks to return to GRT
+
+CLOSE6	XCHG
+
+*	UPDATE DIRECTORY ENTRY FOR WRITTEN FILE
+*
+*	A	= Head of block list to return to free pool, 0 if none
+*	(DE) = ADDRESS OF ENTRY IN DIRECTORY SECTOR
+*
+*	NOTE:	This code has been modified in an effort to catch
+*		users who play with write protect switches.
+*
+
+CLOSE7	MOV	B,A
+	PUSH	B			; Save head of return list
+	XCHG				; (HL) = ADDRESS		
+	CALL	UDE			; UPDATE DIRECTORY ENTRY
+	CALL	UDS			; UPDATE DIRECTORY SECTOR
+	POP	B			; Restore head of list
+	RC				; Hopefully only Write-Protect
+
+	CALL	CLOSE8
+	JMP	SGT			; SAVE GRT TABLE
+	SPACE	4,10
+**	CLOSE8
+*
+*	Free any blocks which may have been freed by the deletion of
+*	an old file
+
+CLOSE8	MOV	A,B			; A  = Head of list to free
+	ANA	A
+	RZ				; Nothing to update
+
+	LHLD	AIO.GRT 		; HL = GRT Address
+	JMP	FGC			; Free the Group Chain
+	STL	'POSIT - POSITION FILE.'
+	EJECT
+***	POSIT - POSITION FILE.
+*
+*	LXI	B,POSITION
+*	MVI	A,CHANNEL
+*	SCALL	.POSIT
+*
+*	ENTRY	(A) = CHANNEL NUMBER
+*		(BC) = SECTOR NUMBER TO POSITION BEFORE
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*		 (A) = EC.EOF IF OFF END
+*		 (BC) = SECTORS UNSKIPPED (REMAINDER OF COUNT)
+*		 FILE POSITIONED AT EOF
+*	USES	ALL
+
+POSIT	EQU	*
+
+	PUSH	B			; SAVE SECTOR #
+	CALL	FCC			; FETCH COMPLETE CHANNEL INFORMATION
+	JC	POSIT3			; ERROR
+	ANA	A
+	JZ	ERR.FNO 		; FILE NOT OPEN
+	ERRNZ	FT.DD-1
+	RAR
+	CMC				; 'C' SET IF NOT DIRECTORY DEVICE
+	MVI	A,EC.DNS
+	JC	POSIT3			; DEVICE NOT SUITABLE
+	LHLD	AIO.DIR+DIR.FGN
+	MVI	H,0
+	SHLD	AIO.CGN 		; REWIND
+	ERRNZ	AIO.CSI-AIO.CGN-1
+	POP	B			; (BC) = SECTOR COUNT
+
+POSIT2	MOV	A,B
+	ORA	C
+	JZ	S.SCI			; ALL DONE
+	CALL	AFP			; ADVANCE FILE POINTER
+	XCHG
+	JC	S.SCI			; AT EOF
+	XCHG
+	DCX	B			; MORE TO GO
+	JMP	POSIT2			; ADVANCE ANOTHER ONE
+
+POSIT3	POP	B
+	RET
+	SPACE	4,10
+**	AFP - ADVANCE FILE POINTER.
+*
+*	AFP ADVANCES THE ACTIVE I/O POINTER ONE SECTOR.
+*
+*	ENTRY	NONE
+*	EXIT	'C' CLEAR IF ADVANCED
+*		'C' SET IF EOF
+*		 (A) = EC.EOF
+*	USES	A,F,H,L
+
+AFP1	CALL	FFL			; FOLLOW FORWARD LINK
+
+AFP	LXI	H,AIO.CGN
+	LDA	AIO.LGN
+	CMP	M			; SEE IF AM ON LAST GROUP
+	ERRNZ	AIO.CSI-AIO.CGN-1
+	INX	H			; (HL) = #AIO.CSI
+	JNE	AFP2			; NOT YET
+	LDA	AIO.LSI
+	CMP	M			; SEE IF ALSO ON LAST SECTOR
+	JNE	AFP2			; NOT YET
+	STC
+	MVI	A,EC.EOF
+	RET				; AT END OF FILE
+
+*	NOT AT END OF FILE
+
+AFP2	LDA	AIO.SPG
+	CMP	M
+	JE	AFP1			; AT END OF GROUP
+	INR	M			; ADVANCE
+	ANA	A			; CLEAR CARRY
+	RET
+	STL	'DELETE - PROCESS DELETE FUNCTION'
+	EJECT
+**	DELETE - PROCESS DELETE COMMAND.
+*
+*	This routine was modified to return the free blocks only
+*	if the directory sector was successfully written back.
+*	This avoids any doubly allocated blocks as may be the case
+*	for a disk that is mounted with the drive write-enabled
+*	which is subsequently changed to write-disabled.
+*
+*	ENTRY	(HL) = NAME STRING
+*		(DE) = DEFAULT BLOCK
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = CODE
+*	USES	ALL
+
+DELETE	EQU	*
+
+	CALL	LFD			; LOCATE FILE IN DIRECTORY
+	RC				; ERROR OF SOME KIND
+
+*	SEE IF FILE IS WRITE PROTECTED OR LOCKED FROM DELETE
+
+	XCHG				; (DE) = DIRECTORY ENTRY ADDRESS
+	LXI	H,DIR.FLG
+	DAD	D			; (HL) = #DIR.FLG
+	MOV	A,M
+	ANI	DIF.WP+DIF.DL		; SEE IF DELETE ALLOWED 	
+	JZ	DELETE0 		; 'sok
+
+*	Return correct error for locked file
+
+	ANI	DIF.WP			; CHECK WRITE PROTECT
+	MVI	A,EC.WPV		; ASSUME WRITE PROTECT VIOLATION
+	STC				; make an error
+	RNZ				; IS PROTECTED
+	MVI	A,EC.LAD		;  else is delete locked
+	RET
+
+*	File is not locked
+
+DELETE0 LDA	AIO.FLG
+	ANI	FT.OW
+	MVI	A,EC.DIW		; DEVICE IS NOT WRITABLE
+	STC
+	RZ
+	XCHG				; (HL) = ADDRESS OF DIR ENTRY
+
+*	DELETE FILE, write directory, then return free blocks
+
+	MVI	M,DF.EMP		; FLAG EMPTY
+	PUSH	H			; Save entry pointer
+	CALL	UDS			; Update Directory Sector
+	POP	H
+	RC
+	CALL	RBF			; RETURN BLOCKS TO FREE POOL
+	JMP	SGT			; SAVE GRT TABLE, AND EXIT
+	STL	'RENAME - PROCESS RENAME FUNCTION'
+	EJECT
+***	RENAME - PROCESS RENAME FUNCTION.
+*
+*	RENAME RENAMES A FILE ON A DIRECTORY DEVICE.
+*
+*	* NOTE * RENAME DOES NOT CHECK TO SEE IF THE NEW NAME ALREADY
+*	EXISTS, THIS IS CURRENTLY THE RESPONSIBILITY OF THE CALLER !
+*
+*	ENTRY	(HL) = NAME STRING
+*		(DE) = DEFAULT BLOCK
+*		(BC) = NEW NAME STRING
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = CODE
+*	USES	ALL
+
+RENAME	EQU	*
+
+	CALL	LFD			; LOCATE FILE IN DIRECTORY
+	RC				; FILE NOT FOUND
+
+*	SEE IF DEVICE IS READ AND WRITABLE
+
+	LDA	AIO.FLG
+	CMA
+	ANI	DT.DD+DT.CR+DT.CW
+	MVI	A,EC.DIW		; DEVICE NOT WRITABLE
+	STC
+	RNZ				; WE KNOW IS DISK, MUST BE WRITE PROT
+
+*	HAVE FOUND DIRECTORY ENTRY. CRACK NEW NAME.
+
+	PUSH	H			; SAVE ENTRY ADDRESS
+	LXI	D,DIR.FLG
+	DAD	D			; (HL) = ADDRESS OF FLAG BYTE
+	MOV	A,M
+	ANI	DIF.LOC+DIF.WP		; DONT RENAME IF LOCKED OR WRITE PROTECT
+	JZ	RENAME1 		; NOT LOCKED OR WRITE PROTECT
+	POP	H			; clear stack			
+	ANI	DIF.WP			; check for write protect
+	MVI	A,EC.WPV		; ASSUME FILE WRITE PROTECTED
+	STC
+	RNZ				; is write protect
+	MVI	A,EC.FL 		;  else file is locked
+	RET
+
+RENAME1 MVI	A,~DIF.ARC
+	ANA	M			; mask off 'A' flag
+	MOV	M,A
+
+	LHLD	AIO.UNI-1		; (H) = AIO.UNI
+	PUSH	H			; SAVE CURRENT UNIT
+	MOV	H,B
+	MOV	L,C			; (HL) = NEW NAME ADDRESS
+	LXI	D,$ZEROS
+	CALL	DFD			; DECODE FILE DESCRIPTOR
+	POP	B			; (B) = UNIT NUMBER
+	POP	H			; (HL) = ADDRESS OF ENTRY IN DIRECTORY
+	RC				; ERROR
+	MVI	A,EC.IFN		; ERROR CODE, ILLEGAL FILE NAME
+	STC
+	RZ				; NULL FILE NAME
+	MOV	A,B			; (A) = UNIT NUMBER
+	STA	AIO.UNI 		; SET ORIGINAL UNIT NUMBER
+	ERRNZ	DIR.NAM 		; ASSUMED FIRST OFF
+	LXI	D,AIO.DIR+DIR.NAM
+	LXI	B,DIRIDL
+	CALL	$MOVE			; MOVE IN NEW NAME
+	JMP	UDS			; UPDATE DIRECTORY SECTOR AND RETURN
+	STL	'SETTOP - SET TOP OF USER MEMORY USE.'
+	EJECT
+***	SETTOP - SET TOP OF USER MEMORY.
+*
+*	SETTOP IS CALLED TO NOTIFY THE SYSTEM OF A NEW MEMORY
+*	LIMIT ADDRESS.
+*
+*	ENTRY	(HL) = NEW ADDRESS
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF TOO HIGH
+*		 (HL) = MAXIMUM HEIGHT
+*	USES	ALL
+
+SETTOP	EQU	*
+
+	XCHG				; (DE) = NEW TOP
+	LHLD	S.SYSM
+	DCX	H
+	DCX	H
+	MOV	A,L			; COMPARE S.SYSM TO SETTUP
+	SUB	E
+	MOV	A,H
+	SBB	D
+	MVI	A,EC.NEM		; ASSUME NOT ENOUGH
+	RC				; CANT HAVE IT
+	XCHG
+	SHLD	S.USRM			; CAN HAVE IT
+	RET								
+	STL	'DECODE - PROCESS DECODE SYSCALL'
+	EJECT
+***	DECODE - PROCESS DECODE SYSCALL.
+*
+*	DECODE DECODES THE SUPPLIED FILE NAME INTO A BLOCK IN THE FORM:
+*
+*	DB	FLAG		DEVICE FLAG
+*	DS	2		DEVICE NAME
+*	DS	1		DEVICE UNIT
+*	DS	8		FILE NAME
+*	DS	3		FILE EXTENSION
+*	DS	1		not used
+*	DS	1		not used
+*	DS	2		DEVICE TABLE POINTER
+*
+*	ENTRY	(BC) = LIST FWA
+*		(DE) = DEFAULT TABLE
+*		(HL) = NAME ADDRESS
+*	EXIT	NONE
+*	USES	ALL
+
+DECODE	EQU	*
+
+	PUSH	B			; SAVE (BC)
+	CALL	DFA			; DECODE FILENAME INTO AIO.XXX
+	POP	B
+	RC				; ERROR
+	MOV	H,B
+	MOV	L,C			; (HL) = ADDRESS OF BLOCK
+	LDA	AIO.FLG
+	MOV	M,A			; STORE
+	INX	H
+	ERRNZ	AIO.DIR-AIO.UNI-1
+	ERRNZ	AIO.UNI-AIO.DEV-2
+	LXI	B,DIRIDL+3
+	LXI	D,AIO.DEV
+	CALL	$MOVE			; MOVE IN STUFF
+	inx	h			; skip				
+	inx	h			;  ''
+	XCHG
+	LHLD	AIO.DTA
+	XCHG
+	MOV	M,E
+	INX	H
+	MOV	M,D			; SET DEV TABLE ADDRESS
+	RET
+	STL	'NAME - PROCESS NAME SYSCALL'
+	EJECT
+***	NAME - PROCESS NAME SYSCALL.
+*
+*	THE NAME SYSCALL RETURNS THE DEVICE, FILE NAME, AND
+*	FILE EXTENSION OF AN OPEN CHANNEL.
+*
+*	THE INFORMATION IS OBTAINED FROM THE CHANNEL TABLE, WHICH WAS
+*	SETUP UPON FILE OPEN.
+*
+*	ENTRY	(A) = CHANNEL NUMBER
+*		(DE) = ADDRESS FOR DEVICE AND EXTENSION (DEFAULT BLOCK FORMAT)
+*		(HL) = ADDRESS FOR NAME (8 CHARACTERS, FOLLOWED BY 00)
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+NAME	PUSH	H
+	PUSH	D
+	CALL	FCC			; FETCH COMPLETE CHANNEL
+	JNC	NAME1			; NO ERROR
+	POP	D
+	POP	H							
+	RET				; RETURN WITH ERROR
+
+NAME1	POP	H			; (HL) = ADDRESS FOR DEVICE, ETC
+	LXI	D,AIO.DEV
+	LXI	B,3
+	CALL	$MOVE			; MOVE IN DEVICE CODE
+	DCX	H
+	MOV	A,M
+	ADI	'0'			; MAKE INTO DIGIT
+	MOV	M,A
+	INX	H
+	XTHL				; (HL) = ADDRESS FOR NAME
+	LXI	B,8
+	ERRNZ	AIO.DIR+DIR.NAM-AIO.DEV-3
+	CALL	$MOVE			; MOVE IN NAME
+	MVI	M,0			; FLAG END OF NAME
+	POP	H			; (HL) = ADDRESS FOR EXTENSION
+	LXI	B,3
+	ERRNZ	DIR.EXT-DIR.NAM-8
+	JMP	$MOVE			; MOVE EXTENSION, AND EXIT
+	STL	'CLEAR - CLEAR I/O CHANNEL'
+	EJECT
+***	CLEAR - CLEAR I/O CHANNEL.
+*
+*	CLEAR IS CALLED TO CLEAR AN I/O CHANNEL. IF THE CHANNEL IS CLOSED,
+*	NO ACTION IS PERFORMED. IF THE CHANNEL IS OPEN, IT IS
+*	FLAGGED CLOSED. THE RESULTS OF THIS OPERATION DEPEND UPON THE TYPE
+*	OF FILE:
+*
+*	OPEN FOR		ACTION
+*
+*	READ		SAME AS .CLOSE
+*	WRITE		FILE IS FORGOTTEN. ANY WRITTEN DISK BLOCKS
+*			ARE RESTORED TO THE FREE POOL.
+*	UPDATE		REPLACED SECTORS REMAIN REPLACED. APPENDED SECTORS
+*			ARE LOST UNTIL NEXT BOOT. FILE STAYS AT PREVIOUS LENGTH.
+*	WRITEC		SAME AS WRITE
+*
+*	THE DEVICE DRIVER IS NOT INFORMED OF THE CLOSING.
+*
+*	MVI	A,CHANNEL
+*	SCALL	.CLEAR
+*
+*	ENTRY	(A) = CHANNEL NUMBER
+*	EXIT	'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+CLEAR	EQU	*
+
+	CALL	S.FCI			; FETCH CHANNEL INFO
+	RC				; ERROR
+	LHLD	AIO.CHA
+	ERRNZ	*-CLEAR1
+	SPACE	3,10
+**	CLEAR1 - CLEAR CHANNEL.
+*
+*	ENTRY	(HL) = IOC.DDA ADDRESS
+*	EXIT	NONE
+*	USES	ALL
+
+	ERRNZ	IOC.FLG-IOC.DDA-2
+CLEAR1	INX	H
+	INX	H			; (HL) = #IOC.FLG ADDRESS
+	MOV	A,M
+
+*	IF FILE IS DIRECTORY DEVICE, OPEN FOR WRITE BUT NOT UPDATE, CLEAR BLOCKS
+
+	XRI	FT.OU			; MUST NOT BE FOR UPDATE
+	CMA
+	ANI	FT.OR+FT.OW+FT.DD+FT.OU ; FT.DD & FT.OW & FT.OR & FT.OU
+	MVI	M,0			; CLEAR FLAGS
+	RNZ				; NOT WRITE-ONLY MASS STORAGE, EXIT
+
+*	IS WRITE ONLY MASS STORAGE FILE. CLEAR SPACE
+
+	ERRNZ	IOC.GRT-IOC.FLG-1
+	INX	H			; (HL) = #IOC.GRT
+	MOV	D,H
+	MOV	E,L			; (DE) = #IOC.GRT
+	CALL	$HLIHL			; (HL) = GRT ADDRESS
+	PUSH	H			; SAVE
+	LXI	H,IOC.DIR+DIR.FGN-IOC.GRT
+	DAD	D			; (HL) = ADDRESS OF FIRST GROUP NUMBER
+	MOV	A,M			; (A) = FIRST GROUP INDEX
+	POP	H			; (HL) = GRT ADDRESS
+	JMP	FGC			; FREE GROUP CHAIN AND EXIT
+	STL	'CLRALL - CLEAR ALL CHANNELS'
+	EJECT
+***	CLRALL - CLEAR ALL CHANNELS.
+*
+*	CLRALL PERFORMS THE .CLEAR ACTION FOR ALL EXISTING CHANNELS,
+*	EXCEPT CHANNEL 377Q, THE LOAD IMAGE CHANNEL.
+*
+*	SCALL	.CLEARA
+*
+*	ENTRY	NONE
+*	EXIT	NONE
+*	USES	ALL
+
+CLRALL	EQU	*
+
+	LHLD	S.CFWA
+	ERRNZ	IOCCTD-1		; NEED TO CHAIN PAST 1 CHANNEL
+	CALL	$HLIHL			; POINT TO USER CHANNEL #0
+
+CLRALL1	MOV	A,H
+	ORA	L
+	RZ				; END OF CHANNELS
+	PUSH	H			; SAVE ADDRESS
+	ERRNZ	IOC.DDA-IOC.LNK-2
+	INX	H
+	INX	H			; POINT TO IOC.DDA
+	CALL	CLEAR1			; CLEAR IT
+	POP	H			; (HL) = CHANNEL LINK ADDRESS
+	CALL	$HLIHL			; (HL) = ADDRESS OF NEXT ONE
+	JMP	CLRALL1
+	STL	'ERROR - PRINT ERROR MESSAGE'
+	EJECT
+***	ERROR - PRINT ERROR MESSAGE.
+*
+*	ERROR IS CALLED TO PRINT AN ERROR MESSAGE.
+*
+*	THE HDOS SYSTEM RETURNS ERROR CODE NUMBERS WHEN IT DETECTS
+*	AN ERROR. THE ERROR FUNCTION MAY BE USED TO TYPE AN ALPHABETIC
+*	EXPLANATION OF THE ERROR.
+*
+*	THE ERRORS ARE STORED IN THE FILE 'ERRORMSG.SYS' ON THE SYSTEM
+*	DISK, ONE MESSAGE PER LINE. THE LINES LOOK LIKE:
+*
+*	NNNTEXT
+*
+*	FOR EXAMPLE,
+*
+*	001End of File
+*
+*	IF THE ERROR MESSAGE FILE CANNOT BE READ, OR THE MESSAGE DOES
+*	NOT APPEAR, THE ERROR IS TYPED AS 
+*
+*	'?02 Error # NNN'
+*
+*	ENTRY	(A) = ERROR CODE
+*		(H) = TRAILING CHARACTER (TYPED AFTER MESSAGE)
+*	EXIT	NONE
+*	USES	ALL
+
+ERROR	EQU	*
+
+	PUSH	H			; SAVE FINAL CHARACTER
+
+*	CRACK ERROR CODE
+
+	MOV	C,A
+	MVI	B,0			; (BC) = C0DE
+	LXI	H,ERRORB
+	MVI	A,3
+	CALL	$UDD			; UNPACK DECIMAL DIGITS
+	CALL	ERR0.5
+	JNC	ERR4			; CRACKED MESSAGE OK
+
+*	COULDNT GET MESSAGE
+
+	LXI	H,ERRORA
+	SCALL	.PRINT
+
+*	PRINT FINAL CHARACTER
+
+ERR4	POP	PSW			; (A) = CODE
+	SCALL	.SCOUT
+	RET
+
+*	OPEN ERROR MESSAGE FILE
+
+ERR0.5	EQU	*
+
+	LXI	H,ERRORC
+	CALL	DFA
+	RC				; FILE ERROR
+	CALL	LDE.			; LOCATE DIRECTORY ENTRY
+	RC				; FILE ERROR
+	CALL	CFI			; COPY FILE INFO FROM DIRECTORY ENTRY
+
+*	READ SECTORS FOR ERROR MESSAGE
+
+	LHLD	S.SCR		SECTOR SCRATCH AREA
+	DCR	L		FORCE IMMEDIATE READ
+
+ERR0	MVI	B,3
+	LXI	D,ERRORB
+
+ERR1	CALL	RTB			; READ TEXT BYTE
+	RC				; END OF FILE
+	LDAX	D
+	CMP	M
+	JNE	ERR2.5			; NOT RIGHT MESSAGE NUMBER
+	INX	D
+	DCR	B
+	JNZ	ERR1			; KEEP TRYING
+
+*	GOT ERROR MESSAGE. TYPE IT
+
+	CALL	$TYPTX
+	DB	'?02',' '+EOL		; give a sign of message source
+
+ERR2	CALL	RTB			; READ MESSAGE BYTE
+	RC				; ERROR
+	MOV	A,M
+	CPI	NL			; SEE IF NEW LINE
+	RE				; END OF MESSAGE
+	SCALL	.SCOUT
+	JMP	ERR2
+
+*	THIS IS NOT THE RIGHT MESSAGE. READ THE NEXT
+
+ERR2.5	CALL	RTB
+	RC				; MESSAGE NOT FOUND
+	MOV	A,M			; (A) = MESSAGE CHARACTER
+	CPI	NL
+	JNE	ERR2.5			; READ TILL NEXT LINE
+	JMP	ERR0			; TRY THIS MESSAGE
+
+ERRORA	DB	BELL,'?02 Error # '
+ERRORB	DB	'JGL'		MESSAGE NUMBER
+	DB	' '+EOL
+
+ERRORC	DB	'SY0:ERRORMSG.SYS',0
+	SPACE	4,10
+**	RTB - READ TEXT BYTE
+*
+*	RTB LOCATES THE NEXT BYTE OF THE FILE BEING READ.
+*
+*	ENTRY	(HL) = BUFFER POINTER
+*	EXIT	'C' CLEAR IF GOT IT
+*		 (HL) = ADDRESS
+*		'C' SET IF ERROR
+*	USES	A,F,L
+
+RTB	ANA	A			; CLEAR CARRY
+	INR	L
+	RNZ				; GOT MORE
+	PUSH	B
+	PUSH	D
+	LXI	B,256
+	XCHG
+	LHLD	S.SCR
+	XCHG				; DE = SCRATCH ADDRESS
+	PUSH	D
+	CALL	S.DIREA
+	POP	H			; (HL) = POINTER
+	POP	D
+	POP	B
+	RET
+	STL	'CHFLG - CHANGE FILE FLAGS'
+	EJECT
+**	CHFLG - CHANGE FILE FLAGS.
+*
+*	CHFLG IS CALLED TO CHANGE THE FILE DESCRIPTION FLAGS
+*	FOR A MASS STORAGE FILE. ONLY CERTAIN FLAGS MAY BE
+*	CHANGED:
+*
+*	FLAG	BIT	MEANING
+*
+*	DIF.SYS	200Q	IS SYSTEM FILE
+*	DIF.LOC	100Q	LOCKED FOR CHANGE (SETABLE ONLY)
+*	DIF.WP	040Q	IS WRITE PROTECTED
+*	DIF.ARC 010Q	Archive attribute				
+*	DIF.BAD 004Q	File is damaged
+*	DIF.DL	002Q	File is delete locked
+*	DIF.USR 001Q	User defined
+*
+*	CHFLG WILL REFUSE THE OPERATION IF THE DIF.LOC BIT IS SET.
+*
+*	ENTRY	(B) = NEW BIT VALUES
+*		(C) = CHANGE MASK (BIT SET FOR EVERY BIT TO REPLACE FROM (B))
+*		(DE) = DEFAULT BLOCK ADDRESS
+*		(HL) = FILE NAME
+*	EXIT	'C' CLEAR, CHANGE DONE
+*		'C' SET, ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+CHFLG	EQU	*
+
+	CALL	LFD			; LOCATE FILE IN DIRECTORY
+	RC				; IF ERROR
+
+	LDA	AIO.FLG
+	ANI	DT.CW
+	MVI	A,EC.WP 		; ASSUME DISKETTE IS WRITE PROTECTED
+	STC
+	RZ				; NOT CAPABLE OF WRITE
+
+	MOV	A,C
+	ERRNZ	DIF.LOC-100Q						
+	ERRNZ	DIF.CNT-020Q
+	ANI	257Q			; Allow all but 'L' and 'C'
+	CMA
+	MOV	C,A			; (C) = -MASK
+	CMA
+	ORI	DIF.LOC 		; ALLOW HIM TO LOCK
+	ANA	B			; CLEAR UNWANTED BITS
+	LXI	D,DIR.FLG
+	DAD	D			; (HL) = ADDRESS OF DIR.FLG BYTE
+	MOV	B,A
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	DIF.LOC
+	MVI	A,EC.FL 		; ASSUME FILE LOCKED
+	STC
+	RNZ				; LOCKED
+	MOV	A,M
+	ANA	C			; CLEAR BITS
+	ORA	B			; SET BITS
+	MOV	M,A			; REPLACE
+	JMP	UDS			; UPDATE DIRECTORY SECTOR
+	STL	'DISMT - FLAG SYSTEM DISK DISMOUNTED'
+	EJECT
+***	DISMT - FLAG SYSTEM DISK DISMOUNTED.
+*
+*	THE DISMT FUNCTION IS USED WHEN THE SYSTEM DISK IS ABOUT TO BE
+*	DISMOUNTED. ANY HDOS FUNCTIONS WHICH REQUIRE SYSTEM FILES
+*	WILL BE TREATED AS FATAL SYSTEM ERRORS.
+*
+*	ENTRY	None
+*	EXIT	S.SYSM = LWA OF FREE SPACE FOR USER
+*		(HL) = (S.SYSM)
+*	USES	ALL
+
+DISMT	EQU	*
+
+	XRA	A
+	STA	S.MOUNT 		; FLAG DISK UNMOUNTED
+
+	LHLD	S.SYSM			; (HL)	FOR EXIT
+	RET
+	STL	'LOADD - Load Device Driver'
+	EJECT
+***	LOADD	-  LOAD DEVICE DRIVER
+*
+*	LOADD LOADS THE SPECIFIED DEVICE DRIVER.
+*
+*	ENTRY:	(HL)	=  DEVICE DRIVER DESCRIPTOR STRING
+*
+*	EXIT:	PSW	= 'C' set   if NO Error
+*			    HL = device Table address
+*			  'C' clear if	  Error
+*			    A  = Error Code
+*
+*	USES:	ALL
+*
+
+LOADD	EQU	*
+
+	LXI	D,$ZEROS		; default device descriptor
+	CALL	CAC
+	CALL	DFD			; decode file name
+	RC
+	CALL	CDU
+	RC				; check unit
+	CALL	LDI0
+	RC
+	CALL	LDI5
+	RC
+
+	LHLD	AIO.DTA 		; HL = device table
+	CALL	$INDLB
+	DW	DEV.RES
+	ANI	DR.IM
+	RNZ				; driver is in memory
+
+	MVI	A,DC.LOD
+	CALL	AIO.VEC 		; call driver
+	LHLD	AIO.DTA 		; HL = device table address
+
+	ret				; exit with load pending
+	STL	'MOUNT - Mount Disk'
+	EJECT
+***	MOUNT	- MOUNT DISK
+*
+*	MOUNT DISK ON SPECIFIED UNIT OF SELECTED DEVICE
+*
+*
+*	ENTRY:	(HL)	= ADDRESS OF DEVICE SPECIFICATION
+*
+*	EXIT:	(PSW)	= 'C' SET   IF ERROR
+*			   (A)  = ERROR CODE
+*			  'C' CLEAR IF NO ERROR
+*			   'Z' CLEAR IF AN ABORT
+*
+*	USES:	ALL
+*
+
+MOUNT	EQU	*
+
+	CALL	MOUNMS
+	RC
+	RNZ				; THERE WAS AN ABORT
+	CALL	GETLAB			; GET LABEL FOR MESSAGE
+	RC
+	LXI	H,MOUA
+	JMP	IMM			; ISSUE MESSAGE
+
+MOUA	DB	'Mounted on',' '+EOL
+	STL	'DMOUN - Dismount Disk'
+	EJECT
+***	DMOUN	- DISMOUNT DISK
+*
+*	DISMOUNT DISK ON SELECTED DRIVE
+*
+*
+*	IF  AN ATTEMPT IS MADE TO DISMOUNT SY0:,  THEN
+*	   FORCE OVERLAY IN IF THERE IS ROOM
+*
+*
+*	ENTRY:	(HL)	= ADDRESS OF DEVICE SPECIFICATION
+*
+*	EXIT:	(PSW)	= 'C' SET   IF ERROR
+*			   (A)  = ERROR CODE
+*
+*	USES:	ALL
+
+DMOUNT	EQU	*
+
+	CALL	DMONMS
+	RC
+	LXI	H,DMOUA
+	JMP	IMM							
+
+DMOUA	DB	'Dismounted from',' '+EOL
+	STL	'MOUNMS - Mount/No message'
+	EJECT
+***	MOUNMS	- MOUNT/NO MESSAGE
+*
+*	MOUNT SPECIFIED UNIT OF SELECTED DEVICE WITHOUT ISSUING MOUNT MESSAGE.
+*
+*	IF  AN ATTEMPT IS MADE TO MOUNT SY0:  AND  IT IS A SYSTEM DISK
+*	  MOUNT A NEW SYSTEM DISK
+*
+*	ENTRY:	(HL)	= ADDRESS OF DEVICE SPECIFICATION
+*
+*	EXIT:	(PSW)	= 'C' SET   IF ERROR
+*			   (A)  = ERROR CODE
+*			  'C' CLEAR IF NO ERROR
+*			   'Z' CLEAR IF THERE WAS AN ABORT
+*
+*	USES:	ALL
+*
+
+MOUNMS	EQU	*
+
+	CALL	CDM
+	RC				; error
+	MVI	A,EC.VPM		; assume have volume
+	STC
+	RNZ				; yep.
+
+	PUSH	H
+	PUSH	B
+
+	CALL	CAB
+	JNZ	MOU2.5			; THERE WAS AN ABORT
+	CALL	MND			; MOUNT NEW DISK
+	CC	MOU2			; IF ERROR
+	CALL	PGT			; PROCESS GRT
+	CC	MOU2			; ERROR
+	CALL	CDS			; CLEAR DIRECTORY SPACES
+	CC	MOU2			; ERROR
+
+	POP	B
+	POP	H
+	MOV	A,B
+	ORA	M			; SET MOUNTED
+	MOV	M,A
+
+*	see if system disk is back
+
+	LDA	UNIT
+	ANA	A			; is unit 0?
+	JNZ	MOU2.
+
+	LHLD	DEVNAME
+	LXI	D,'YS'
+	CALL	$CDEHL			; is 'SY'?
+	JNZ	MOU2.			; nope.
+
+*	is system device... see if is system disk
+
+	CALL	GETLAB			; get volume label
+
+	CALL	DMO4			; do check
+	LHLD	DMOC
+	CALL	$CDEHL			; is same as was dismounted?
+	JNZ	MOU2.			; no
+
+	MVI	A,1
+	STA	S.MOUNT 		; system disk has come home.
+
+MOU2.	XRA	A			; SET ZERO FLAG TO INDICATE NO ABORT
+	RET
+
+MOU2	CPI	EC.WP			; SEE IF ERROR WAS DUE TO WRITE PROTECT
+	RZ				; YES, CONTINUE AS IF NO ERROR
+	INX	SP			; NO, THERE'S A REAL ERROR
+	INX	SP			; SO RESET THE STACK
+	STC				; SET THE CARRY AND FALL THROUGH
+
+MOU2.5	POP	B			; ERROR RETURN
+	POP	H
+	RET
+	STL	'DMONMS - Dismount/No message'
+	EJECT
+***	DMONMS	- DISMOUNT DEVICE/NO MESSAGE
+*
+*	DISMOUNT SELECTED UNIT OF SPECIFIED DEVICE WITHOUT ISSUING DISMOUNT
+*	MESSAGE
+*
+*	IF  AN ATTEMPT IS MADE TO DISMOUNT SY0:  THEN
+*	    FORCE IN OVERLAY
+*	    DISMOUNT OPERATING SYSTEM
+*
+*
+*	ENTRY:	(HL)	= ADDRESS OF DEVICE SPECIFICATION
+*
+*	EXIT:	(PSW)	= 'C' SET IF ERROR
+*			   (A)  = ERROR CODE
+*
+*	USES:	ALL
+*
+
+DMONMS	EQU	*
+
+	CALL	CDM			; CHECK FOR DEVICE MOUNTED
+	RC				; ERROR IN DEVICE SPECIFICATION
+	JNZ	DMO1			; MOUNTED
+	MVI	A,EC.NVM		; NO VOLUME PRESENTLY MOUNTED
+	STC
+	RET
+
+*	OK TO DISMOUNT
+
+DMO1	CALL	COF			; CHECK FOR OPEN FILES ON THE DEVICE
+	RC				; SHOULD NOT DISMOUNT A DISK WITH OPEN FILES.
+	PUSH	B			; SAVE INDEX
+	PUSH	H			; SAVE DEV.MUM ADDRESS
+
+	XRA	A
+	STA	DMOB			; initialize system disk flag
+	LDA	UNIT			; A  = current unit
+	ANA	A
+	JNZ	DMO2			; NOT unit 0
+
+	LHLD	DEVNAME 		; HL = device name
+	LXI	D,'YS'			; SY:
+	ERRNZ	IOC.UNI-IOC.DEV-2
+	CALL	$CDEHL
+	JNZ	DMO2			; Not the system device
+
+	lxi	h,dmob							
+	inr	m			; clear system flag
+
+DMO2	LHLD	UNTTAB
+	CALL	$INDLB			; A  = unit flag byte
+	DW	UNT.FLG
+	ANI	DT.CW
+	JZ	DMO3			; unit is write protected
+
+	CALL	$INDL
+	DW	UNT.GTS
+	PUSH	D
+	CALL	$INDL			; DE = GRT RAM ADDRESS
+	DW	UNT.GRT
+	POP	H			; HL = GRT SECTOR
+
+	LXI	B,256			; (BC) = COUNT
+	ERRNZ	DC.WRI-1
+	MOV	A,B
+	CALL	DRIVER			; WRITE GRT BACK TO DISK
+
+DMO3	POP	H
+	POP	B
+	MOV	A,B
+	CMA	
+	ANA	M
+	MOV	M,A			; CLEAR BIT SHOWING MOUNT
+	CALL	GETLAB.
+	RC				; ERROR
+
+	LDA	DMOB
+	ANA	A
+	RZ				; WAS NOT SY0:
+
+*	FLAG SYSTEM DISMOUNTED
+
+	LDA	S.MOUNT
+	ANA	A
+	RZ				; system already flagged gone
+
+*	save vital statistics so we can re-mount system disk later
+
+	CALL	DMO4			; (DE) = CRC-16 of label & GRT
+	XCHG
+	SHLD	DMOC			; save for later
+
+	JMP	DISMT			; flag system dismounted and exit
+	SPACE	3,10
+*	calculate a CRC-16 on critical data
+
+DMO4	LHLD	S.LABEL 		; label sector
+	LXI	B,256			; 256 bytes
+	MOV	D,C
+	MOV	E,C			; (de) = initial CRC
+	CALL	CRC16
+
+	LHLD	DMOA			; SY0: GRT address
+	INR	B
+	JMP	CRC16			; do CRC and return
+
+DMOA	DW	0			; address of SY0: GRT
+DMOB	DB	0			; Dismount system disk flag
+DMOC	DW	0			; calculated CRC of SY0: structures
+	STL	'RESET - Reset Device'
+	EJECT
+***	RESET	- RESET DEVICE
+*
+*	RESET THE SPECIFIED UNIT OF THE SELECTED DEVICE
+*	BY ISSUING AND DISMOUNT FOLLOWED BY A MOUNT.
+*	THE DEVICE NAME SHOULD BE IN THE SAME FORMAT AS
+*	THAT EXPECTED BY MOUNT & DMOUN
+*
+*	ENTRY:	(HL)	=  ADDRESS OF DEVICE SPECIFICATION
+*
+*	EXIT:	(PSW)	=  'C' CLEAR IF NO ERROR
+*			   'C' SET   IF    ERROR
+*				(A)  = ERROR CODE
+*
+*	USES:	ALL
+*
+
+RESET	EQU	*
+
+	LXI	D,DMOUNT
+	CALL	CFM
+	RC				; if error
+	JZ	MOUNT			;  else go mount it
+
+	PUSH	H
+
+	CALL	RESET1
+
+	CALL	WDO			; WAIT FOR DRIVE TO OPEN
+
+	POP	H
+	RNZ				; AN ABORT IS PENDING
+
+	JMP	MOUNT
+	SPACE	3,10
+*	Give standard reset message
+
+RESET1	EQU	*
+
+	CALL	$TYPTX
+	DB	NL,BELL,'Please replace disk in drive',' '+EOL
+
+	MVI	A,DEVNAML
+	LXI	H,DEVNAME
+	CALL	$TYPCC
+
+	CALL	$CRLF
+	JMP	$CRLF
+	SPACE	4,10
+***	Check for fixed media
+*
+*	Entry:	(hl) = device spec.
+*		(de) = address of dismount routine
+*	Exit:	'C' set if error
+*		'Z' set if no disk mounted
+*	Uses:	A,F
+
+CFM	PUSH	H			; save
+	PUSH	D			;  lots
+	PUSH	B
+
+	PUSH	H
+	PUSH	D
+
+	CALL	CDM			; is device mounted?
+	JC	CFM1			; error
+	JZ	CFM1			;  or not mounted.
+
+	CALL	LUD			; look up the device
+	LXI	D,DEV.UNT
+	DAD	D
+	LDA	UNIT
+	CALL	GUP			; (hl) = address of unit entry
+	ERRNZ	UNT.FLG
+	MOV	A,M			; get flag
+	ANI	DT.FX			; is fixed media?
+	MVI	A,EC.FIX
+	STC
+	JNZ	CFM1			; yes.
+
+	POP	H
+	SHLD	CFMA
+	POP	H
+	CALL	0			; patched above
+CFMA	EQU	*-2
+	JC	CFM0			; if error.
+
+	XRA	A
+	INR	A			; clear 'Z'
+
+CFM0	DB	MI.LXID 		; skip next two POPs
+
+CFM1	POP	H
+	POP	H
+
+	POP	B
+	POP	D
+	POP	H
+	RET
+	STL	'RESNMS - Reset Disk (no message)'
+	EJECT
+***	RESNMS - Reset Disk (no message)
+*
+*	Reset the specified unit of the selected device
+*	by issuing a dismount followed by a mount. The device
+*	name should be in the same format as that expected
+*	by MOUNMS and DMONMS.
+*
+*	Entry:	(hl) = address of device specification
+*		(bc) = address of user message
+*		  0 = no message
+*		 -1 = use standard message
+*	Exit:	'C' set if error
+*		 (a) = error code
+*	Uses:	All
+
+RESNMS	EQU	*
+
+	LXI	D,DMONMS
+	CALL	CFM			; check for fixed media
+	RC				; error.
+	JZ	MOUNMS			; no disk mounted.
+
+	PUSH	H
+
+	MOV	A,B
+	ORA	C
+	JZ	RESN2B			; no message
+
+	INX	B
+	MOV	A,B
+	ORA	C			; use standard?
+	JZ	RESN2A			; yes.
+
+	DCX	B			; start of message
+	MOV	H,B
+	MOV	L,C
+	SCALL	.PRINT			;  and display it
+
+	JMP	RESN2B
+
+RESN2A	CALL	RESET1			; give standard reset message
+
+RESN2B	CALL	WDO			; WAIT FOR DRIVE TO OPEN
+
+	POP	H
+	RNZ				; AN ABORT IS PENDING
+
+	JMP	MOUNMS
+	STL	'DADD - Dismount All Disks'
+	EJECT
+***	DADD	- Dismount All Disks
+*
+*	DADD dismounts all disks, that is, all mounted volumes of
+*	all currently mounted disks.  This is usually used in
+*	preparation for dismounting the system disk.
+*
+*	This is included as a system call since the .EXIT call
+*	needs this code.  Everyone else might as well have access
+*	to it.
+*
+*	ENTRY:	NONE
+*	EXIT:	PSW	= 'NC'	if NO Error
+*			  'C'	if    ERROR
+*			   A  = Error Code
+*	USES:	ALL
+*
+
+DADD	EQU	*							
+
+	LHLD	S.DFWA			; HL = address of device table
+
+DADD1	MOV	A,M
+	ERRNZ	DEV.NAM
+	ANA	A
+	ERRNZ	DV.EL
+	RZ				; at the end of the list
+
+	CALL	$INDLB
+	DW	DEV.FLG
+	ANI	DT.DD
+	LXI	B,DEVELEN		; BC = entry size
+	JZ	DADD2			; Not a directory device
+
+*	Check for mounted units
+
+	CALL	$INDLB			; mounted units mask
+	DW	DEV.MUM
+	ANA	A			; any mounted?
+	JZ	DADD2			; no, skip over it.
+
+	MOV	A,M
+	ERRNZ	DEV.NAM
+	CPI	DV.NU
+	JZ	DADD2			; entry is not in use
+
+*	Dismount a directory device
+
+	PUSH	H
+	DAD	B			; HL = address of next one
+	CALL	DADD1			; recurse to the end of the list
+	POP	H			; restore stacked device pointer
+	RC				; ERROR
+
+	JMP	DADD3			; dismount all units of device
+
+*	Advance to the next device
+
+DADD2	DAD	B
+	JMP	DADD1			; try the next unit
+	SPACE	4,10
+**	DADD3
+*
+*	Dismount all units of a directory device
+*
+
+DADD3	CALL	$INDL
+	DW	DEV.NAM
+	XCHG				; HL = device name
+	SHLD	DADDA			; initialize device name
+	XCHG
+
+	CALL	$INDLB			; A  = maximum number of units
+	DW	DEV.MNU
+	ADI	'0'-1
+	STA	DADDB			; initialize device unit number
+
+DADD4	CPI	'0'
+	CMC
+	RNC				; all done with this device
+
+	CALL	DADD5			; dismount the device
+	RC				; ERROR
+	LDA	DADDB
+	DCR	A
+	STA	DADDB
+	JMP	DADD4
+
+DADD5	PUSH	H
+	LXI	H,DADDA
+	SCALL	.DMOUN			; dismount device
+	POP	H
+	RNC
+
+	CPI	EC.NVM
+	RZ				; ignore no volume errors
+	STC				; set error flag
+	RET
+
+DADDA	DB	'SY'			; device name
+DADDB	DB	'0:',0			; device unit
+	STL	'Disk I/O Subroutines'
+	EJECT
+**	DIREAD - DIRECTORIED READ.
+*
+*	DIREAD READS THE SPECIFIED NUMBER OF SECTORS FROM A
+*	DIRECTORIED DEVICE. THE DATA IS READ FROM THE CURRENT
+*	FILE POSITION.
+*
+*	ENTRY	(B) = SECTOR COUNT
+*		(C) = 0
+*		(DE) = ADDRESS FOR DATA
+*		AIO.XXX SETUP
+*	EXIT	(BC) = COUNT LEFT
+*		(DE) = NEXT FREE ADDRESS
+*		'C' CLEAR IF OK
+*		'C' SET IF ERROR
+*		 (A) = CODE
+*	USES	ALL
+
+DIREAD	EQU	*
+
+	MOV	A,B
+	ANA	A
+	RZ				; NOTHING TO READ
+	PUSH	D			; SAVE (DE)
+	CALL	DCA			; DETERMINE CONTINUOUS AREA
+	POP	D
+	LDA	AIO.EOF
+	RAR
+	RC				; EXIT IF EOF
+	PUSH	B
+	CALL	PDI			; PREPARE DEVICE I/O
+	ERRNZ	DC.REA
+	CALL	DIREAD1 		; PERFORM I/O
+	POP	B
+	JNC	DIREAD			; IF NOT ERROR
+	RET
+	SPACE	3,10
+**	DIREAD1 - PERFORM I/O
+*
+*	DIREAD1 CALLS THE I/O DRIVER, AFTER COMPUTING THE COMPLETION ADDRESS
+*	(WHICH THE DRIVER WILL NOT RETURN)
+*
+*	ENTRY	(A) = OPERATION CODE
+*		(BC) = COUNT
+*		(DE) = ADDRESS
+*		(HL) = SECTOR NUMBER
+*	EXIT	(PSW) AS FROM DRIVER
+*		(BC) AS FROM DRIVER
+*		(DE) = (BC ON ENTRY) + (DE ON ENTRY)
+*		(HL) AS FROM DRIVER
+*	USES	ALL
+
+DIREAD1 XCHG				; (HL) = I/O ADDRESS
+	PUSH	H			; SAVE
+	DAD	B			; (HL) = NEW ADDRESS
+	XTHL				; (HL) = I/O ADDRESS ((SP)) = NEW ADDRESS
+	XCHG				; RESTORE AS UPON ENTRY
+	CALL	AIO.VEC 		; CALL DRIVER
+	POP	D			; (DE) = NEW ADDRESS
+	RET
+	SPACE	4,10
+**	DIWRITE - DIRECTORY DEVICE WRITE.
+*
+*	DIWRITE WRITES THE SPECIFIED NUMBER OF SECTORS TO A DIRECTORIED
+*	DEVICE.
+*
+*	ENTRY	(B) = COUNT
+*		(C) = 0
+*		(DE) = TEXT ADDRESS
+*		AIO.XXX SETUP
+*	EXIT	(BC) = COUNT LEFT
+*		(DE) = ADDRESS
+*		'C' CLEAR, IF OK
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	ALL
+
+DWRIT1	PUSH	B			; SAVE COUNT
+	CALL	PDI			; PREPARE FOR DEVICE I/O
+	MVI	A,DC.WRI
+	CALL	DIREAD1 		; PERFORM I/O
+	POP	B			; (BC) = COUNT LEFT
+	MVI	A,EC.WF 		; WRITE FAIL (IF CARRY SET)
+	RC				; RETURN IF ERROR
+
+DIWRITE	EQU	*
+	MOV	A,B
+	ANA	A
+	RZ				; NO MORE
+	PUSH	D
+	CALL	DCA			; DETERMINE CONTIGUOUS AREA
+	POP	D
+	LDA	AIO.EOF
+	RAR
+	JNC	DWRIT1			; IF NOT EOF
+
+*	MUST APPEND SECTORS TO END OF THE FILE.
+*	ALLOCATE THE SPACE.
+
+DWRIT2	MOV	A,B
+	ANA	A
+	RZ				; NO MORE
+	LHLD	AIO.CHA
+	MVI	A,IOC.DIR+DIR.FLG-IOC.DDA
+	CALL	$DADA.			; (HL) = #DIR.FLG IN CHANNEL
+	MOV	A,M
+	ANI	377Q-DIF.CNT		; IS NOT CONTIGUOUS ANY MORE (IF IT EVER WAS)
+	MOV	M,A
+	PUSH	D
+	CALL	ACA			; ALLOCATE CONTINUOUS AREA
+	POP	D
+	LDA	AIO.EOM
+	RAR	
+	RC				; EXIT IF EOM
+
+*	NOT OUT OF SPACE. WRITE IT
+
+	PUSH	B
+	CALL	PDI			; PREPARE DEVICE I/O
+	MVI	A,DC.WRI
+	CALL	DIREAD1 		; PERFORM I/O
+	POP	B
+	JNC	DWRIT2			; GO AGAIN
+	RET				; RETURN WITH ERROR CODE
+	SPACE	4,10
+**	DRIVER	-  Call Device Driver
+*
+*	DRIVER calls the device driver whos information has
+*	been decoded.
+*
+*
+*	ENTRY:	DEVTAB set up
+*
+*	EXIT:	NONE
+*
+*	USES:	NONE
+*
+
+DRIVER	PUSH	PSW
+	LDA	UNIT
+	STA	AIO.UNI 		; initialize device unit
+
+	LDA	SPG
+	STA	AIO.SPG 		; initialize sectors/group
+	POP	PSW
+
+	PUSH	H
+	LHLD	DEVENT
+	XTHL				; PUT DRIVER ADDRESS ON STACK, RESTORE HL
+	RET
+	STL	'Resident Subroutines'
+	EJECT
+**	ACA - ALLOCATE CONTINUOUS AREA.
+*
+*	ACA IS CALLED TO APPEND SECTORS TO THE END OF A FILE.
+*	IT ALLOCATES AS MANY CONTINUOUS SECTORS AS IT CAN UNTIL
+*	ENOUGH ARE ALLOCATED, OR A BREAK IN THE CONTINUITY IS REQUIRED.
+*
+*	FIRST, THE REMAINING SECTORS IN THE GROUP ARE USED.
+*	2ND, ACA ATTEMPTS TO OBTAIN THE IMMEDIATELY FOLLOWING GROUP.
+*	3RD, ACA TRYS TO LOCATE A VIRGIN CLUSTER
+*	4TH, ACA TAKES ANY FREE GROUPS.
+*
+*	ENTRY	(B) = SECTOR COUNT
+*		AIO.XXX SETUP
+*	EXIT	(B) = SECTORS NOT ALLOCATED
+*		AIO.CNT = AMOUNT ALLOCATED
+*		AIO.EOM = EC.EOM*2+1 IF END OF MEDIA
+*		AIO.LGN, AIO.LSI UPDATED FOR ADDITIONS
+*		AIO.CGN, AIO.CSI = AIO.LGN, AIO.LSI
+*		AIO.TFP = SETUP WITH GROUP AND INDEX OF START OF AREA
+*	USES	ALL
+
+ACA	MVI	C,0			; (C) = COUNT ALLOCATED
+
+ACA0	LHLD	AIO.LGN 		; (L) = AIO.LGN, (H) = AIO.LSI
+	ERRNZ	AIO.LSI-AIO.LGN-1
+	SHLD	AIO.TFP 		; SAVE WRITE ADDRESS
+
+ACA1	LXI	H,AIO.LSI		; (M) = LAST SECTOR INDEX
+	LDA	AIO.SPG 		; (A) = SECTORS PER GROUP
+	SUB	M			; (A) = SECTORS LEFT IN GROUP
+	JZ	ACA3			; NONE LEFT
+	CMP	B
+	JC	ACA2			; NOT TOO MANY IN GROUP FOR NEED
+	MOV	A,B			; DONT TAKE MORE THAN WE NEED
+ACA2	MOV	D,A			; (D) = AMOUNT IN GROUP
+	ADD	M
+	MOV	M,A			; ADVANCE AIO.LSI
+	MOV	A,D			; (A) = AMOUNT ALLOCATED FROM GROUP
+	ADD	C
+	MOV	C,A			; ADVANCE TOTAL ALLOCATED COUNT
+	MOV	A,B
+	SUB	D			; DECREMENT NEEDED COUNT
+	MOV	B,A
+	JZ	ACA9			; GOT ALL WE NEED
+
+*	FINISHING THE GROUP WASENT ENOUGH. TRY TO GET THE FOLLOWING
+*	GROUP.
+
+ACA3	MVI	L,#AIO.LGN		; (HL) = #AIO.LGN
+.	SET	AIO.LGN/256
+	ERRNZ	AIO.LSI/256-.		; MUST BE IN SAME PAGE
+	MOV	D,M			; (D) = AIO.LGN
+	INR	D			; (D) = FOLLOWING GROUP #
+	CALL	FFB			; FIND FREE BLOCK
+	JC	ACA8			; END OF MEDIA
+	JNZ	ACA9			; COULDNT GET ONE CONTIGUOUS
+
+*	GOT A BLOCK. CHAIN IT TO THE FILE
+
+	CALL	CFF			; CHAIN FREE BLOCK TO FILE
+	MOV	A,C
+	ANA	A
+	JZ	ACA0			; AM STILL LOOKING FOR THE START
+	JMP	ACA1			; GO SOME MORE
+
+
+**	END OF MEDIA EXIT. FLAG EOM IF COULDNT ALLOCATE ANY
+
+ACA8	MOV	A,C
+	ANA	A
+	JNZ	ACA9			; GIVE HIM WHAT WE DID GET, ANYWAY...
+	MVI	A,EC.EOM*2+1
+	STA	AIO.EOM 		; SET EOM
+
+**	NORMAL EXIT. (C) = AMOUNT ALLOCATED
+
+ACA9	MOV	A,C
+	STA	AIO.CNT 		; SET COUNT
+	LHLD	AIO.LGN
+	SHLD	AIO.CGN 		; UPDATE CURRENT=LAST
+	ERRNZ	AIO.LSI-AIO.LGN-1
+	ERRNZ	AIO.CSI-AIO.CGN-1
+	RET
+	SPACE	4,10
+**	BTS	- Block to Sector
+*
+*	Convert a block number to the corresponding sector
+*	number.
+*
+*	ENTRY:	A	= Sectors Per Group
+*		HL	= Block Number
+*
+*	EXIT:	HL	= Sector Number
+*
+*	USES:	HL
+*
+
+BTS	PUSH	PSW
+	PUSH	D
+	XCHG				; DE = Block Number
+	CALL	$MU86			; HL = A * DE
+	POP	D
+	POP	PSW
+	RET
+	SPACE	4,10
+HOSRES	equ	TRUE
+	XTEXT	CPA
+	SPACE	4,10
+**	FCI - FETCH CHANNEL INFORMATION.
+*
+*	FCI COPIES THE CHANNEL INFORMATION FROM THE
+*	CHANNEL TABLE INTO THE ACTIVE I/O TABLE.
+*
+*	AIO.VEC = DRIVER ADDRESS
+*	AIO.XXX SETUP IF DIRECTORY DEVICE
+*	AIO.CTA = ADDRESS OF CHANNEL AREA
+*
+*	ENTRY	(A) = CHANNEL NUMBER
+*	EXIT	(A) = CHANNEL STATUS BYTE
+*		(HL) = ADDRESS OF FILE STATUS BYTE
+*		'C' SET IF ERROR
+*		 (A) = ERROR CODE
+*	USES	A,F,H,L
+
+FCI	LHLD	S.CFWA			; (HL) = CHANNEL TABLE FWA
+	ERRNZ	IOCCTD-1		; CHANNEL 377Q IS FIRST IN LIST
+	INR	A			; (A) = INDEX OF CHANNEL IN CHANTAB
+	PUSH	PSW			; SAVE INDEX
+FCI1	POP	PSW			; (A) = INDEX
+	ANA	A
+	JZ	FCI2			; GOT IT
+	DCR	A			; DECREMENT COUNT
+	PUSH	PSW			; SAVE INDEX
+	MOV	A,M
+	INX	H
+	MOV	H,M
+	MOV	L,A			; FOLLOW LINK
+	ORA	H
+	JNZ	FCI1			; MORE TO FOLLOW
+
+*	CHANNEL DOES NOT EXIST. FLAG ERROR
+
+	POP	PSW
+	MVI	A,EC.ICN		; ILLEGAL CHANNEL NUMBER
+	STC
+	RET
+
+*	GOT CHANNEL
+
+FCI2	PUSH	B
+	PUSH	D			; SAVE REGISTERS
+	CALL	$INDLB			; A  = UNIT CODE
+	DW	IOC.UNI
+	STA	AIO.UNI 		; INSURE UNIT SET UP FOR SEQ.
+	INX	H
+	INX	H			; MOVE PAST LINK
+	ERRNZ	IOC.DDA-2		; POINT TO DDA
+	SHLD	AIO.CHA 		; SET BLOCK ADDRESS
+	INX	H
+	INX	H
+	ERRNZ	IOC.FLG-IOC.DDA-2	; (HL) = #IOC.FLG
+	PUSH	H			; SAVE ADDRESS
+	MOV	A,M			; (A) = TYPE
+	ANI	FT.DD			; SEE IF DIRECTORY TYPE
+	DCX	H
+	DCX	H
+	ERRNZ	IOC.DDA-IOC.FLG+2	; (HL) = #IOC.DDA
+	XCHG
+	LXI	H,AIO.DDA
+	LXI	B,IOC.SQL
+	JZ	FCI3			; IS SEQUENTIAL
+	MVI	C,IOC.DIL		; IS DIRECTORY
+FCI3	CALL	$MOVE			; MOVE DATA
+	POP	H
+	MOV	A,M			; (A) = FLAG
+	POP	D
+	POP	B
+	RET
+	SPACE	4,10
+**	GSP	- GET SYSTEM POINTER
+*
+*	GET THE SYSTEM POINTER
+*
+*
+*	ENTRY:	GSPA	= SY: device table entry address
+*
+*	EXIT:	HL	= SYSTEM DEVICE UNIT POINTER
+*
+*	USES:	PSW,HL
+*
+
+GSP	LXI	H,0			; HL = SY: device table entry
+GSPA	EQU	*-2			;  (filled by boot code)
+	PUSH	D
+	LXI	D,DEV.UNT		; HL = POINTER TO UNIT TABLE POINTER
+	DAD	D
+	POP	D
+	XRA	A
+	JMP	GUP
+	SPACE	4,10
+**	LDD - LOAD DEVICE DRIVER.
+*
+*	LDD IS CALLED TO PERFORM THE LOAD OF A DEVICE DRIVER.
+*
+*	This code has been modified to reduce the dependencies
+*	on a cluster size of 2.  The GRT address and SPG are
+*	not dynamically computed so that the mount of SY0: may
+*	be kludged by pre-stuffing them.
+*					G. Chandler	80.06.19
+*
+*	ENTRY	S.DDIOC = POINTER TO IOC.DDA
+*		S.DDLDA = LOAD ADDRESS
+*		S.DDLEN = LOAD LENGTH
+*		S.DDGRP = SECTOR INDEX ON SYSTEM DEVICE
+*		S.DDDTA = DEV.RES ADDRESS
+*		S.DDOPE = OPEN CODE (DC.OPR, DC.OPW, DC.OPU)
+*
+*		LDD8A	= system GRT address
+*		LDD8B	= system SPG
+*
+*	EXIT	OVL CODE DESTROYED
+*	USES	NONE
+
+LDD	CALL	$SAVALL 		; SAVE REGS
+
+*	find and save SET preamble length
+
+	LHLD	AIO.DTA
+	LXI	D,DEV.RES		; residence flag
+	DAD	D
+	MOV	A,M			; in (a)
+	ERRNZ	DR.SPL-11100000B
+	ANI	DR.SPL			; mask
+	RLC
+	RLC
+	RLC				; rotate
+	INR	A			;  and adjust
+	STA	LDDA			; save for rainy day.
+
+*	LOAD DRIVER
+
+	LDA	LDD8B			; LDD8B = System SPG
+	ANI	376Q
+	RRC				; A  = 512 byte reads/group
+	STA	LDD9B			; Initialize Current Set Index
+	STA	LDD9A			; Initialize Sets/group
+	LHLD	S.DDGRP
+	MVI	H,0			; HL = driver group number
+	LDA	LDD8B			; A  = SPG
+	CALL	BTS			; HL = sector number
+	LDA	LDDA			; (a) = blocks in preamble
+	MOV	B,A
+LDD1	CALL	LDD9			; skip a block
+	DCR	B			; count
+	JNZ	LDD1			;  to end of preamble
+	ERRNZ	DVD.ENT-2000A
+	SHLD	LDD8C			; Save it for later
+
+	LHLD	S.DDLEN 		; (HL) = LENGTH
+	MOV	B,H
+	MOV	C,L			; (BC) = LENGTH
+	LHLD	S.DDLDA 		; (HL) = LOAD ADDRESS
+	PUSH	H			; SAVE FOR LATER
+	XCHG
+	LHLD	S.SCR
+	INR	H
+	INR	H
+	DCX	H			; (HL) = S.SCR+511
+
+*	LOAD BINARY
+
+LDD2	CALL	LDD8			; FIND NEXT BYTE
+	MOV	A,M			; (A) = NEXT BYTE
+	STAX	D			; COPY
+	INX	D
+	DCX	B
+	MOV	A,B
+	ORA	C
+	JNZ	LDD2			; MORE TO GO
+
+*	CODE ALL LOADED. RELOCATE IT
+
+	POP	B			; (BC) = REL FACTOR
+	LDA	LDDA			; preamble size
+	ADD	A			; *2
+	SUB	B			; subtract
+	CMA				; make it
+	INR	A			;  positive
+	MOV	B,A			; adjusted
+	ERRNZ	DVD.ENT%2000A		; assume entry is multiple of 512
+LDD3	CALL	LDD8
+	MOV	E,M
+	CALL	LDD8
+	MOV	D,M			; (DE) = REL ADDRESS OF WORD TO RELOCATE
+	MOV	A,D
+	ORA	E
+	JZ	LDD4			; ALL DONE
+	XCHG				; (HL) = REL ADDRESS OF WORD TO RELOCATE
+	DAD	B			; (HL) = ABS ADDRESS OF WORD TO RELOCATE
+	MOV	A,M
+	ADD	C
+	MOV	M,A
+	INX	H
+	MOV	A,M
+	ADC	B
+	MOV	M,A
+	XCHG				; RESTORE (HL)
+	JMP	LDD3
+
+*	Set up entry addresses in tables
+
+ldd4	lhld	S.DDLDA 						
+	xchg				; (de) = entry address
+	lhld	S.DDDTA 		; (hl) = device table address
+	mov	a,m
+	ori	DR.IM			; set "in memory"
+	mov	m,a			; fix
+	inx	h
+	inx	h
+	ERRNZ	DEV.DDA-DEV.RES-2
+	mov	m,e
+	inx	h
+	mov	m,d			; set entry address
+	xchg				; (hl) = entry address
+	xra	a
+	sta	S.DDLDA+1		; clear load flag
+	lda	S.DDOPC 		; "open" code
+	call	thruhl			; call driver
+	jmp	$rstall 		;  and exit.
+
+thruhl	pchl
+
+ldda	db	0			; length of SET preamble
+	SPACE	3,10
+**	LDD8 - READ A BYTE FROM THE FILE.
+*
+*	This code has been modified to read device drivers off of
+*	system volumes with many differant SPG factors.  Unfortunately,
+*	if a new volume is mounted, the system volume stuff will not
+*	be updated.
+*
+*	If the sector pointer were not on an even boundary, or
+*	the cluster factor were not a multiple of 2, this code
+*	would not work well.  Therefore, it is up to INIT to
+*	enforce even clusters.
+*
+*	ENTRY	(HL) = S.SCR POINTER OF CURRENT BYTE
+*
+*		LDD8A	= address of system device GRT
+*		LDD8B	= Sectors/Group on system volume
+*		LDD8C	= current sector number
+*		LDD9A and LDD9B as required by LDD9
+*
+*	EXIT	(HL) = ADDRESS OF NEXT BYTE
+*
+*	USES	A,F,H,L
+*
+
+LDD8	INR	L			; POINT TO NEXT BYTE
+	RNZ				; GOT IT
+
+	INR	H			; MAYBE IN NEXT GROUP
+	PUSH	H
+	LHLD	S.SCR
+	INR	H
+	MOV	A,H
+	POP	H
+	CMP	H
+	RE				; OK, IN SECOND SECTOR NOW
+
+*	MUST READ ANOTHER
+
+	PUSH	B
+	PUSH	D
+	LHLD	S.SCR
+	XCHG				; DE = address
+	LXI	B,512			; (BC) = COUNT
+	LHLD	LDD8C			; HL = Sector Number
+	PUSH	D			; SAVE #S.SCR
+	PUSH	H
+	CALL	S.READ			; READ IT
+	POP	H			; HL = sector number
+	CALL	LDD9
+	SHLD	LDD8C			; Update Sector Number
+	POP	H			; HL = S.SCR
+	POP	D			; RESTORE (DE) AND (BC)
+	POP	B
+	RET
+
+LDD8A	DW	0			; System GRT address
+LDD8B	DB	0			; System Sectors/Group
+LDD8C	DW	0			; Current Sector Number
+	SPACE	4,10
+**	LDD9
+*
+*	LDD9 advances the current driver sector pointer
+*	to the next multiple of 2 sectors.  Not this routine
+*	will not work if the cluster is odd, or the *set*
+*	code is not a multiple of 512.
+*
+*	ENTRY:	HL	= Current Sector Number
+*		LDD8A, LDD8B, and LDD8C as required by LDD8
+*		LDD9A	= 512 bytes reads per group
+*		LDD9B	= read index current group
+*
+*	EXIT:	HL	= Next Sector Number
+*
+*	USES:	a,f,h,l
+
+	ERRNZ	DVD.ENT%512		; Must be a multiple of 512
+
+LDD9	LDA	LDD9B
+	DCR	A			; Count these sectors
+	STA	LDD9B
+	JZ	LDD10			; At the end of this group
+
+*	More available sectors in this group
+
+	INX	H
+	INX	H
+	RET
+
+*	Need to find the next Group
+
+LDD10	LDA	LDD9A
+	STA	LDD9B			; Reset Counter
+	LDA	LDD8B			; A  = SPG
+	CALL	STB			; HL = Block Number
+	LDA	LDD8A+1
+	MOV	H,A			; HL = GRT address
+	MOV	L,M			; L  = Next Block Number
+	MVI	H,0
+	LDA	LDD8B			; A  = SPG
+	JMP	BTS			; HL = sector Number
+
+LDD9A	DB	0			; Number of 512 byte reads per group
+LDD9B	DB	0			; Current read index
+	SPACE	4,10
+**	SCI - STORE CHANNEL INFORMATION.
+*
+*	SCI SAVES THE ACTIVE CHANNEL INFORMATION BACK
+*	INTO THE CHANNEL BLOCK.
+*
+*	ENTRY	NONE
+*	EXIT	NONE
+*	USES	NONE
+
+SCI	CALL	$SAVALL
+	LHLD	AIO.CHA
+	ERRNZ	IOC.FLG-IOC.DDA-2
+	INX	H
+	INX	H			; (HL) = IOB.FLG ADDRESS
+	LXI	B,IOC.DRL		; (BC) = LEN
+	LXI	D,AIO.FLG
+	CALL	$MOVE			; MOVE DATA
+	JMP	$RSTALL 		; RESTORE ALL REGS
+	SPACE	4,10
+**	SDD - STAND-IN DEVICE DRIVER.
+*
+*	SDD IS SETUP AS THE DEVICE DRIVER ADDRESS FOR DRIVERS WHICH
+*	ARE NOT IN MEMORY. IF THE REQUEST IS AN OPEN, POSTPONE IT
+*	UNTIL 'LDD' LOADS THE OVERLAY. OTHERWISE, IS A FATAL
+*	SYSTEM ERROR.
+*
+*	ENTRY	(A) = CODE
+*	EXIT	NONE
+*	USES	A,F
+
+SDD	CPI	DC.LOD			; check for load
+	JZ	SDD1
+
+	CPI	DC.OPR
+	CC	FATSERR
+	CPI	DC.OPU+1
+	CNC	FATSERR
+
+SDD1	STA	S.DDOPC 		; SET CODE
+	RET
+	SPACE	4,10
+**	STB - Sector to Block
+*
+*	STB converts a sector number to the corresponding
+*	block number
+*
+*	ENTRY:	A	= Sectors Per Group
+*		HL	= Sector Number
+*
+*	EXIT:	HL	= Block Number
+*
+*	USES:	HL
+*
+
+STB	PUSH	PSW
+	PUSH	B
+	PUSH	D
+	MOV	B,H
+	MOV	C,L			; BC = sector number
+	MVI	D,0
+	MOV	E,A			; DE = sectors/group
+	CALL	$DU66			; HL = BC / DE
+	POP	D
+	POP	B
+	POP	PSW
+	RET
+	XTEXT	AGT
+	XTEXT	ALP
+	XTEXT	CAB
+	XTEXT	CAC
+	XTEXT	CDM
+	XTEXT	CDS
+	XTEXT	CDU
+	XTEXT	CFC
+	XTEXT	CFD
+	XTEXT	CFI
+	XTEXT	CFP
+	XTEXT	COF
+	XTEXT	DCF
+	XTEXT	DDS2
+	XTEXT	DFA
+	XTEXT	DFC
+	XTEXT	DFD
+	XTEXT	DNT
+	XTEXT	DREAD
+	XTEXT	FCC
+	XTEXT	FDB
+	XTEXT	FGC
+	XTEXT	FOE
+	XTEXT	GETLAB
+	XTEXT	IMM
+	XTEXT	LDE
+	XTEXT	LDI
+	XTEXT	LFD
+	XTEXT	LUD
+	XTEXT	MND
+	XTEXT	NREDY
+	XTEXT	PGT
+	XTEXT	RBF
+	XTEXT	RDL
+	XTEXT	READY
+	XTEXT	RVD
+	XTEXT	SGT
+	XTEXT	UAD
+	XTEXT	UDE
+	XTEXT	UDS
+	XTEXT	UNUM
+	XTEXT	WDO
+	STL	'Common Decks'
+	EJECT
+	XTEXT	BITS							
+	XTEXT	CPDEHL
+	XTEXT	CDEHL
+	XTEXT	CHL
+	XTEXT	COMP
+	XTEXT	CRLF
+	XTEXT	DADA
+	XTEXT	DADA2
+	XTEXT	DTB
+	XTEXT	DU66
+	XTEXT	GUP
+	XTEXT	HLIHL
+	XTEXT	ILDEHL
+	XTEXT	INDL
+	XTEXT	INDXX
+	XTEXT	ISDEHL
+	XTEXT	MCU
+	XTEXT	MOVE
+	XTEXT	MU10
+	XTEXT	MU86
+	XTEXT	SAVALL
+	XTEXT	SOB
+	XTEXT	TBRA
+	XTEXT	TYPCC
+	XTEXT	TYPTX
+	XTEXT	UDD
+	XTEXT	XCHGBC
+	XTEXT	ZERO
+	XTEXT	ZEROS
+	STL	'Replacements for H17 ROM'
+	EJECT
+**	THE FOLLOWING ROUTINES ARE REPLACEMENTS FOR THE H17 ROM CODE.
+*
+
+**	ISY	- Internal SY Device Driver
+*
+*	ISY maps the logical system device units into the real
+*	physical units known by the driver.  This is done so
+*	that any device may be booted.
+*
+*	ENTRY:	NONE
+*	EXIT:	NONE
+*	USES:	NONE
+*
+
+ISY	PUSH	H
+	LXI	H,AIO.UNI
+	MOV	H,M
+	XTHL				; Save current device specification
+
+	PUSH	PSW
+	PUSH	D
+	PUSH	H
+
+	LHLD	GSPA
+	CALL	$INDLB
+	DW	DEV.MNU
+	MOV	D,A			; D = max num of units
+
+	LDA	AIO.UNI
+	LHLD	SUNIT
+	ADD	L			; A = AIO.UNI+SUNIT
+
+	SUB	D
+	JNC	ISY1
+	ADD	D			; A = A mod D
+
+ISY1	EQU	*
+
+	STA	AIO.UNI
+
+	POP	H
+	POP	D
+	POP	PSW
+
+	PUSH	H
+	LXI	H,ISY2
+	XTHL				; Set up RETurn address
+	PUSH	H
+	LHLD	MSYDD
+	XTHL				; Set up Driver Address on Stack
+	RET				; Call Driver
+
+ISY2	XTHL
+	PUSH	PSW
+	MOV	A,H
+	STA	AIO.UNI 		; Replace the original value
+	POP	PSW
+	POP	H			; Restore exit HL
+	RET
+	STL	'HOSNMI - NMI processor'
+	EJECT
+***	HOSNMI - NMI processor
+*
+
+HOSNMI	EQU	*
+
+	PUSH	PSW
+	PUSH	H
+
+	LXI	H,NMIFL
+	INR	M			; bump flag
+
+	POP	H
+	POP	PSW
+
+	DB	0EDH,45H		; <RETN>
+	STL	'HOSTIC - 2ms Clock'
+	EJECT
+***	HOSTIC - 2ms Tick
+*
+*	This routine remains as the only hardware dependent
+*	code within HDOS. (well, nearly...)
+
+HOSTIC	equ	*
+
+	PUSH	PSW			; save
+	PUSH	H			;  everything
+	PUSH	D
+	PUSH	B
+
+	LHLD	.TICCNT
+	INX	H			; bump 2ms clock
+	SHLD	.TICCNT
+
+	LDA	.CTL2FL
+	OUT	OP2.CTL 		; write ROM disable/H89 control
+
+	LDA	.CTLFLG
+	ANA	A			; is an H8?
+	JZ	HOSTIC1 		; no.
+
+	MOV	H,A			; save flag
+
+	MOV	A,L
+	ANA	A			; is 256 tics?
+	JNZ	HOSTIC0 		; no.
+
+	MVI	A,CB.MTL
+	XRA	H			; blink light
+	STA	.CTLFLG 		; fix value
+	MOV	H,A
+
+HOSTIC0 MOV	A,H
+	OUT	OP.CTL			;  else write H8 control port.
+
+*	check for user interrupt processing
+
+HOSTIC1 LDA	.MFLAG
+	RRC
+	ERRNZ	UO.CLK-1
+	CC	.UIVEC
+
+*	return from interrupt
+
+	POP	B
+	POP	D
+	POP	H
+	POP	PSW
+
+	EI
+	RET
+	STL	'HOSDLY - Timed Delay'
+	EJECT
+***	HOSDLY - Timed Delay
+*
+*	Entry:	(a) = 2ms ticks to wait
+*	Exit:	None
+*	Uses:	PSW
+
+HOSDLY	equ	*
+
+	PUSH	H
+
+	LXI	H,.TICCNT
+	ADD	M			; time to wait 'til
+DLY1	CMP	M			; done?
+	JNZ	DLY1
+
+	POP	H
+
+	RET
+	STL	'Private RAM Area'
+	EJECT
+
+HIGHDAT EQU	*
+
+**	SYSTEM MODE. NON-ZERO WHEN PROCESSING SYSCALL.
+
+	ERRNZ	*-HIGHDAT-M.SYSM
+SYSMODE	DB	0
+
+	DB	0			; stand-alone flag (obsolete)	
+
+	ERRNZ	*-HIGHDAT-M.CSL
+SCSLDAT DW	0			; Pointer to console data
+
+	ERRNZ	*-HIGHDAT-M.SUNI
+SUNIT	DB	0			; System Unit Number
+	ERRNZ	*-HIGHDAT-M.SYDD
+MSYDD	DW	0			; System Device Driver
+
+
+***	DATA FOR MOUNT & DISMOUNT
+
+DEVNAME DB	'ddu:',0,ENL
+DEVNAML	EQU	*-DEVNAME-2
+
+UNIT	DB	0			; DEVICE UNIT NUMBER
+DEVTAB	DW	0			; DEVICE TABLE ADDRESS
+DEVENT	DW	0			; DEVICE DRIVER ENTRY POINT
+RGTADR	DW	0			; RGT Address
+SPG	DB	0			; Sectors Per Group
+UNTTAB	DW	0			; DEVICE UNIT TABLE ADDRESS
+VOLUME	DB	0			; Volume Number
+	STL	'Patch Area and PIC Table'
+	EJECT
+*	PATCH AREA
+
+TRIBUTE DB	ESC,'pBy WGP in remembrance of JGL and GAC.',ESC,'q'
+	DB	FF+EOL
+
+	DW	'bp'			; dummy for patching PIC table
+
+LWASYS	EQU	*		END OF MONITOR
+LENSYS	EQU	LWASYS-FWASYS
+
+	NOTE	LENSYS
+
+***	PIC Table
+
+	LON	G
+
+	END

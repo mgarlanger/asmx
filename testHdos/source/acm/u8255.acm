@@ -1,0 +1,50 @@
+U8255	SPACE	4,10
+***	8255 PPI Equates
+*
+
+PP.BAS	equ	320Q			; standard port for parallel I/O
+
+**	Port Displacements
+
+PP.DA	equ	0			; Data port A
+PP.DB	equ	1			; Data port B
+PP.DC	equ	2			; Data port C
+PP.CTL	equ	3			; Control Port
+
+**	Control Port Bit Definitions
+
+CT.MSF	equ	10000000B		; Mode select flag (0=bit set/reset, 1=Set)
+
+CT.GAM	equ	01100000B		; Group A Mode Select Mask
+CT.GA0	equ	00000000B		;  Mode 0
+CT.GA1	equ	00100000B		;  Mode 1
+CT.GA2	equ	01000000B		;  Mode 2
+
+CT.GAA	equ	00000100B		; Port A (0=output, 1=input)
+CT.GAC	equ	00001000B		; Port C (0=output, 1=input)
+
+CT.GBM	equ	00000100B		; Group B Mode Select Mask
+CT.GB0	equ	00000000B		;  Mode 0
+CT.GB1	equ	00000100B		;  Mode 1
+
+CT.GBB	equ	00000010B		; Port B (0=output, 1=input)
+CT.GBC	equ	00000001B		; Port C lower (0=output, 1=input)
+
+CT.BSL	equ	00001110B		; Bit Select Mask
+CT.BS0	equ	00000000B		;  Bit 0
+CT.BS1	equ	00000010B		;  Bit 1
+CT.BS2	equ	00000100B		;  Bit 2
+CT.BS3	equ	00000110B		;  Bit 3
+CT.BS4	equ	00001000B		;  Bit 4
+CT.BS5	equ	00001010B		;  Bit 5
+CT.BS6	equ	00001100B		;  Bit 6
+CT.BS7	equ	00001110B		;  Bit 7
+
+CT.BSR	equ	00000001B		; Bit Set/Reset (0=reset, 1=set)
+
+**	Centronics Interface Definitions
+
+STB.ON	equ	00000000B		; STROBE/ deasserted (high)
+STB.OFF equ	00000001B		; STROBE/ asserted (low)
+
+LP.BSY	equ	10000000B		; BUSY/ mask (active low, 0=busy)

@@ -1,0 +1,15 @@
+	SPACE	4,10
+***	XCHGBC - Exchange (HL) with (BC).
+*
+*	Entry:	NONE
+*	Exit:	(HL) = (BC)
+*		(BC) = (HL)
+*	Uses:	B,C,H,L
+*
+*	Note:	Whoever wrote the original version of this routine
+*		(that distributed by Heath), really ought to be shot.
+
+XCHGBC	PUSH	B			; Put (BC) on stack
+	XTHL				; Swap it with (HL)
+	POP	B			; Pop new (BC)
+	RET

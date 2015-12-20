@@ -1,0 +1,29 @@
+***	LOG - Toggle System Log On/Off.
+*
+*	Uses ECHO.TAS, or BATCH.TAS
+*
+*	LOG [ON]
+*	LOG OF[F]
+
+.LOG	EQU	177Q			; SCALL for Logging Task
+
+TOGLOG	POP	H			; Get pointer to command line
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	LOGON			; Default LOG ON
+	CALL	$HLIHL			; Get 1st 2 characters
+	LXI	D,'NO'			; 'ON'
+	CALL	$CDEHL
+	JE	LOGON			; Turn log on
+	MVI	D,'F'			; 'OF'
+	CALL	$CDEHL
+	JNE	ILLSYN			; Illegal syntax.  Not ON or OFF.
+
+*	Turn log off.
+
+	XRA	A
+LOG..	SCALL	.LOG			; Call the task
+	RST	SYSCMD			; Done ...
+
+LOGON	MVI	A,1			; Turn log on.
+	JMP	LOG..			; Go do it

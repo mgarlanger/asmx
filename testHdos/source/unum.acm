@@ -1,0 +1,19 @@
+	SPACE	4,10
+**	UNUM	-  Number
+*
+*	UNUM tests a character to see if it is a valid unit number.
+*
+*
+*	ENTRY:	A	=  character to test
+*
+*	EXIT:	PSW	=  'C' clear if good unit number
+*			   'C' set   if not  unit number
+*
+*	USES:	F
+*
+
+UNUM	CPI	'0'
+	RC
+	CPI	'7'+1
+	CMC
+	RET

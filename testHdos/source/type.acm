@@ -1,0 +1,26 @@
+***	TYPE - TYPE FILE TO SYSTEM CONSOLE.
+*
+*	T[YPE] FNAME
+*	LI[ST] FNAME
+
+TYPE	CALL	$MOVEL			; SET UP COMMANDS FOR PIP
+	DW	TYPEAL,TYPEA,LABEL
+	POP	H
+	CALL	$SOB			; Skip blanks
+	XCHG
+	LXI	H,LABEL+TYPEAL		; After the device specification
+	LXI	B,120			; Can't be more than 120 bytes!
+	CALL	$MOVE
+	LXI	B,LABEL 		; New command line
+	CALL	FEC			; Find end of it
+	LXI	B,TYPEBL
+	LXI	D,TYPEB
+	CALL	$MOVE			; MOVE IN '/SUPRESS'
+	LXI	B,LABEL
+	JMP	PIP			; GOTO PIP
+
+TYPEA	DB	'TT:='
+TYPEAL	EQU	*-TYPEA
+
+TYPEB	DB	'/SU',0
+TYPEBL	EQU	*-TYPEB

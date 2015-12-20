@@ -1,0 +1,12 @@
+***	COPY - COPY FILES.
+*
+*	CO[PY] DESTINATION=SOURCE
+
+COPY	POP	H			; Get line address
+	CALL	$SOB
+	ANA	A
+	JZ	ILLSYN
+
+	MOV	B,H
+	MOV	C,L			; (BC) = ARG. ADDRESS
+	JMP	PIP			; DO LIKE PIP

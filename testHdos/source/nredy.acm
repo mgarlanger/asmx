@@ -1,0 +1,23 @@
+	SPACE	4,10
+**	NREDY	-  Not Ready
+*
+*	NREDY issues a call to the device driver to wait for the
+*	device to go NOT ready.
+*
+*	ENTRY:	NONE
+*
+*	EXIT:	NONE
+*
+*	USES:	NONE
+*
+
+NREDY	CALL	$SAVALL
+
+NREDY1	CALL	CAB.
+	JNZ	$RSTALL
+
+	MVI	A,DC.RDY
+	CALL	DRIVER
+	JC	$RSTALL 		; device is not ready
+
+	JMP	NREDY1

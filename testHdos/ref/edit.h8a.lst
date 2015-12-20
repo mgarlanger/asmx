@@ -1,0 +1,4370 @@
+0000                    	TITLE	'EDIT - HDOS TEXT EDITOR'
+0000                    	SPACE	4,10
+                        ***	EDIT - HEATH HDOS TEXT EDITOR.
+                        *
+                        *	ADAPTED FROM 'HOS8 - WINTEK TEXT EDITOR'
+                        *
+                        *	J. G. LETWIN, 12/12/77,  FOR *HEATH* CORPORATION
+                        *
+                        *	COPYRIGHT 12/1977, 79/05	BY *HEATH* CORPORATION.
+                        *
+                        *	G. Chandler		79/05	--.04.--
+                        *				79/12	--.05.--
+                        *				80/02
+                        *	W. Zurney		80/08	--.06.--
+                        *	B. Parrott		86/09	--.07.--
+                        *
+0000                    EDIT	SPACE	4,10
+                        ***	EDIT PERFORMS SIMPLE LINE AND STRING EDITING FUNCTIONS.
+                        *
+                        *	SEE THE 'EDIT' USERS MANUAL FOR INSTRUCTIONS.
+0000                    	SPACE	4,10
+0000                    	STL	'ASSEMBLY CONSTANTS.'
+0000                    	EJECT
+                        ****	ASSEMBLY CONSTANTS.
+0000                    	XTEXT	ASCII
+0000                    	SPACE	3,10
+                        **	ASCII CHARACTER EQUIVALENCES.
+
+      = 0000            NUL	EQU	000Q			; null
+      = 0007            BELL	EQU	007Q			; bell
+      = 0008            BKSP	EQU	010Q			; backspace
+      = 0008            BS	EQU	BKSP
+      = 0009            TAB	EQU	011Q			; horizontal tab
+      = 000A            LF	EQU	012Q			; line feed
+      = 000A            NL	EQU	012Q			; new line (HDOS)
+      = 000C            FF	EQU	014Q			; form feed
+      = 000D            CR	EQU	015Q			; carriage return
+      = 001B            ESC	EQU	033Q			; escape
+      = 007F            DEL	EQU	177Q			; delete
+
+                        *	Specials
+
+      = 0080            EOL	EQU	200Q			; end of line flag
+      = 0080            NULL	EQU	200Q			; pad character
+      = 0000            NUL2	EQU	0			; ditto
+      = 007F            RUBOUT	EQU	DEL			; rubout/delete
+      = 0016            C.SYN	EQU	026Q			; SYNC
+      = 0002            C.STX	EQU	002Q			; STX
+      = 0027            QUOTE	EQU	047Q			; quote character (")
+      = 008A            ENL	EQU	NL+EOL			; NL + end-of-line flag
+
+                        *	Control keys
+
+      = 0001            CTLA	EQU	'A'-'@' 		; CTRL/A
+      = 0002            CTLB	EQU	'B'-'@' 		; CTRL/B
+      = 0003            CTLC	EQU	'C'-'@' 		; CTRL/C
+      = 0004            CTLD	EQU	'D'-'@' 		; CTRL/D
+      = 0005            CTLE	EQU	'E'-'@' 		; CTRL/E
+      = 000F            CTLO	EQU	'O'-'@' 		; CTRL/O
+      = 0010            CTLP	EQU	'P'-'@' 		; CTRL/P
+      = 0011            CTLQ	EQU	'Q'-'@' 		; CTRL/Q
+      = 0012            CTLR	EQU	'R'-'@' 		; CTRL/R
+      = 0013            CTLS	EQU	'S'-'@' 		; CTRL/S
+      = 0018            CTLX	EQU	'X'-'@' 		; CTRL/X
+      = 001A            CTLZ	EQU	'Z'-'@' 		; CTRL/Z
+0000                    OPTION	SPACE	4,10
+                        **	COMMAND OPTIONS.
+
+      = 0001            OPT.A	EQU	1	;PRINT LINE AFTER PROCESS
+      = 0002            OPT.B	EQU	2	;PRINT LINE BEFORE PROCESSING
+0000                    MACH	SPACE	3,10
+                        **	MACHINE INSTRUCTIONS.
+
+      = 003A            MI.LDA	EQU	072Q
+      = 0000            MI.NOP	EQU	000Q
+      = 00C9            MI.RET	EQU	311Q
+
+                        ****
+0000                    	SPACE	3,10
+0000                    	XTEXT	FBDEF
+0000                    	SPACE	4,10
+                        **	FILE BLOCK DEFINITIONS.
+
+0000                    	ORG	0
+
+0000   (0001)           FB.CHA	DS	1			; CHANNEL NUMBER
+0001   (0001)           FB.FLG	DS	1			; FLAGS
+0002   (0002)           FB.FWA	DS	2			; BUFFER FWA
+0004   (0002)           FB.PTR	DS	2			; BUFFER POINTER
+0006   (0002)           FB.LIM	DS	2			; LIMIT OF DATA IN BUFFER (READ)
+0008   (0002)           FB.LWA	DS	2			; LWA OF BUFFER
+000A   (0011)           FB.NAM	DS	4+8+4+1 		; NAME OF FILE
+      = 0011            FB.NAML EQU	*-FB.NAM
+      = 001B            FBENL	EQU	*			; ENTRY LENGTH
+001B                    	XTEXT	HOSDEF
+001B                    	SPACE	3,10
+                        **	HOSDEF - Define HOS Parameters.
+                        *
+
+      = 0030            VERS	equ	3*16+0			; VERSION 3.0			/3.0a/
+
+      = 00FF            SYSCALL equ	377Q			; SYSCALL INSTRUCTION
+
+0000                    	org	0
+
+                        *	Resident Functions
+
+0000   (0001)           .EXIT	ds	1			; EXIT (MUST BE FIRST)
+0001   (0001)           .SCIN	ds	1			; SCIN
+0002   (0001)           .SCOUT	ds	1			; SCOUT
+0003   (0001)           .PRINT	ds	1			; PRINT
+0004   (0001)           .READ	ds	1			; READ
+0005   (0001)           .WRITE	ds	1			; WRITE
+0006   (0001)           .CONSL	ds	1			; SET/CLEAR CONSOLE OPTIONS
+0007   (0001)           .CLRCO	ds	1			; CLEAR CONSOLE BUFFER
+0008   (0001)           .LOADO	ds	1			; LOAD AN OVERLAY (obsolete)	/3.0a/
+0009   (0001)           .VERS	ds	1			; RETURN HDOS VERSION NUMBER
+000A   (0001)           .GDA	ds	1			; Get Device Driver Address	/3.0a/
+000B   (0001)           .CRC16	ds	1			; CRC a block of memory 	/3.0a/
+000C   (0001)           .SYSRES ds	1			; PRECEDING FUNCTIONS ARE RESIDENT
+
+
+                        *	*HDOSOVL0.SYS*  FUNCTIONS
+
+0020                    	org	40Q
+
+0020   (0001)           .LINK	ds	1			; LINK	(MUST BE FIRST)
+0021   (0001)           .CTLC	ds	1			; CTL-C
+0022   (0001)           .OPENR	ds	1			; OPENR
+0023   (0001)           .OPENW	ds	1			; OPENW
+0024   (0001)           .OPENU	ds	1			; OPENU
+0025   (0001)           .OPENC	ds	1			; OPENC
+0026   (0001)           .CLOSE	ds	1			; CLOSE
+0027   (0001)           .POSIT	ds	1			; POSITION
+0028   (0001)           .DELET	ds	1			; DELETE
+      = 0028            .DELETE equ	.DELET
+0029   (0001)           .RENAM	ds	1			; RENAME
+      = 0029            .RENAME equ	.RENAM
+002A   (0001)           .SETTP	ds	1			; SETTOP
+      = 002A            .SETTOP equ	.SETTP
+002B   (0001)           .DECODE ds	1			; NAME DECODE
+002C   (0001)           .NAME	ds	1			; GET FILE NAME FROM CHANNEL
+002D   (0001)           .CLEAR	ds	1			; CLEAR CHAN
+002E   (0001)           .CLEARA ds	1			; CLEAR ALL CHANS
+002F   (0001)           .ERROR	ds	1			; LOOKUP ERROR
+0030   (0001)           .CHFLG	ds	1			; CHANGE FLAGS
+0031   (0001)           .DISMT	ds	1			; FLAG SYSTEM DISK DISMOUNTED
+0032   (0001)           .LOADD	ds	1			; LOAD DEVICE DRIVER
+
+                        *	*HDOSOVL1.SYS*  FUNCTIONS
+
+0080                    	org	200Q
+
+0080   (0001)           .MOUNT	ds	1			; MOUNT  (MUST BE FIRST)
+0081   (0001)           .DMOUN	ds	1			; DISMOUNT
+      = 0081            .DMOUNT equ	.DMOUN
+0082   (0001)           .MONMS	ds	1			; MOUNT/NO MESSAGE
+0083   (0001)           .DMNMS	ds	1			; DISMOUNT/NO MESSAGE
+0084   (0001)           .RESET	ds	1			; RESET = DISMOUNT/MOUNT OF UNIT
+0085   (0001)           .RESNMS ds	1			; RESET/NO (OR USER) MESSAGE
+0086   (0001)           .DAD	ds	1			; Dismount All Disks
+0087                    	XTEXT	HOSEQU
+0087                    	SPACE	4,10
+                        **	HDOS SYSTEM EQUIVALENCES.					/3.0a/
+                        *
+
+2040                    	ORG	040100A
+
+2040   (0008)           S.EXITA DS	8			; Jump to System Exit
+
+2048   (0010)           D.CON	DS	16			; Disk Constants
+
+      = 2058            SYDD	EQU	*			; System Disk Entry Point
+
+2058   (0048)           D.VEC	DS	24*3			; H17 Disk Vectors
+20A0   (001F)           D.RAM	DS	31			; H17 Disk Work Area
+
+20BF   (0024)           S.VAL	DS	36			; SYSTEM VALUES
+20E3   (0093)           S.INT	DS	147			; SYSTEM INTERNAL WORK AREAS
+
+2176   (0002)           S.SOVR	DS	2			; STACK OVERFLOW WARNING
+2178   (0108)           	DS	042200A-*		; SYSTEM STACK
+      = 010A            STACKL	EQU	*-S.SOVR		; STACK SIZE
+
+      = 2280            STACK	EQU	*			; LWA+1 SYSTEM STACK
+      = 2280            USERFWA EQU	*			; USER FWA
+
+                        *	Ensure Compatibility
+
+                        	ERRNZ	040130A-SYDD
+                        	ERRNZ	040277A-S.VAL
+                        	ERRNZ	040343A-S.INT
+                        	ERRNZ	042200A-USERFWA
+2280                    	XTEXT	ESVAL
+2280                    	SPACE	4,10
+                        **	S.VAL - SYSTEM VALUE DEFINTIONS.
+                        *
+                        *	THESE VALUES ARE SET AND MAINTAINED BY THE SYSTEM.
+                        *
+                        *	THE DECK HOSEQU MUST BE MODIFIED WHEN THIS IS MODIFIED.
+
+20BF                    	ORG	S.VAL
+
+20BF   (0009)           S.DATE	DS	9			; SYSTEM DATE (IN ASCII)
+20C8   (0002)           S.DATC	DS	2			; CODED DATE
+20CA   (0003)           S.TIME	DS	3			; TIME (BCD HH MM SS)		/3.0a/
+20CD   (0001)           S.CLKTR DS	1			; 0 if no clock task resident	/3.0a/
+20CE   (0002)           S.HIMEM DS	2			; HARDWARE HIGH MEMORY ADRESS+1
+
+20D0   (0002)           S.SYSM	DS	2			; FWA RESIDENT SYSTEM
+
+20D2   (0002)           S.USRM	DS	2			; LWA USER MEMORY
+
+20D4   (0002)           	DS	2			; obsolete (must be zero!!)	/3.0a/
+20D6                    	SPACE	3,10
+                        **	THE FOLLOWING CELLS SHOULD BE MODIFIED/READ ONLY VIA THE .CONSL SCALL
+
+      = 0080            CSL.ECH EQU	10000000B		; SUPPRESS ECHO
+      = 0004            CSL.RAW EQU	00000100B		; Raw Mode I/O
+      = 0002            CSL.WRP EQU	00000010B		; WRAP LINES AT WIDTH
+      = 0001            CSL.CHR EQU	00000001B		; OPERATE IN CHARACTER MODE
+
+      = 0000            I.CSLMD EQU	0			; S.CSLMD IS FIRST BYTE
+20D6   (0001)           S.CSLMD DS	1			; CONSOLE MODE
+
+
+      = 0080            CTP.BKS EQU	10000000B		; TERMINAL PROCESSES BACKSPACES
+      = 0040            CTP.FF	EQU	01000000B		; Terminal Processes Form-Feed
+      = 0020            CTP.MLI EQU	00100000B		; MAP LOWER CASE TO UPPER ON INPUT
+      = 0010            CTP.MLO EQU	00010000B		; MAP LOWER CASE TO UPPER ON OUTPUT
+      = 0008            CTP.2SB EQU	00001000B		; TERMINAL NEEDS TWO STOP BITS
+      = 0004            CTP.HHS EQU	00000100B		; Terminal uses hdwr handshake	/3.0a/
+      = 0002            CTP.BKM EQU	00000010B		; MAP BKSP (UPON INPUT) TO RUBOUT
+      = 0001            CTP.TAB EQU	00000001B		; TERMINAL SUPPORTS TAB CHARACTERS
+
+      = 0001            I.CONTY EQU	1			; S.CONTY IS 2ND BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONTY
+20D7   (0001)           S.CONTY DS	1			; CONSOLE TYPE FLAGS
+
+
+      = 0002            I.CUSOR EQU	2			; S.CUSOR IS 3RD BYTE
+                        	ERRNZ	*-S.CSLMD-I.CUSOR
+20D8   (0001)           S.CUSOR DS	1			; CURRENT CURSOR POSITION
+
+
+      = 0003            I.CONWI EQU	3			; S.CONWI IS 4TH BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONWI
+20D9   (0001)           S.CONWI DS	1			; CONSOLE WIDTH
+
+
+      = 0001            CO.FLG	EQU	00000001B		; CTL-O FLAG
+      = 0080            CS.FLG	EQU	10000000B		; CTL-S FLAG
+
+      = 0004            I.CONFL EQU	4			; S.CONFL IS 5TH BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONFL
+20DA   (0001)           S.CONFL DS	1			; CONSOLE FLAGS
+
+
+20DB   (0002)           S.CAADR DS	2			; ADDRESS FOR ABORT PROCESSING (>256 IF VALID)
+20DD   (0006)           S.CCTAB DS	6			; ADDR FOR CTL-A, CTL-B, CTL-C PROCESSING
+20E3                    	XTEXT	ABSDEF
+20E3                    ABSDEF	SPACE	3,10
+                        **	ABS FORMAT EQUIVALENCES.
+
+0000                    	ORG	0
+
+0000   (0001)           ABS.ID	DS	1	;377Q = BINARY FILE FLAG
+0001   (0001)           	DS	1	;FILE TYPE (FT.ABS)
+0002   (0002)           ABS.LDA	DS	2	;LOAD ADDRESS
+0004   (0002)           ABS.LEN	DS	2	;LENGTH OF ENTIRE RECORD
+0006   (0002)           ABS.ENT	DS	2	;ENTRY POINT
+
+0008   (0000)           ABS.COD	DS	0	;CODE STARTS HERE
+0008                    	XTEXT	ECDEF
+0008                    	SPACE	4,10
+                        **	ERROR CODE DEFINITIONS.
+
+0000                    	ORG	0
+
+0000   (0001)           	DS	1		; NO ERROR #0
+0001   (0001)           EC.EOF	DS	1		; END OF FILE
+0002   (0001)           EC.EOM	DS	1		; END OF MEDIA
+0003   (0001)           EC.ILC	DS	1		; ILLEGAL SCALL CODE
+0004   (0001)           EC.CNA	DS	1		; CHANNEL NOT AVAILABLE
+0005   (0001)           EC.DNS	DS	1		; DEVICE NOT SUITABLE
+0006   (0001)           EC.IDN	DS	1		; ILLEGAL DEVICE NAME
+0007   (0001)           EC.IFN	DS	1		; ILLEGAL FILE NAME
+0008   (0001)           EC.NRD	DS	1		; NO ROOM FOR DEVICE DRIVER
+0009   (0001)           EC.FNO	DS	1		; CHANNEL NOT OPEN
+000A   (0001)           EC.ILR	DS	1		; ILLEGAL REQUEST
+000B   (0001)           EC.FUC	DS	1		; FILE USAGE CONFLICT
+000C   (0001)           EC.FNF	DS	1		; FILE NAME NOT FOUND
+000D   (0001)           EC.UND	DS	1		; UNKNOWN DEVICE
+000E   (0001)           EC.ICN	DS	1		; ILLEGAL CHANNEL NUMBER
+000F   (0001)           EC.DIF	DS	1		; DIRECTORY FULL
+0010   (0001)           EC.IFC	DS	1		; ILLEGAL FILE CONTENTS
+0011   (0001)           EC.NEM	DS	1		; NOT ENOUGH MEMORY
+0012   (0001)           EC.RF	DS	1		; READ FAILURE
+0013   (0001)           EC.WF	DS	1		; WRITE FAILURE
+0014   (0001)           EC.WPV	DS	1		; WRITE PROTECTION VIOLATION
+0015   (0001)           EC.WP	DS	1		; DISK WRITE PROTECTED
+0016   (0001)           EC.FAP	DS	1		; FILE ALREADY PRESENT
+0017   (0001)           EC.DDA	DS	1		; DEVICE DRIVER ABORT
+0018   (0001)           EC.FL	DS	1		; FILE LOCKED
+0019   (0001)           EC.FAO	DS	1		; FILE ALREADY OPEN
+001A   (0001)           EC.IS	DS	1		; ILLEGAL SWITCH
+001B   (0001)           EC.UUN	DS	1		; UNKNOWN UNIT NUMBER
+001C   (0001)           EC.FNR	DS	1		; FILE NAME REQUIRED
+001D   (0001)           EC.DIW	DS	1		; DEVICE IS NOT WRITABLE (OR WRITE LOCKED)
+001E   (0001)           EC.UNA	DS	1		; UNIT NOT AVAILABLE
+001F   (0001)           EC.ILV	DS	1		; ILLEGAL VALUE
+0020   (0001)           EC.ILO	DS	1		; ILLEGAL OPTION
+0021   (0001)           EC.VPM	DS	1		; VOLUME PRESENTLY MOUNTED ON DEVICE
+0022   (0001)           EC.NVM	DS	1		; NO VOLUME PRESENTLY MOUNTED
+0023   (0001)           EC.FOD	DS	1		; FILE OPEN ON DEVICE
+0024   (0001)           EC.NPM	DS	1		; NO PROVISIONS MADE FOR REMOUNTING MORE DISKS
+0025   (0001)           EC.DNI	DS	1		; DISK NOT INITIALIZED
+0026   (0001)           EC.DNR	DS	1		; DISK IS NOT READABLE
+0027   (0001)           EC.DSC	DS	1		; DISK STRUCTURE IS CORRUPT
+0028   (0001)           EC.NCV	DS	1		; NOT CORRECT VERSION OF HDOS
+0029   (0001)           EC.NOS	DS	1		; NO OPERATING SYSTEM MOUNTED
+002A   (0001)           EC.IOI	DS	1		; ILLEGAL OVERLAY INDEX
+002B   (0001)           EC.OTL	DS	1		; OVERLAY TOO LARGE
+002C   (0001)           EC.LAD	DS	1		; File is locked against delete 	/3.0a/
+002D   (0001)           EC.FIX	DS	1		; Device media is fixed 		/3.0a/
+002E   (0001)           EC.ILA	DS	1		; Illegal Load Address			/3.0a/
+002F   (0001)           EC.DNL	DS	1		; Device Not Loaded			/3.0a/
+0030   (0001)           EC.DNP	DS	1		; Device Not Locked in Memory		/3.0a/
+0031   (0001)           EC.DFM	DS	1		; Device is Fixed in Memory		/3.0a/
+0032   (0001)           EC.IDF	DS	1		; Illegal Date Format			/3.0a/
+0033   (0001)           EC.ITS	DS	1		; Illegal Time Format			/3.0a/
+0034   (0001)           EC.CNR	DS	1		; System Clock Not Resident		/3.0a/
+0035   (0001)           EC.SDR	DS	1		; System Disk is Reset			/3.0a/
+0036   (0001)           EC.LBO	DS	1		; Line Buffer Overflow			/3.0a/
+0037   (0001)           EC.CUI	DS	1		; Can't Unlink from Interrupt Vector	/3.0a/
+0038                    	XTEXT	FILDEF
+0038                    	SPACE	4,10
+                        **	FILDEF - FILE TYPE DEFINITIONS.
+                        *
+                        *	DB	377Q,FT.XXX
+
+      = 0000            FT.ABS	EQU	0			; ABSOLUTE BINARY
+      = 0001            FT.PIC	EQU	1			; POSITION INDEPENDANT CODE
+      = 0002            FT.REL	EQU	2			; RELOCATABLE CODE
+      = 0003            FT.BAC	EQU	3			; COMPILED BASIC CODE
+0038                    	XTEXT	DIRDEF
+0038                    	SPACE	3,10
+                        **	DIRECTORY ENTRY FORMAT.
+
+0000                    	ORG	0
+
+      = 00FF            DF.EMP	EQU	377Q			; ENTRY EMPTY
+      = 00FE            DF.CLR	EQU	376Q			; ENTRY EMPTY, REMAINDER ALSO CLEAR
+
+0000   (0008)           DIR.NAM DS	8			; NAME
+0008   (0003)           DIR.EXT DS	3			; EXTENSION
+      = 000B            DIRIDL	equ	*			; file identification length	/3.0a/
+
+000B   (0001)           DIR.CTH DS	1			; creation time (BCD hours)	/3.0a/
+000C   (0001)           DIR.CTM DS	1			; creation date (BCD minutes)	/3.0a/
+
+000D   (0001)           DIR.NOA DS	1			; number of accesses		/3.0a/
+000E   (0001)           DIR.FLG DS	1			; FLAGS
+000F   (0001)           DIR.USR DS	1			; user area mask		/3.0a/
+0010   (0001)           DIR.FGN DS	1			; FIRST GROUP NUMBER
+0011   (0001)           DIR.LGN DS	1			; LAST GROUP NUMBER
+0012   (0001)           DIR.LSI DS	1			; LAST SECTOR INDEX (IN LAST GROUP)
+0013   (0002)           DIR.CRD DS	2			; CREATION DATE
+0015   (0002)           DIR.ACD DS	2			; last access date		/3.0a/
+
+      = 0017            DIRELEN EQU	*			; DIRECTORY ENTRY LENGTH
+0017                    	XTEXT	OVLDEF
+0017                    	SPACE	4,10
+                        **	OVERLAY TABLE ENTRYS.
+
+0000                    	ORG	0
+
+0000   (0002)           OVL.COD DS	2			; FIRST SECTOR OF OVERLAY CODE
+0002   (0002)           OVL.SIZ DS	2			; OVERLAY SIZE
+0004   (0002)           OVL.ENT DS	2			; OVERLAY ENTRY POINT
+0006   (0001)           OVL.FLB DS	1			; OVERLAY FLAG BYTE
+0007   (0001)           	DS	1			; DUMMY BYTE TO ROUND TABLE SIZE UP TO 8
+      = 0008            OVL.ENS EQU	*			; OVERLAY ENTRY SIZE
+
+                        *	OVERLAY INDICES
+
+0000                    	ORG	0
+
+0000   (0001)           OVL0	DS	1
+0001                    	XTEXT	IOCDEF
+0001                    IOCDEF	SPACE	3,10
+                        **	I/O CHANNEL DEFINITIONS.
+
+0000                    	ORG	0
+
+0000   (0002)           IOC.LNK DS	2			; ADDRESS OF NEXT CHANNEL, =0 IF LAST
+0002   (0002)           IOC.DDA DS	2			; THREAD JUMP TO DEVICE DRIVER (VIA DEV TABLE)
+
+0004   (0001)           IOC.FLG DS	1			; FILE TYPE FLAGS
+      = 0001            FT.DD	EQU	00000001B		;  =1 IF DIRECTORY DEVICE
+      = 0002            FT.OR	EQU	00000010B		;  =1 IF OPEN FOR READ
+      = 0004            FT.OW	EQU	00000100B		;  =1 IF OPEN FOR WRITE
+      = 0008            FT.OU	EQU	00001000B		;  =1 IF OPEN FOR UPDATE
+      = 0010            FT.OC	EQU	00010000B		;  =1 IF OPEN FOR CHARACTER MODE
+      = 0003            IOC.SQL EQU	*-IOC.DDA		; LENGTH OF INFO FOR SEQUENTIAL FILE
+
+0005   (0002)           IOC.GRT DS	2			; ADDRESS OF GROUP RESERVATION TABLE
+0007   (0001)           IOC.SPG DS	1			; SECTORS PER GROUP, THIS DEVICE
+0008   (0001)           IOC.CGN DS	1			; CURRENT GROUP NUMBER
+0009   (0001)           IOC.CSI DS	1			; CURRENT SECTOR INDEX (IN CURRENT GROUP)
+000A   (0001)           IOC.LGN DS	1			; LAST GROUP NUMBER
+000B   (0001)           IOC.LSI DS	1			; LAST SECTOR INDEX (IN LAST GROUP)
+      = 0008            IOC.DRL EQU	*-IOC.FLG		; LENGTH OF INFO NORMALLY COPIED BACK TO
+                        *					; THE CHANNEL TABLE
+000C   (0002)           IOC.DTA DS	2			; DEVICE TABLE ADDRESS FOR THIS DEVICE
+000E   (0002)           IOC.DES DS	2			; SECTOR NUMBER OF DIRECTORY ENTRY
+0010   (0002)           IOC.DEV DS	2			; DEVICE CODE
+0012   (0001)           IOC.UNI DS	1			; UNIT NUMBER (0-9)
+      = 0011            IOC.DIL EQU	*-IOC.DDA		; LENGTH OF INFO FOR DIRECTORY FILE
+
+0013   (0017)           IOC.DIR DS	DIRELEN 		; DIRECTORY ENTRY
+
+      = 002A            IOCELEN EQU	*			; IOC ENTRY LENGTH
+
+      = 0001            IOCCTD	EQU	1			; INDEX OF USER CHANNEL #0 IN CHANTAB (FIRST = 0)
+002A                    	XTEXT	HOSBASE
+002A                    	SPACE	4,10
+                        **	HDOS BASE PAGE DEFINITION
+                        *
+
+0000                    	ORG	0
+
+      = 0000            HOSBASE EQU	*
+
+                        	ERRNZ	*-000000A
+0000   (0003)           B.INT0	DS	3
+
+0003   (0002)           S.LABEL DS	2			; address of label buffer
+
+0005   (0001)           S.FMASK DS	1			; feature mask
+
+      = 0003            F.CLK	EQU	00000011B		; system clock speed
+      = 0000            F.2MHZ	EQU	00000000B		;  2 MHz
+      = 0001            F.4MHZ	EQU	00000001B		;  4 MHz
+      = 0002            F.6MHZ	EQU	00000010B		;  6 MHz
+
+      = 000C            F.MACH	EQU	00001100B		; System type
+      = 0000            F.H8	EQU	00000000B		;  H8
+      = 0004            F.H89	EQU	00000100B		;  H89
+      = 0008            F.Z100	EQU	00001000B		;  Z-100
+      = 000C            F.OMACH EQU	00001100B		;  PC, ETC.
+
+      = 0030            F.TERM	EQU	00110000B		; Terminal type
+      = 0000            F.TTY	EQU	00000000B		;  Dumb TTY
+      = 0010            F.H19	EQU	00010000B		;  H19
+
+      = 00C0            F.CPU	EQU	11000000B		; CPU type
+      = 0000            F.8080	EQU	00000000B		;  8080
+      = 0040            F.8085	EQU	01000000B		;  8085
+      = 0080            F.Z80	EQU	10000000B		;  Z-80
+      = 00C0            F.OCPU	EQU	11000000B		;  HD64180, V20, ETC.
+
+0006   (0002)           S.LWA	DS	2			; lwa of HDOS
+
+                        	ERRNZ	*-000010A
+0008   (0003)           B.INT1	DS	3			; clock interrupt
+
+000B   (0005)           S.REV	DS	5			; rev, date, time of HDOS
+
+                        	ERRNZ	*-000020A
+0010   (0003)           B.INT2	DS	3			; available
+
+0013   (0005)           	DS	5
+
+                        	ERRNZ	*-000030A
+0018   (0003)           B.INT3	DS	3			; available
+
+001B   (0005)           	DS	5
+
+                        	ERRNZ	*-000040A
+0020   (0003)           B.INT4	DS	3			; available
+
+0023   (0005)           	DS	5
+
+                        	ERRNZ	*-000050A
+0028   (0003)           B.INT5	DS	3			; available
+
+                        	ERRNZ	*-000053A		; same as .DLY
+002B   (0003)           S.DLY	DS	3
+
+002E   (0002)           	DS	2
+
+                        	ERRNZ	*-000060A
+0030   (0003)           B.INT6	DS	3			; available
+
+0033   (0005)           	DS	5
+
+                        	ERRNZ	*-000070A
+0038   (0003)           B.INT7	DS	3			; SCALL interrupt
+
+003B   (0003)           B.SCALL DS	3			; JMP directly to SCALL processor
+
+003E   (0002)           CSLIBUF DS	2			; FWA of console type-ahead buffer
+
+0040   (0011)           BATNAME DS	17			; complete batch file name
+0051   (0001)           BATSEC	DS	1			; current sector index in batch file
+0052   (0002)           BATGNS	DS	2			; batch file group numbers
+
+0054   (0002)           BATBUF	DS	2			; address of batch buffer
+0056   (0002)           BATPTR	DS	2			; address of next char. in BATBUF
+
+0058   (0002)           SUBBUF	DS	2			; address of substitution buffer
+
+005A   (0002)           S.PATH	DS	2			; address of path buffer
+005C   (0002)           S.PRMT	DS	2			; address of prompt buffer
+005E   (0002)           S.EDLIN DS	2			; adderss of line buffer
+
+0060   (0001)           S.COUNT DS	1			; counter
+0061   (0001)           S.SHIFT DS	1			; shift count
+0062   (0001)           S.BITS	DS	1			; bit flags
+
+0063   (0003)           	DS	3
+
+                        	ERRNZ	*-66H
+0066   (0003)           B.NMI	DS	3			; NMI handler vector
+0069   (0001)           B.NMIFL DS	1			; NMI flag (0=no NMI's occured)
+
+006A   (0006)           S.DFBLK DS	6			; system wide default block
+
+0070   (000F)           S.CVEC	DS	5*3			; console SCALL vectors
+
+007F   (0001)           S.FLAG	DS	1			; system flags
+
+      = 0001            S.SYSCM equ	00000001b		; SYSCMD.SYS in memory
+      = 0002            S.VFLG	equ	00000010b		; Verify is on
+      = 0004            S.ECHO	equ	00000100b		; Echo is off
+      = 0008            S.BATCH equ	00001000b		; Batch is active
+      = 0010            S.EXITC equ	00010000b		; SYSCMD prints exit code
+      = 0020            S.BREAK equ	00100000b		; used by PIP
+      = 0040            S.TABUF equ	01000000b		; type-ahead is stuffed
+      = 0080            S.INIT	equ	10000000b		; set 1st time SYSCMD.SYS runs
+
+                        	ERRNZ	*-80H			; MAKE SURE GOT EM' ALL
+      = 0080            B.END	EQU	*
+0080                    	STL	'MAIN LOOP.'
+0080                    	EJECT
+2280                    	ORG	USERFWA
+
+      = 2280            START	EQU	*
+      = 2280            RESTART	EQU	*	;RESTART ADDRESS
+
+                        *	ENTER HERE FOR RUBOUT AND COMMANDS DONE.
+
+2280  3E 81             EDIX	MVI	A,CSL.CHR+CSL.ECH;CHARACTER MODE, NO ECHO
+2282  32 D620           	STA	S.CSLMD	;CLEAR TERMINAL CONTRL
+2285  FB                	EI
+2286  CD 6B2A           	CALL	CBE	;CHECK FOR BUFFER EMPTY
+2289  CD DB2B           	CALL	MAM	;SET MAXIMUM MEMORY
+228C  CD 002D           	CALL	$CCO	;CLEAR CTL-O
+228F  CD 792D           	CALL	$GNL	;GUARANTEE NEW LINE
+2292  CD 5E19           	CALL	$TYPTX
+2295  2DAD              	DB	'-','-'+200Q
+2297  AF                	XRA	A
+2298  32 E531           	STA	LINE	;NULL LINE
+229B  32 8431           	STA	CCFLG	;CLEAR CTL-C DISABLE FLAG
+229E  32 8531           	STA	CCPEND	;CLEAR PENDING CTL-C
+22A1  CD 242B           	CALL	ECC	;ENABLE CTL-C
+22A4  AF                	XRA	A
+22A5  32 8A31           EDT0	STA	PROCHA	;CLEAR PROBATATION CHARACTER
+
+                        *	RE-ENTER HERE FOR BACKSPACE AND ILLEGAL CHARACTERS
+
+22A8  21 E531           EDI1	LXI	H,LINE
+22AB  22 8831           	SHLD	LINPTR
+22AE  AF                	XRA	A
+22AF  32 6E2B           	STA	ENCA	;CLEAR HELD CHARACTER
+22B2  31 8022           	LXI	SP,STACK;RESTORE STACK
+
+                        *	DECODE COMMAND
+
+22B5  CD 3623           	CALL	DCR	;DECODE COMMAND RANGE
+22B8  CD 3A24           	CALL	DCN	;DECODE COMMAND NAME
+22BB  CD C824           	CALL	DCQ	;DECODE COMMAND QUALIFIER
+22BE  CD D624           	CALL	DCO	;DECODE COMMAND OPTION
+22C1  2A 7A31           	LHLD	CRFPTR
+22C4  22 7E31           	SHLD	WRKPTR
+
+                        *	PROCESS COMMAND
+
+22C7  3A 5233           	LDA	CMDGRP	;SEE WHICH GROUP IS COMMAND
+22CA  A7                	ANA	A
+22CB  3A 5133           	LDA	PATCNT
+22CE  C2 D322           	JNZ	EDI1.5	;IS IN FULL RANGE
+22D1  C6 06             	ADI	CMDDSP	;IS IN NO-DATA GROUP
+22D3  21 8022           EDI1.5	LXI	H,EDIX
+22D6  E5                	PUSH	H	;SET 'RETURN ADDRESS'
+22D7  CD 3119           	CALL	$TJMP	;JUMP TO PROCESSOR
+
+                        *	THE FOLLOWING COMMANDS MAY BE USED ONLY IF DATA PRESENT.
+
+22DA   (0000)           CMDADR	DS	0	;START OF TABLE
+22DA  4925              	DW	PRINT	;PRINT
+22DC  8625              	DW	DELETE	;DELETE
+22DE  4E26              	DW	EDITC	;EDIT
+22E0  1226              	DW	REPLAC	;REPLACE
+22E2  C929              	DW	WRITE	;WRITE
+22E4  5A25              	DW	XPRINT	;XPRINT
+
+                        *	THE FOLLOWING COMMANDS MAY ALWAYS BE USED
+
+      = 0006            CMDDSP	EQU	*-CMDADR/2
+22E6  F924              	DW	INSERT	;INSERT
+22E8  8328              	DW	READ	;READ
+22EA  2A26              	DW	PURGE	;PURGE
+22EC  FF26              	DW	FLUSH	;FLUSH
+22EE  6628              	DW	NEXT	;NEXT
+22F0  DF28              	DW	SEARCH	;SEARCH
+22F2  2127              	DW	NEWIN	;NEWIN
+22F4  9D27              	DW	NEWOUT	;NEWOUT
+22F6  0128              	DW	XOUT	;XOUT
+22F8  4A29              	DW	USE	;USE
+22FA  1527              	DW	BYE	;BYE
+22FC                    INTRPT	SPACE	4,10
+                        **	CTL-C INTERRUPT RECEIVED.
+                        *
+
+22FC  CD 5E19           INTRPT	CALL	$TYPTX
+22FF  5EC3              	DB	'^','C'+200Q
+2301  3A 8431           INTRPT. LDA	CCFLG
+2304  A7                	ANA	A
+2305  C2 1323           	JNZ	INT1
+2308  FF 07             	SCALL	.CLRCO
+230A  2A CB31           	LHLD	XOUTFB+FB.FWA
+230D  22 CD31           	SHLD	XOUTFB+FB.PTR;ZERO THE  *XOUT*  BUFFER PTR.
+2310  C3 8022           	JMP	EDIX	;CTL-C ALLOWED
+
+2313  3E 01             INT1	MVI	A,1
+2315  32 8531           	STA	CCPEND	;FLAG PENDING CTLC
+2318  C9                	RET			DISCARD;FOR NOW
+2319                    REFUSE	SPACE	4,10
+                        **	REFUSE - REFUSE ENTERED CHARACTER.
+                        *
+                        *	REFUSE IS CALLED WHEN AN ILLEGAL ENTRY IS DETECTED.
+                        *	IT TYPES A BELL, REMOVES THE LAST CHARACTER FROM THE INPUT
+                        *	LINE, AND RE-PARSES THE COMMAND.
+
+2319  CD 5E19           REFUSE	CALL	$TYPTX
+231C  87                	DB	BELL+200Q
+231D  21 E531           	LXI	H,LINE
+2320  CD DB2C           	CALL	SNL	;SCAN TO END
+2323  2B                	DCX	H	;BACKSPACE TO LAST CHARACTER
+2324  2B                	DCX	H	;HAVE ADVANCED PAST LAST CHARACTER
+2325  AF                	XRA	A
+2326  77                	MOV	M,A
+2327  C3 A522           	JMP	EDT0	;CLEAR PROBATION (BAD) CHARACTER
+232A                    EXIT	SPACE	4,10
+                        **	EXIT - CTL-D STRUCK (END OF FILE ON CONSOLE)
+                        *
+                        *	SEE IF USER REALLY WANTS TO EXIT...
+
+232A  CD 482A           EXIT	CALL	AYS	;ARE YOU SURE?
+232D  DA 3323           	JC	EXIT1	;CTL-D AGAIN
+2330  C2 8022           	JNE	RESTART	;NOT SURE
+
+2333  AF                EXIT1	XRA	A
+2334  FF 00             	SCALL	.EXIT	;EXIT WITH EVERYTHING OPEN
+2336                    	STL	'DCR - DECODE COMMAND RANGE.'
+2336                    	EJECT
+2336                    DCR	SPACE	4,10
+                        **	DCR - DECODE COMMAND RANGE.
+                        *
+                        *	DCR IS CALLED TO DETERMINE THE COMMAND RANGE.
+                        *
+                        *	CAN BE EITHER
+                        *
+                        *	=			PREVIOUS RANGE
+                        *	' '			ALL TEXT
+                        *	EXPR			LINE EXPRESSION
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	CRFPTR,CRLPTR,WRKPTR SETUP
+                        *	USES	ALL
+
+      = 2336            DCR	EQU	*
+2336  2A 8031           	LHLD	PCFPTR
+2339  22 7A31           	SHLD	CRFPTR
+233C  2A 8231           	LHLD	PCLPTR
+233F  22 7C31           	SHLD	CRLPTR	;SET DEFAULT RANGE TO RANGE OF PREVIOUS
+2342  7C                	MOV	A,H
+2343  B5                	ORA	L
+2344  C8                	RZ			IF;NO DATA, DONT ALLOW RANGE
+2345  2A 7631           	LHLD	FILPTR
+2348  CD 342B           	CALL	ENC	;EXAMINE NEXT CHARACTER
+234B  FE 20             	CPI	' '
+234D  C2 6123           	JNE	DCR1	;NOT BLANK
+
+                        *	IS BLANK. ENTIRE RANGE.
+
+2350  22 7A31           	SHLD	CRFPTR
+2353  2A 7831           	LHLD	LALPTR
+2356  7C                	MOV	A,H
+2357  B5                	ORA	L
+2358  C4 D22C           	CNZ	SLB	;SCAN LINE BACKWARDS (IF ANY TEXT)
+235B  22 7C31           	SHLD	CRLPTR
+235E  C3 852B           	JMP	GNC	;READ BLANK AND EXIT
+
+2361  FE 3D             DCR1	CPI	'='
+2363  CA 852B           	JE	GNC	;IS OLD RANGE. READ = AND EXIT
+2366  7C                	MOV	A,H
+2367  B5                	ORA	L
+2368  C8                	RZ			NO;TEXT, DONT ALLOW EXPRESSION
+
+                        *	MUST BE EXPRESSION
+
+2369  CD 9D23           	CALL	DRE	;DECODE RANGE EXPRESSION
+236C  22 7A31           	SHLD	CRFPTR	;SET FIRST COMMAND
+236F  22 7C31           	SHLD	CRLPTR	;ASSUME IS ONE LINE COMMAND
+2372  CD 342B           	CALL	ENC
+2375  FE 2C             	CPI	','
+2377  C0                	RNE			NO;2ND EXPRESSION
+2378  CD 852B           	CALL	GNC	;READ ,
+237B  E5                	PUSH	H	;SAVE BEGINNING OF RANGE
+237C  CD 9D23           	CALL	DRE	;DECODE RANGE EXPRESSION
+237F  22 7C31           	SHLD	CRLPTR	;SET LAST
+2382  D1                	POP	D	;(DE) = FIRST
+
+                        *	MAKE SURE 1ST IS LESS THAN OR EQUAL TO LAST
+
+2383  7D                	MOV	A,L
+2384  93                	SUB	E
+2385  7C                	MOV	A,H
+2386  9A                	SBB	D
+2387  D0                	RNC			IS;OK
+2388  CD 5E19           	CALL	$TYPTX
+238B  0A074669 72737420 	DB	NL,BELL,'First <= Las','t'+200Q
+2393  3C3D204C 6173F4
+239A  C3 1923           	JMP	REFUSE
+239D                    DRE	STL	'DRE - DECODE RANGE EXPRESSION.'
+239D                    	EJECT
+239D                    DRE	SPACE	4,10
+                        **	DRE - DECODE RANGE EXPRESSION.
+                        *
+                        *	DRE DECODES A COMMAND RANGE EXPRESSION.
+                        *
+                        *	TOKENS VALID AS 1ST TOKEN, ONLY
+                        *
+                        *	NULL	CURRENT 1ST LINE
+                        *	$	LAST LINE IN BUFFER
+                        *	^	1ST LINE IN BUFFER
+                        *
+                        *	TOKENS VALID ANYWHERE
+                        *
+                        *	'STR' LINE CONTAINING STRING
+                        *
+                        *	TOKENS NOT VALID AT HEAD OF STRING
+                        *
+                        *	NNN	LINE COUNT
+                        *
+                        *	OPERATORS
+                        *
+                        *	+	SCAN FORWARD
+                        *	-	SCAN BACKWARDS
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(HL) = RESULTANT LINE POINTER
+                        *	USES	ALL
+
+      = 239D            DRE	EQU	*
+239D  3E FF             	MVI	A,-1
+239F  32 8B31           	STA	SRCDIR	;SET INITIAL DIRECTION FORWARD
+
+                        *	DECODE INITIAL TOKEN.
+
+23A2  CD 342B           	CALL	ENC	;PEEK AT CHARACTER
+23A5  2A 7631           	LHLD	FILPTR
+23A8  FE 5E             	CPI	'^'
+23AA  CA C223           	JE	DRE1	;START AT TOP
+23AD  2A 7831           	LHLD	LALPTR	;ASSUME LAST
+23B0  F5                	PUSH	PSW	;SAVE (A)
+23B1  CD D22C           	CALL	SLB	;SCAN LINE BACKWARDS
+23B4  F1                	POP	PSW
+23B5  FE 24             	CPI	'$'
+23B7  CA C223           	JE	DRE1	;NOT TO START AT BOTTOM
+23BA  2A 7A31           	LHLD	CRFPTR
+23BD  FE 27             	CPI	QUOTE
+23BF  CA FA23           	JE	DRE7	;IS QUOTED STRING
+23C2  CC 852B           DRE1	CZ	GNC	;ACCEPT CHARACTER OF $ OR ARROW
+
+23C5  22 7E31           DRE3	SHLD	WRKPTR	;SET CURRENT LINE ADDRESS
+
+                        *	DECODE OPERATOR
+
+23C8  CD 342B           DRE4	CALL	ENC	;EXAMINE NEXT CHARACTER
+23CB  D6 2B             	SUI	'+'
+23CD  CA D923           	JZ	DRE5	;IS FORWARD SEARCH
+23D0  FE 02             	CPI	'-'-'+'
+23D2  CA D923           	JE	DRE5	;IS BACKWARD SEARCH
+23D5  2A 7E31           	LHLD	WRKPTR	;(HL) = LINE RANGE
+23D8  C9                	RET			EXIT;WITH LINE POINTER
+
+23D9  3D                DRE5	DCR	A
+23DA  32 8B31           	STA	SRCDIR
+23DD  CD 852B           	CALL	GNC	;READ + OR -
+
+                        **	DECODE NEXT TOKEN.
+
+23E0  CD 342B           	CALL	ENC	;EXAMINE CHARACTER
+23E3  FE 27             	CPI	QUOTE
+23E5  CA FD23           	JE	DRE8	;QUOTED STRING
+
+                        *	HAVE NNN - STEP OVER LINES
+
+23E8  CD B52A           	CALL	DDN	;MUST BE DECIMAL NUMBER
+23EB  78                DRE6	MOV	A,B
+23EC  B1                	ORA	C
+23ED  CA C523           	JZ	DRE3	;HAVE STEPPED ENOUGH LINES
+23F0  0B                	DCX	B
+23F1  CD 1024           	CALL	MLP	;MOVE LINE POINTER
+23F4  22 7E31           	SHLD	WRKPTR
+23F7  C3 EB23           	JMP	DRE6
+
+                        *	HAVE STRING VALUE.
+
+23FA  22 7E31           DRE7	SHLD	WRKPTR
+23FD  21 2733           DRE8	LXI	H,QUALS	;USE QUALS AREA FOR SCRATCH
+2400  CC 3B2C           	CZ	RQS	;READ QUOTED STRING
+2403  CD D22B           	CALL	LQS	;LOCATE QUOTED STRING
+2406  CA C823           	JE	DRE4	;FOUND
+2409  CD 1024           	CALL	MLP	;MOVE LINE POINTER
+240C  B4                	ORA	H
+240D  C3 FA23           	JMP	DRE7	;SEARCH AGAIN
+2410                    MLP	SPACE	4,10
+                        **	MLP - MOVE LINE POINTER.
+                        *
+                        *	MLP MOVES THE LINE POINTER FORWARDS OR BACKWARDS ONE LINE,
+                        *	DEPENDING UPON 'SRCDIR'.
+                        *
+                        *	IF SRCDIR <  0, FORWARDS
+                        *	IF SRCDIR => 0, BACKWARDS
+                        *
+                        *	IF RUN OFF THE NED OF TEXT, EXIT TO 'REFUSE'
+                        *
+                        *	ENTRY	(HL) = LINE POINTER
+                        *	EXIT	(HL) = NEW LINE POINTER
+                        *	USES	A,F
+
+2410  D5                MLP	PUSH	D
+2411  2A 7E31           	LHLD	WRKPTR
+2414  3A 8B31           	LDA	SRCDIR
+2417  A7                	ANA	A
+2418  F2 2B24           	JP	MLP1	;BACKWARDS
+241B  CD DB2C           	CALL	SNL	;SCAN TO NEXT LINE
+241E  EB                	XCHG
+241F  2A 7831           	LHLD	LALPTR
+2422  EB                	XCHG
+2423  CD 8E18           	CALL	$CDEHL	;COMPARE TO BOTTOM
+2426  D1                	POP	D
+2427  CA 1923           	JE	REFUSE	;IF ALREADY AT BOTTOM
+242A  C9                	RET
+
+                        *	BACKWARDS
+
+242B  EB                MLP1	XCHG
+242C  2A 7631           	LHLD	FILPTR
+242F  EB                	XCHG
+2430  CD 8E18           	CALL	$CDEHL	;SEE IF AT TOP
+2433  CA 1923           	JE	REFUSE
+2436  D1                	POP	D
+2437  C3 D22C           	JMP	SLB	;SCAN LINE BACKWARDS AND RETURN
+243A                    	STL	'DCN - DECODE COMMAND NAME.'
+243A                    	EJECT
+                        **	DCN - DECODE COMMAND NAME.
+                        *
+                        *	DCN DECODES AND COMPLETES THE COMMAND NAME.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = COMMAND INDEX
+
+      = 243A            DCN	EQU	*
+243A  CD 342B           	CALL	ENC	;PRE-READ 1ST COMMAND CHARACTER
+243D  2A 8831           	LHLD	LINPTR
+2440  2B                	DCX	H
+2441  22 6F24           	SHLD	DCNA	;SET LINE POINTER
+2444  AF                	XRA	A
+2445  32 6E2B           	STA	ENCA
+2448  C3 4E24           	JMP	CMD3
+
+                        *	INPUT 1 CHARACTER
+
+244B  CD 852B           CMD2	CALL	GNC	;GET NEXT CHARACTER
+
+                        *	CLEAR NXTCHA, PATCNT
+
+244E  21 00FF           CMD3	LXI	H,377000A
+2451  22 5033           	SHLD	NXTCHA
+
+2454  11 CF30           	LXI	D,CMDTAB
+2457  2A 7A31           	LHLD	CRFPTR
+245A  7C                	MOV	A,H
+245B  B5                	ORA	L	;SEE IF ANY DATA
+245C  32 5233           	STA	CMDGRP	;SET COMMAND GROUP
+245F  C2 6524           	JNZ	CMD4	;HAVE DATA
+2462  11 F030           	LXI	D,CMDTAB.;RESTRICT COMMAND RANGE
+
+                        *	CHECK AGAINST NEXT COMMAND DESCRIPTION.
+
+2465  21 5133           CMD4	LXI	H,PATCNT
+2468  34                	INR	M
+2469  EB                	XCHG
+246A  CD DB2C           	CALL	SNL	;SCAN FOR NEW LINE
+246D  EB                	XCHG
+246E  01 0000           	LXI	B,0	;(BC) = COMMAND TEXT ADDRESS
+      = 246F            DCNA	EQU	*-2
+2471  1A                	LDAX	D
+2472  A7                	ANA	A
+2473  C2 8A24           	JNZ	CMD5	;HAVE COMMAND ELEMENT
+
+                        *	NO MORE COMMANDS. HAVE:
+                        *
+                        *	1) NO MATCHES, OR
+                        *	2) A UNIQUE NEXT CHARACTER
+
+2476  3A 5033           	LDA	NXTCHA
+2479  A7                	ANA	A
+247A  CA 1923           	JZ	REFUSE	;NO MATCHES - ILLEGAL
+247D  2A 8831           	LHLD	LINPTR
+2480  77                	MOV	M,A
+2481  23                	INX	H
+2482  36 00             	MVI	M,0
+2484  32 8A31           	STA	PROCHA
+2487  C3 4B24           	JMP	CMD2
+
+                        *	CHECK NEXT TABLE ELEMENT FOR MATCH
+
+248A  0A                CMD5	LDAX	B	;(A) = NEXT LINE CHARACTER
+248B  A7                	ANA	A
+248C  C2 B524           	JNZ	CMD7	;IF SOME
+
+                        *	NO MORE TEXT. SEE IF CAN ANTICIPATE NEXT CHARACTER
+
+248F  3A 8A31           	LDA	PROCHA
+2492  A7                	ANA	A
+2493  C4 E72D           	CNZ	$WCHAR
+2496  AF                CMD6	XRA	A
+2497  32 8A31           	STA	PROCHA	;CLEAR PROBATION CHARACTER
+249A  60                CMD6.5	MOV	H,B
+249B  69                	MOV	L,C	;(HL) = NEW LINE POINTER
+249C  22 8831           	SHLD	LINPTR	;SKIP OVER CHARACTERS ACCEPTED
+249F  1A                	LDAX	D	;(A) = COMMAND ELEMENT
+24A0  A7                	ANA	A
+24A1  C8                	RZ			EXIT;IF ENTIRE COMMAND MATCHED
+24A2  21 5033           	LXI	H,NXTCHA
+
+                        *	SEE IF THIS IS THE FIRST COMPLETION CHARACTER,
+                        *	OR IF IT IS THE SAME CHARACTER AS PREVIOUSLY FOUND
+
+24A5  BE                	CMP	M
+24A6  CA 6524           	JE	CMD4	;SAME AS PREVIOUS, CAN COMPLETE
+24A9  D5                	PUSH	D
+24AA  57                	MOV	D,A
+24AB  86                	ADD	M
+24AC  77                	MOV	M,A
+24AD  BA                	CMP	D	;SEE IF NXTCHA WAS 0
+24AE  D1                	POP	D
+24AF  CA 6524           	JE	CMD4	;CAN COMPLETE
+24B2  C3 4B24           	JMP	CMD2	;CANNOT COMPLETE
+
+                        *	HAVE PATTERN AND TEXT. SEE IF MATCH.
+
+24B5  1A                CMD7	LDAX	D
+24B6  A7                	ANA	A
+24B7  CA 9A24           	JZ	CMD6.5	;TOTAL MATCH - PRETEND RAN OUT OF TEXT
+24BA  67                	MOV	H,A	;(H) = NEXT REQUIRED CHARACTER
+24BB  0A                	LDAX	B	;(A) = NEXT TEXT ELEMENT
+24BC  CD 852D           	CALL	$MCU	;MAP CHARACTER TO UPPER CASE
+24BF  03                	INX	B	;ASSUME MATCH
+24C0  BC                	CMP	H
+24C1  C2 6524           	JNE	CMD4	;NO MATCH
+24C4  13                	INX	D
+24C5  C3 8A24           	JMP	CMD5
+24C8                    	STL	'DCQ - DECODE COMMAND QUALIFIER.'
+24C8                    	EJECT
+24C8                    DCQ	SPACE	4,10
+                        **	DCQ - DECODE COMMAND QUALIFIER.
+                        *
+                        *	DCQ READS AN OPTIONAL QUALIFICATION STRING FOLLOWING A
+                        *	COMMAND
+                        *
+                        *	COMMAND'STRING'
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	QUALS = STRING (NULL IF NONE)
+
+24C8  21 2733           DCQ	LXI	H,QUALS
+24CB  36 00             	MVI	M,0	;NULL IT
+24CD  CD 342B           	CALL	ENC	;CHECK NEXT CHARACTER
+24D0  FE 27             	CPI	QUOTE
+24D2  C0                	RNE			NO;QUALIFIER
+24D3  C3 3B2C           	JMP	RQS	;READ QUOTED STRING AND RETURN
+24D6                    	STL	'DCO - DECODE COMMAND OPTIONS.'
+24D6                    	EJECT
+24D6                    DCO	SPACE	4,10
+                        **	DCO - DECODE COMMAND OPTIONS.
+                        *
+                        *	DCO DECODES THE COMMAND OPTION SPECIFICATION.
+                        *
+                        *	COMMANDOPTION
+                        *
+                        *	WHERE OPT = A - PRINT LINE AFTER
+                        *		      B - PRINT LINE BEFORE
+                        *		      N - PRINT LINE NUMBERS
+
+24D6  21 8C31           DCO	LXI	H,OPTS
+24D9  36 00             	MVI	M,0	;CLEAR OPTIONS
+24DB  CD 342B           DCO1	CALL	ENC	;CHECK NEXT CHARACTER
+24DE  CD 852D           	CALL	$MCU	;MAP CHARACTER TO UPPER CASE
+24E1  FE 41             	CPI	'A'
+24E3  CA E924           	JE	DCO2	;IF 'A'
+24E6  FE 42             	CPI	'B'
+24E8  C0                	RNE			NOT;OPTION
+24E9  E6 03             DCO2	ANI	OPT.A+OPT.B
+24EB  47                	MOV	B,A	;(B) = OPTION
+24EC  A6                	ANA	M
+24ED  C2 1923           	JNZ	REFUSE	;ALREADY SET
+24F0  78                	MOV	A,B
+24F1  B6                	ORA	M	;SET IN FLAGS
+24F2  77                	MOV	M,A
+24F3  CD 852B           	CALL	GNC	;ACCEPT 'A' OR 'B'
+24F6  C3 DB24           	JMP	DCO1
+24F9                    	STL	'INSERT - PROCESS [X]INSERT COMMAND.'
+24F9                    	EJECT
+24F9                    INSERT	SPACE	4,10
+                        **	INSERT - INSERT TEXT INTO BUFFER.
+                        *
+                        *	ISNERT RECOGNIZES TWO SPECIAL CASES:
+                        *
+                        *	1) IF NO TEXT EXISTS, INITIALIZE STRUCTURE
+                        *	2) IF THE LINE NUMBER IS ' ', INSERT BEFORD THE 1ST LINE
+
+      = 24F9            INSERT	EQU	*
+24F9  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+24FC  2A 7E31           	LHLD	WRKPTR
+24FF  7C                	MOV	A,H
+2500  B5                	ORA	L
+2501  C2 1D25           	JNZ	INS1	;HAVE PRE-EXISTING TEXT
+
+                        *	READ 1ST LINE INTO EMPTY STRUCTURE
+
+2504  CD 3A2A           	CALL	ATL	;READ TEXT
+2507  CD AD2A           	CALL	DCC	;DISABLE CTL-C
+250A  EB                	XCHG			(DE);= TEXT ADDRESS
+250B  21 6538           	LXI	H,BUFFER
+250E  CD 3826           	CALL	SAP	;SET ALL POINTERS
+2511  E5                	PUSH	H
+2512  4F                	MOV	C,A
+2513  06 00             	MVI	B,0	;(BC) = LEN
+2515  09                	DAD	B
+2516  22 7831           	SHLD	LALPTR
+2519  E1                	POP	H
+251A  C3 3F25           	JMP	INS3
+
+251D  CD 182C           INS1	CALL	PLB	;PRINT LINE BEFORE
+2520  3A E531           	LDA	LINE
+2523  FE 20             	CPI	' '
+2525  C4 DB2C           INS2	CNZ	SNL	;(HL) = ADDRESS TO INSERT TEXT
+2528  CD 242B           	CALL	ECC	;RE-ENABLE CTL-C
+252B  CD 792A           	CALL	CBO	;CHECK FOR BUFFER OVERFLOW
+
+                        *	INSERT A NEW LINE
+
+252E  22 7E31           	SHLD	WRKPTR
+2531  EB                	XCHG
+2532  CD 3A2A           	CALL	ATL	;ACCEPT TEXT LINE
+2535  CD AD2A           	CALL	DCC	;DISABLE CTL-C
+2538  EB                	XCHG
+2539  4F                	MOV	C,A
+253A  CD A42B           	CALL	ITBK	;INSERT TEXT BLOCK
+253D  06 00             	MVI	B,0
+253F  CD 082E           INS3	CALL	$MOVL	;MOVE TEXT IN
+2542  2A 7E31           	LHLD	WRKPTR
+2545  B4                	ORA	H	;CLEAR 'Z'
+2546  C3 2525           	JMP	INS2
+2549                    	STL	'PRINT - [X]PRINT SOURCE LINES'
+2549                    	EJECT
+2549                    PRINT	SPACE	4,10
+                        **	PRINT - PRINT TEXT LINES.
+                        *
+
+2549  CD 212C           PRINT	CALL	RCR	;REQUIRE CARRIAGE RETURN
+254C  CD 992C           PRI1	CALL	SEL	;SCAN FOR ELIGIBLE LINE
+254F  C8                	RZ			IF;NO MORE
+2550  CD E52C           	CALL	TTX	;TYPE SOURCE TEXT
+      = 2551            PRIA	EQU	*-2	;PROCESSOR ADDRESS
+2553  CD 252A           	CALL	ACL	;ADVANCE COMMAND LINE
+2556  C2 4C25           	JNZ	PRI1
+2559  C9                	RET			DONE
+255A                    	STL	'XPRINT	- PROCESS XPRINT COMMAND'
+255A                    	EJECT
+255A                    XPRINT	SPACE	4,10
+                        **	XPRINT	-  PROCESS XPRINT COMMAND
+                        *
+                        *	XPRINT processes the XPRINT command which outputs
+                        *	text to a specified alternate file.  The most
+                        *	useful application of which, being a listing to
+                        *	an alternate printer.
+                        *
+
+      = 255A            XPRINT	EQU	*
+255A  CD 212C           	CALL	RCR
+
+255D  3A CA31           	LDA	XOUTFB+FB.FLG
+2560  E6 04             	ANI	FT.OW
+2562  CA 0F2A           	JZ	WRI4	;REQUIRE AN OUTPUT FILE
+
+2565  CD 992C           XPR1	CALL	SEL
+2568  CA 7425           	JZ	XPR2	;NO MORE LINES
+
+                        *	OUTPUT THE SPECIFIED LINE TO THE XPRINT DEVICE
+
+256B  CD 7B25           	CALL	XPR4	;OUTPUT A LINE
+
+256E  CD 252A           	CALL	ACL	;ADVANCE ONE LINE
+2571  C2 6525           	JNZ	XPR1
+
+                        *	FLUSH THE OUPUT TO THE SPECIFIED DEVICE
+
+      = 2574            XPR2	EQU	*
+
+2574  21 C931           	LXI	H,XOUTFB;USE XOUT FILE BUFFER
+2577  CD EF2F           	CALL	$FWBRK	;BREAKOUTPUT
+
+257A  C9                	RET
+257B                    XPR4	SPACE	4,10
+                        **	OUTPUT A LINE
+
+      = 257B            XPR4	EQU	*
+257B  E5                	PUSH	H
+257C  EB                	XCHG			DE;= ADDRESS OF LINE
+257D  21 C931           	LXI	H,XOUTFB;HL = FILE BUFFER
+2580  CD 582F           	CALL	$FWRIL	;WRITE LINE
+2583  E1                	POP	H	;RESTORE LINE ADDRESS
+2584  C9                	RET
+
+2585  00                XPRA	DB	0	;FLUSH CHARACTER
+      = 0001            XPRAL	EQU	*-XPRA	;LENGTH ( SHOULD BE ONE TO LEAVE BUFFER EMPTY )
+2586                    	STL	'DELETE - PROCESS DELETE COMMAND'
+2586                    	EJECT
+2586                    DELETE	SPACE	4,10
+                        **	DELETE - DELETE LINE RANGE.
+
+
+2586  3A E531           DELETE	LDA	LINE
+2589  FE 20             	CPI	' '
+258B  CA 1923           	JE	REFUSE	;<BLANK>DELETE ILLEGAL
+258E  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+
+                        *	ENTERED FROM *WRITE* HERE
+
+2591  3A 2733           DEL0	LDA	QUALS
+2594  A7                	ANA	A
+2595  CA D925           	JZ	DEL3	;AM TO DELETE A BLOCK OF TEXT
+2598  CD 242B           DEL1	CALL	ECC	;ENABLE CTL-C
+259B  CD 992C           	CALL	SEL	;SCAN FOR ELIGIBLE LINE
+259E  CA BF25           	JZ	DEL2	;DONE
+25A1  E5                	PUSH	H	;SAVE ADDRESS
+25A2  2A 7E31           	LHLD	WRKPTR
+25A5  EB                	XCHG
+25A6  2A 7C31           	LHLD	CRLPTR	;SEE IF AT LAST TEXT LINE
+25A9  7B                	MOV	A,E
+25AA  95                	SUB	L
+25AB  7A                	MOV	A,D
+25AC  9C                	SBB	H
+25AD  E1                	POP	H	;(HL) = TEXT POINTER
+25AE  F5                	PUSH	PSW	;SAVE RESULT FOR LATER TEST
+25AF  CD 182C           	CALL	PLB	;PRINT LINE BEFORE
+25B2  CD AD2A           	CALL	DCC	;DISABLE CTL-C
+25B5  CD F12C           	CALL	$CLL	;COMPUTE LINE LENGTH
+25B8  CD DF2A           	CALL	DTBK	;DELETE TEXT BLOCK
+25BB  F1                	POP	PSW	;RESTORE CONDITION AFTER TEST
+25BC  DA 9825           	JC	DEL1	;MORE TO GO
+
+                        *	ALL DONE. CLEAR PREVIOUS COMMAND RANGE TO FORCE NEW RANGE
+
+      = 25BF            DEL2	EQU	*
+25BF  2A 7831           	LHLD	LALPTR
+25C2  EB                	XCHG			DE;= END OF LAST + 1
+25C3  2A 7A31           	LHLD	CRFPTR	;HL = CURRENT FIRST POINTER
+25C6  CD 8E2D           	CALL	CPDEHL	;COMPARE
+25C9  DA D225           	JC	DEL2.5	;HL < DE
+
+25CC  2A 7831           	LHLD	LALPTR
+25CF  CD D22C           	CALL	SLB	;SCAN BACK ONE LINE
+
+25D2  22 8031           DEL2.5	SHLD	PCFPTR	;SET PREVIOUS RANGE TO FIRST LINE
+25D5  22 8231           	SHLD	PCLPTR
+25D8  C9                	RET			EXIT
+
+                        *	NO QUALIFIER STRING, WILL THEREFORE DELETE AN ENTIRE BLOCK.
+                        *	LOCATE THAT BLOCK, AND DELETE ALL IN ONE SWOOP (RUNS A HECK OF A
+                        *	LOT FASTER!)
+
+25D9  CD AD2A           DEL3	CALL	DCC	;DISABLE CTL-C
+25DC  2A 7E31           	LHLD	WRKPTR
+25DF  22 1026           	SHLD	DELA	;SAVE FWA OF BLOCK
+25E2  01 0000           	LXI	B,0	;(BC) = BYTES TO DELETE
+
+25E5  2A 7C31           DEL4	LHLD	CRLPTR	;SEE IF THE LAST LINE IN THE RANGE
+25E8  EB                	XCHG
+25E9  2A 7E31           	LHLD	WRKPTR
+25EC  7D                	MOV	A,L
+25ED  93                	SUB	E
+25EE  7C                	MOV	A,H
+25EF  9A                	SBB	D
+25F0  F5                	PUSH	PSW	;SAVE RESULT
+25F1  CD 182C           	CALL	PLB	;PRINT LINE BEFORE
+25F4  CD F12C           	CALL	$CLL	;COMPUTE LINE LENTH
+25F7  CD 3A18           	CALL	$DADA	;(HL) = LINE LWA+1
+25FA  81                	ADD	C
+25FB  4F                	MOV	C,A
+25FC  78                	MOV	A,B
+25FD  CE 00             	ACI	0
+25FF  47                	MOV	B,A	;ADD LENGTH TO (BC)
+2600  22 7E31           	SHLD	WRKPTR	;ADVANCE POINTER
+2603  F1                	POP	PSW	;(PSW) = RESULTS OF WRKPTR-CRLPTR
+2604  DA E525           	JC	DEL4	;IF NOT ALL DONE
+
+                        *	DELETE (BC) BYTES AT (DELA)
+
+2607  2A 1026           	LHLD	DELA
+260A  CD E82A           	CALL	DTBK.	;DELETE A TEXT BLOCK
+260D  C3 BF25           	JMP	DEL2	;FINISH UP
+
+2610  0000              DELA	DW	0	;FWA OF BLOCK TO DELETE
+2612                    	STL	'REPLAC - PROCESS REPLACE COMMAND.'
+2612                    	EJECT
+2612                    REPLAC	SPACE	4,10
+                        **	REPLACE - PROCESS REPLACE COMMAND.
+                        *
+
+2612  CD 212C           REPLAC	CALL	RCR	;REQUIRE CARRIAGE RETURN
+2615  CD 962C           REP1	CALL	SEL.	;SCAN FOR ELIGIBLE LINE
+2618  C8                	RZ			DONE
+2619  CD 182C           	CALL	PLB	;PRINT LINE BEFORE
+261C  CD 3A2A           	CALL	ATL	;ACCEPT TEXT LINE
+261F  4F                	MOV	C,A
+2620  CD 642C           	CALL	RSL	;REPLACE SINGLE LINE
+2623  CD 252A           	CALL	ACL	;ADVANCE COMMAND LINE
+2626  C8                	RZ
+2627  C3 1526           	JMP	REP1
+262A                    	STL	'PURGE - PROCESS PURGE COMMAND.'
+262A                    	EJECT
+262A                    PURGE	SPACE	4,10
+                        **	PURGE - PURGE TEXT BUFFER.
+                        *
+                        *	PURGE DELETES ALL TEXT, AND INITIALIZES THE DATA STRUCTURE.
+                        *
+                        *	THE NUMBER OF FREE BYTES REMAINING IS TYPED OUT.
+
+262A  CD 212C           PURGE	CALL	RCR	;REQUIRE CARRIAGE RETURN
+262D  CD 482A           	CALL	AYS	;ARE YOU SURE
+2630  D8                	RC			NOT;SURE
+2631  C0                	RNE			NOT;SURE
+
+                        **	PURGE. - PURGE WITHOUT WARNING.
+                        *
+
+      = 2632            PURGE.	EQU	*
+2632  21 0000           	LXI	H,0
+2635  CD AD2A           	CALL	DCC	;DISABLE CTL-C
+2638                    SAP	SPACE	4,10
+                        **	SAP - SET ALL POINERS.
+                        *
+                        *	SAP SETS THE FOLLOWING POINTERS TO A SINGLE VALUE:
+                        *
+                        *	FILPTR	FIRST LINE POINTER
+                        *	LALPTR	LAST LINE POINTER
+                        *	CRFPTR	COMMAND FIRST LINE POINTER
+                        *	CRLPTR	COMMAND LAST LINE POINTER
+                        *	WRKPTR	WROKING POINTER
+                        *
+                        *	ENTRY	(HL) = VALUE
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+2638  22 7631           SAP	SHLD	FILPTR
+263B  22 7831           	SHLD	LALPTR
+263E  22 7A31           	SHLD	CRFPTR
+2641  22 7C31           	SHLD	CRLPTR
+2644  22 7E31           	SHLD	WRKPTR
+2647  22 8031           	SHLD	PCFPTR
+264A  22 8231           	SHLD	PCLPTR
+264D  C9                	RET
+264E                    	STL	'EDITC - PROCESS EDIT COMMAND.'
+264E                    	EJECT
+264E                    EDIT	SPACE	4,10
+                        **	EDITC - PROCESS EDIT COMMAND.
+                        *
+                        *	EDIT/FROM/TO/COUNT
+
+      = 264E            EDITC	EQU	*
+264E  CD 8F2B           	CALL	GTC	;GET DELIMITER
+2651  47                	MOV	B,A	;(B) = DELIMITER
+
+                        *	READ /FROM/
+
+2652  21 D532           	LXI	H,EDIA
+2655  CD E526           	CALL	RDS	;READ DELIMITED STRING
+2658  79                	MOV	A,C	;(A) = LEN
+2659  A7                	ANA	A
+265A  CA 1923           	JZ	REFUSE	;NULL IS ILLEGAL
+
+                        *	READ /TO/ STRING
+
+265D  21 FE32           	LXI	H,EDIB
+2660  51                	MOV	D,C	;(D) = LENGTH OF /FROM/
+2661  CD E526           	CALL	RDS	;READ DELIMITED STRING
+2664  42                	MOV	B,D	;(B) = LEN(FROM), (C) = LEN(TO)
+2665  C5                	PUSH	B	;SAVE
+2666  01 0000           	LXI	B,0
+2669  CD 342B           	CALL	ENC
+266C  FE 2A             	CPI	'*'
+266E  C2 7726           	JNE	EDI0	;TO PROCESS ALL OF THEM
+2671  CD 852B           	CALL	GNC
+2674  C3 7D26           	JMP	EDI2
+
+2677  03                EDI0	INX	B	;DEFAULT COUNT = 1
+2678  FE 0A             	CPI	NL
+267A  C4 B52A           	CNE	DDN	;DECODE IF DECIMAL
+267D  CD 212C           EDI2	CALL	RCR	;REQUIRE CARRIAGE RETURN
+
+                        *	GET NEXT LINE
+
+2680  CD 962C           EDI3	CALL	SEL.	;SCAN FOR ELIGIBLE LIN
+2683  CA DD26           	JZ	EDI5	;ALL DONE
+2686  2A 7E31           	LHLD	WRKPTR
+2689  CD F12C           	CALL	$CLL	;COMPUTE LINE LENGTH
+268C  C5                	PUSH	B	;SAVE REPEAT COUNT
+268D  4F                	MOV	C,A
+268E  06 00             	MVI	B,0	;(BC) = LINE LENGTH
+2690  EB                	XCHG			(DE);= FROM
+2691  21 5D32           	LXI	H,WRKSTR
+2694  E5                	PUSH	H	;SAVE DEST ADDRESS
+2695  CD 082E           	CALL	$MOVL	;MOVE INTO WRKSTR
+2698  E1                	POP	H	;(HL) = #WRKSTR
+2699  C1                	POP	B	;(BC) = REPEAT COUNT
+269A  11 D532           	LXI	D,EDIA
+269D  CD B42C           	CALL	SFS	;SEE IF SOURCE STRING IS PRESENT
+26A0  C2 DD26           	JNZ	EDI5	;NOT FOUND
+26A3  EB                	XCHG			SAVE;(HL) IN (DE)
+26A4  CD 182C           	CALL	PLB	;PRINT LINE BEFORE
+26A7  EB                	XCHG			RESTORE;(HL)
+
+                        *	REPLACE STRING
+
+26A8  D1                	POP	D	;(D) = LEN(FROM), (E) = LEN(TO)
+26A9  C5                	PUSH	B	;SAVE REPLACEMENT COUNTS
+26AA  D5                	PUSH	D	;SAVE LENGTHS
+26AB  E5                	PUSH	H	;SAVE ADDRESS OF MATCH
+
+                        *	SOURCE LINE IS HEAD MATCH TAIL
+                        *
+                        *	MOVE TAIL TO ITS NEW POSITION TO MAKE ROOM FOR /TO/
+
+26AC  4A                	MOV	C,D	;(BC) = LEN(FROM)
+26AD  06 00             	MVI	B,0
+26AF  50                	MOV	D,B	;(DE) = LEN(TO)
+26B0  19                	DAD	D	;(HL) = NEW TIAL ADDRESS
+26B1  EB                	XCHG
+26B2  E1                	POP	H
+26B3  E5                	PUSH	H
+26B4  09                	DAD	B	;(HL) = CURRENT TAIL ADDRESS
+26B5  CD F12C           	CALL	$CLL	;COMPUTE LINE LENGTH
+26B8  06 00             	MVI	B,0
+26BA  4F                	MOV	C,A	;(BC) = LENGTH OF TAIL
+26BB  EB                	XCHG
+26BC  CD 082E           	CALL	$MOVL	;MOVE TAIL
+26BF  E1                	POP	H	;(HL) = MATCH ADDRES
+26C0  C1                	POP	B	;(BC) = LENGTHS
+26C1  C5                	PUSH	B
+26C2  06 00             	MVI	B,0
+26C4  11 FE32           	LXI	D,EDIB
+26C7  CD 082E           	CALL	$MOVL	;COPY INTO PLACE
+
+                        *	COMPRESS STRING AND PUT BACK IN BUFFER
+
+26CA  21 5D32           	LXI	H,WRKSTR
+26CD  CD F12C           	CALL	$CLL	;COMPUTE LINE LENGTH
+26D0  4F                	MOV	C,A	;(C) = LENGTH
+26D1  CD 642C           	CALL	RSL	;REPLACE SINGLE LINE
+
+                        *	DECREMENT REQUEST COUNT
+
+26D4  D1                	POP	D
+26D5  C1                	POP	B
+26D6  D5                	PUSH	D
+26D7  0B                	DCX	B
+
+                        *	SEE IF MORE TO GO
+
+26D8  78                	MOV	A,B
+26D9  B1                	ORA	C
+26DA  CA E326           	JZ	EDI6	;NO MORE LINES TO CONSIDER
+
+26DD  CD 252A           EDI5	CALL	ACL	;ADVANCE COMMAND LINE
+26E0  C2 8026           	JNZ	EDI3	;MORE TO GO
+26E3  C1                EDI6	POP	B
+26E4  C9                	RET
+26E5                    RDS	SPACE	4,10
+                        **	RDS - READ DELIMITED STRING.
+                        *
+                        *	ENTRY	(B) = DELIMITER
+                        *		(HL) = ADDRESS FOR STRING
+                        *	EXIT	(HL) UNCHANGED
+                        *		(C) = LENGTH OF STRING
+                        *	USES	A,F,C
+
+26E5  0E FF             RDS	MVI	C,377Q
+26E7  E5                	PUSH	H
+26E8  D5                	PUSH	D
+26E9  16 28             	MVI	D,40	;(D) = MAX COUNT
+26EB  15                RDS1	DCR	D
+26EC  CA 1923           	JZ	REFUSE	;TOO MANY
+26EF  CD 8F2B           	CALL	GTC	;GET TEXT CHARACTER
+26F2  77                	MOV	M,A
+26F3  23                	INX	H
+26F4  0C                	INR	C
+26F5  B8                	CMP	B
+26F6  C2 EB26           	JNE	RDS1	;NOT DELIMITER
+
+                        *	OUT OF STRING
+
+26F9  2B                	DCX	H
+26FA  36 00             	MVI	M,0	;END IT
+26FC  D1                	POP	D	;RESTORE (DE)
+26FD  E1                	POP	H
+26FE  C9                	RET
+26FF                    	STL	'FLUSH - PROCESS FLUSH COMMAND.'
+26FF                    	EJECT
+26FF                    FLUSH	SPACE	4,10
+                        **	FLUSH - PROCESS FLUSH COMMAND.
+                        *
+
+      = 26FF            FLUSH	EQU	*	;ENTRY POINT
+26FF  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+2702  3A 9431           FLUSH1	LDA	INFB+FB.FLG
+2705  F5                	PUSH	PSW	;SAVE FLAG
+2706  CD 6928           	CALL	NEXT.	;MOVE DATA THROUGH
+2709  F1                	POP	PSW
+270A  E6 02             	ANI	FT.OR
+270C  C2 0227           	JNZ	FLUSH1	;NOT AT EOF YET
+
+                        *	HAVE READ EOF. WRITE ALL.
+
+270F  21 AE31           	LXI	H,OUTFB
+2712  C3 902E           	JMP	$FCLO	;CLOSE AND EXIT
+2715                    	STL	'BYE - EXIT EDITOR'
+2715                    	EJECT
+                        ***	BYE - EXIT EDITOR.
+                        *
+                        *	BYE (CR)
+                        *
+                        *	BYE FLUSHES OUT THE EXISTING FILES, AND EXITS.
+
+2715  CD FF26           BYE	CALL	FLUSH
+2718  21 C931           	LXI	H,XOUTFB;CLOSE  *XOUT*  FILE
+271B  CD 902E           	CALL	$FCLO
+271E  AF                	XRA	A
+271F  FF 00             	SCALL	.EXIT	;EXIT
+2721                    	STL	'NEWIN - PROCESS NEWIN COMMAND.'
+2721                    	EJECT
+2721                    NEWIN	SPACE	4,10
+                        **	NEWIN - PROCESS NEWIN COMMAND.
+                        *
+
+      = 2721            NEWIN	EQU	*
+
+                        *	SET NEW 'IN' FILE
+
+2721  CD 8F2B           	CALL	GTC	;GET DELIMITER
+2724  FE 0A             	CPI	NL
+2726  CA 1923           	JE	REFUSE	;NO NAME
+2729  47                	MOV	B,A
+272A  21 D532           	LXI	H,EDIA
+272D  CD E526           	CALL	RDS	;READ DELIMITED STRING
+2730  CD 692D           	CALL	$MLU	;MAP LINE TO UPPER CASE
+2733  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+2736  CD E82B           	CALL	MIM	;REQUEST MINIMUM MEMORY
+2739  3E 11             	MVI	A,FB.NAML
+273B  B9                	CMP	C	;SEE IF TOO LONG A NAME GIVEN
+273C  DA 8427           	JC	NEWIN4	;TOO LONG
+273F  3A 9431           	LDA	INFB+FB.FLG
+2742  E6 02             	ANI	FT.OR
+2744  CA 6D27           	JZ	NEWIN1	;NOT ALREADY OPEN
+2747  CD 5E19           	CALL	$TYPTX
+274A  0A4F6C64 20496E70 	DB	NL,'Old Input File Not Finished.',' '+200Q
+2752  75742046 696C6520
+275A  4E6F7420 46696E69
+2762  73686564 2EA0
+2768  CD 482A           	CALL	AYS	;ARE YOU SURE?
+276B  D8                	RC			NOT;SURE
+276C  C0                	RNE			NOT;SURE
+276D  21 9331           NEWIN1	LXI	H,INFB
+2770  CD 902E           	CALL	$FCLO	;CLOSE OLD ONE
+2773  E5                	PUSH	H
+2774  CD BB2D           	CALL	$MOVLL
+2777  1100              	DW	FB.NAML
+2779  D532              	DW	EDIA
+277B  9D31              	DW	FB.NAM+INFB;SET NAME
+277D  E1                	POP	H
+277E  11 8D31           	LXI	D,DEFALT
+2781  C3 302E           	JMP	$FOPER	;OPEN FOR READ AND EXIT
+
+                        *	ILLEGAL FILE NAME GIVEN
+
+2784  CD 5E19           NEWIN4	CALL	$TYPTX
+2787  07496C6C 6567616C 	DB	BELL,'Illegal File Name',' '+200Q
+278F  2046696C 65204E61
+2797  6D65A0
+279A  C3 8022           	JMP	EDIX
+279D                    	STL	'NEWOUT - PROCESS NEWOUT COMMAND.'
+279D                    	EJECT
+279D                    NEWOUT	SPACE	4,10
+                        **	NEWOUT,'NAME'
+                        *
+
+      = 279D            NEWOUT	EQU	*
+
+                        *	SET NEW 'OUT' FILE
+
+279D  CD 8F2B           	CALL	GTC	;GET DELIMITER
+27A0  47                	MOV	B,A	;(B) = DELIMITER
+27A1  FE 0A             	CPI	NL
+27A3  CA 1923           	JE	REFUSE	;NO NEW FILE
+27A6  21 D532           	LXI	H,EDIA
+27A9  CD E526           	CALL	RDS	;READ DELIMITED STRING
+27AC  CD 692D           	CALL	$MLU	;MAP LINE TO UPPER CASE
+27AF  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+27B2  CD E82B           	CALL	MIM	;REQUEST MINIMUM MEMROY
+27B5  3E 11             	MVI	A,FB.NAML
+27B7  B9                	CMP	C
+27B8  DA 8427           	JC	NEWIN4	;TOO MANY CHARACTERS FOR FILE NAME
+27BB  3A AF31           	LDA	OUTFB+FB.FLG
+27BE  E6 04             	ANI	FT.OW
+27C0  CA EA27           	JZ	NEWO1	;OUTPUT CLOSED
+27C3  CD 5E19           	CALL	$TYPTX
+27C6  0A4F6C64 204F7574 	DB	NL,'Old Output File Not Finished.',' '+200Q
+27CE  70757420 46696C65
+27D6  204E6F74 2046696E
+27DE  69736865 642EA0
+27E5  CD 482A           	CALL	AYS	;SURE?
+27E8  D8                	RC			NOT;SURE
+27E9  C0                	RNE			NOT;SURE
+27EA  21 AE31           NEWO1	LXI	H,OUTFB
+27ED  CD 902E           	CALL	$FCLO	;CLOSE OLD STUFF
+27F0  E5                	PUSH	H
+27F1  CD BB2D           	CALL	$MOVLL
+27F4  1100              	DW	FB.NAML
+27F6  D532              	DW	EDIA
+27F8  B831              	DW	OUTFB+FB.NAM
+27FA  E1                	POP	H	;(HL) = FB ADDRESS
+27FB  11 8D31           	LXI	D,DEFALT
+27FE  C3 372E           	JMP	$FOPEW	;OPEN FOR WRITE AND EXIT
+2801                    	STL	'XOUT	-  PROCESS XOUT COMMAND'
+2801                    	EJECT
+2801                    XOUT	SPACE	4,10
+                        **	XOUT	-  PROCESS XOUT COMMAND
+                        *
+                        *	XOUT closes any currently specified XPRINT channel,
+                        *	and opens the newly specified one.
+
+      = 2801            XOUT	EQU	*
+
+                        *	SET NEW 'OUT' FILE
+
+2801  CD 8F2B           	CALL	GTC
+2804  47                	MOV	B,A
+2805  FE 0A             	CPI	NL
+2807  CA 1923           	JE	REFUSE	;NO NEW FILE
+
+280A  21 D532           	LXI	H,EDIA
+280D  CD E526           	CALL	RDS	;READ DELIMITED STRING
+2810  CD 692D           	CALL	$MLU	;MAP TO UPPER CASE
+2813  CD 212C           	CALL	RCR	;GET NEWLINE
+2816  CD E82B           	CALL	MIM	;MINIMUM MEMORY
+
+2819  3E 11             	MVI	A,FB.NAML
+281B  B9                	CMP	C
+281C  DA 8427           	JC	NEWIN4	;TOO MANY CHARACTERS
+
+281F  3A CA31           	LDA	XOUTFB+FB.FLG
+2822  E6 04             	ANI	FT.OW
+2824  CA 4F28           	JZ	XOUT1	;OUTPUT CLOSED
+
+2827  CD 5E19           	CALL	$TYPTX
+282A  0A4F6C64 20584F55 	DB	NL,'Old XOUT File is not finished.',' '+200Q
+2832  54204669 6C652069
+283A  73206E6F 74206669
+2842  6E697368 65642EA0
+284A  CD 482A           	CALL	AYS	;SURE?
+284D  D8                	RC			NOT;SURE
+284E  C0                	RNE			NOT;SURE
+
+284F  21 C931           XOUT1	LXI	H,XOUTFB
+2852  CD 902E           	CALL	$FCLO	;CLOSE THE OLD ONES
+2855  E5                	PUSH	H
+2856  CD BB2D           	CALL	$MOVLL
+2859  1100              	DW	FB.NAML
+285B  D532              	DW	EDIA
+285D  D331              	DW	XOUTFB+FB.NAM
+285F  E1                	POP	H
+2860  11 8D31           	LXI	D,DEFALT
+2863  C3 372E           	JMP	$FOPEW	;OPEN FOR WRITE AND EXIT
+2866                    	STL	'NEXT - PROCESS NEXT COMMAND.'
+2866                    	EJECT
+2866                    NEXT	SPACE	4,10
+                        **	NEXT - PROCESS "NEXT" COMMAND.
+                        *
+
+      = 2866            NEXT	EQU	*
+2866  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+      = 2869            NEXT.	EQU	*
+2869  2A 7831           	LHLD	LALPTR
+286C  7C                	MOV	A,H
+286D  B5                	ORA	L
+286E  CA 8D28           	JZ	READ.	;NOTHING TO WRITE
+2871  CD D22C           	CALL	SLB	;SCAN LINE BACKWARDS
+2874  22 7C31           	SHLD	CRLPTR
+2877  22 7E31           	SHLD	WRKPTR
+287A  22 7A31           	SHLD	CRFPTR
+287D  CD CC29           	CALL	WRITE.	;WRITE ALL
+2880  C3 8D28           	JMP	READ.	;LOAD BACK UP
+2883                    	STL	'READ - PROCESS READ COMMAND.'
+2883                    	EJECT
+2883                    READ	SPACE	4,10
+                        **	READ - READ LINES FROM FILE.
+                        *
+
+      = 2883            READ	EQU	*
+2883  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+2886  CD 8D28           	CALL	READ.
+2889  DA 8D2A           	JC	CBO1	;NO ROOM
+288C  C9                	RET
+
+288D  3A 9431           READ.	LDA	INFB+FB.FLG
+2890  E6 02             	ANI	FT.OR
+2892  CA C728           	JZ	READ2	;AT EOF
+2895  2A 7831           READ0	LHLD	LALPTR	;(HL) = LAST LINE POINTER
+2898  7C                	MOV	A,H
+2899  B5                	ORA	L
+289A  C2 A328           	JNZ	READ1	;NOT EMPTY
+289D  21 6538           	LXI	H,BUFFER
+28A0  CD 3826           	CALL	SAP	;SET ALL POINTERS IF NOT TEXT YET
+28A3  11 0002           READ1	LXI	D,512	;(DE) = ROOM TO LEAVE IN BUFFER
+28A6  19                	DAD	D
+28A7  EB                	XCHG			(DE);= PROPOSED NEW LALPTR
+28A8  2A 8631           	LHLD	BUFMAX
+28AB  7D                	MOV	A,L	;SEE IF WOULD EXCEDE MEMORY
+28AC  93                	SUB	E
+28AD  7C                	MOV	A,H
+28AE  9A                	SBB	D
+28AF  D8                	RC			CBO1;=> NO ROOM
+
+                        *	HAVE ROOM. READ A LINE.
+
+28B0  2A 7831           	LHLD	LALPTR
+28B3  EB                	XCHG
+28B4  01 8000           	LXI	B,128
+28B7  21 9331           	LXI	H,INFB
+28BA  CD D52E           	CALL	$FREAL	;READ LINE
+28BD  DA C728           	JC	READ2	;EOF
+28C0  EB                	XCHG			(HL);= NEW LWA+1
+28C1  22 7831           	SHLD	LALPTR	;UPDATE POINTER
+28C4  C3 9528           	JMP	READ0	;READ SOME MORE
+
+                        *	AT EOF
+
+28C7  CD 5E19           READ2	CALL	$TYPTX
+28CA  0A456E64 206F6620 	DB	NL,'End of Fil','e'+200Q
+28D2  46696CE5
+28D6  21 9331           	LXI	H,INFB
+28D9  CD 902E           	CALL	$FCLO	;CLOSE BUFFER: AM DONE
+28DC  37                	STC
+28DD  3F                	CMC			CLEAR;CARRY
+28DE  C9                	RET
+28DF                    	STL	'SEARCH - SEARCH COMMAND.'
+28DF                    	EJECT
+28DF                    SEARCH	SPACE	4,10
+                        **	SEARCH - PROCESS SEARCH COMMAND.
+                        *
+
+      = 28DF            SEARCH	EQU	*
+
+                        *	DECODE SEARCH STRING
+
+28DF  CD 8F2B           	CALL	GTC	;GET DELIMITER
+28E2  47                	MOV	B,A	;(B) = DELIMITER
+28E3  21 D532           	LXI	H,EDIA
+28E6  CD E526           	CALL	RDS	;READ DELIMITER STRING
+28E9  79                	MOV	A,C
+28EA  A7                	ANA	A
+28EB  CA 1923           	JZ	REFUSE	;NULL STRING IS ILLEGAL
+28EE  CD 212C           	CALL	RCR	;REQUIRE CR
+
+                        *	TRY TO FIND LINE.
+
+28F1  2A 7831           SEA0	LHLD	LALPTR
+28F4  7C                	MOV	A,H
+28F5  B5                	ORA	L
+28F6  CA 1729           	JZ	SEA2	;NO DATA IN BUFFER
+28F9  CD D22C           	CALL	SLB	;SCAN LINE BACKWARDS
+28FC  22 7C31           	SHLD	CRLPTR	;SET COMMAND LIMIT
+28FF  CD 962C           SEA1	CALL	SEL.	;SCAN FOR ELIGIBLE LINE
+2902  CA 1729           	JZ	SEA2	;NONE IN BUFFER
+2905  2A 7E31           	LHLD	WRKPTR	;(HL) = ADDRESS OF TEXT LINE
+2908  11 D532           	LXI	D,EDIA
+290B  CD B42C           	CALL	SFS	;SEE IF FOUND
+290E  CA 2E29           	JZ	SEA3	;FOUND IT
+2911  CD 252A           	CALL	ACL	;ADVANCE LINE
+2914  C2 FF28           	JNZ	SEA1	;MORE GO TO
+
+                        *	NOT FOUND IN THIS BUFFER.
+
+2917  3A 9431           SEA2	LDA	INFB+FB.FLG
+291A  E6 02             	ANI	FT.OR
+291C  CA 3C29           	JZ	SEA4	;AT END OF FILE
+291F  CD 6928           	CALL	NEXT.	;ADVANCE TEXT
+2922  2A 7631           	LHLD	FILPTR
+2925  22 7A31           	SHLD	CRFPTR
+2928  22 7E31           	SHLD	WRKPTR
+292B  C3 F128           	JMP	SEA0
+
+                        *	FOUND IT
+
+292E  F3                SEA3	DI			LOCK;OUT CTL-C
+292F  2A 7E31           	LHLD	WRKPTR
+2932  22 8031           	SHLD	PCFPTR
+2935  22 8231           	SHLD	PCLPTR	;SET BOUNDS TO FOUND LINE
+2938  FB                	EI			RE-ALLOW;CTL-C
+2939  C3 102C           	JMP	PLA	;PRINT LINE AFTER
+
+                        *	NOT FOUND ANYWHERE.
+
+293C  CD 5E19           SEA4	CALL	$TYPTX
+293F  0A4E6F74 20466F75 	DB	NL,'Not Foun','d'+200Q
+2947  6EE4
+2949  C9                	RET
+294A                    	STL	'USE - PROCESS USE COMMAND.'
+294A                    	EJECT
+294A                    USE	SPACE	4,10
+                        **	USE - TYPE MEMORY STATISTICS.
+                        *
+
+      = 294A            USE	EQU	*
+294A  CD 212C           	CALL	RCR	;REQUIRE CARRIAGE RETURN
+294D  01 0000           	LXI	B,0	;(BC) = LINE COUNT
+
+2950  CD 992C           USE1	CALL	SEL	;SCAN FOR ELIGIBLE LINE
+2953  CA 6329           	JZ	USE2	;NO MORE
+2956  03                	INX	B	;COUNT LINE
+2957  CD 182C           	CALL	PLB	;PRINT LINE BEFORE
+295A  CD 102C           	CALL	PLA	;PRINT LINE AFTER
+295D  CD 252A           	CALL	ACL	;ADVANCE COMMAND LINE
+2960  C2 5029           	JNZ	USE1	;LOOP IF MORE IN RANGE
+
+                        *	(BC) = COUNT OF LINES WITHIN RANGE
+
+2963  3E 05             USE2	MVI	A,5
+2965  21 A629           	LXI	H,USEB
+2968  CD 6F19           	CALL	$UDD
+296B  2A 7631           	LHLD	FILPTR
+296E  EB                	XCHG			(DE);= FIRST TEXT BYTE ADDRESS
+296F  2A 7831           	LHLD	LALPTR	;(HL) = LAST TEXT BYTE ADDRESS
+2972  E5                	PUSH	H	;SAVE
+2973  7D                	MOV	A,L
+2974  93                	SUB	E
+2975  4F                	MOV	C,A
+2976  7C                	MOV	A,H
+2977  9A                	SBB	D
+2978  47                	MOV	B,A	;(BC) = BYTES USED
+2979  3E 05             	MVI	A,5
+297B  21 B429           	LXI	H,USEC
+297E  CD 6F19           	CALL	$UDD
+2981  D1                	POP	D	;(DE) = LAST
+2982  7A                	MOV	A,D
+2983  B3                	ORA	E
+2984  C2 8A29           	JNZ	USE3	;NON-ZERO
+2987  11 6538           	LXI	D,BUFFER
+      = 298A            USE3	EQU	*
+298A  2A 8631           	LHLD	BUFMAX	;(HL) = MAX BUFFER SIZE
+298D  7D                	MOV	A,L
+298E  93                	SUB	E
+298F  4F                	MOV	C,A
+2990  7C                	MOV	A,H
+2991  9A                	SBB	D
+2992  47                	MOV	B,A	;(BC) = AMOUNT UNUSED
+2993  3E 05             	MVI	A,5
+2995  21 C229           	LXI	H,USED
+2998  CD 6F19           	CALL	$UDD	;UNPACK COUNT
+299B  CD 5E19           	CALL	$TYPTX
+299E  4C696E65 73203D20 	DB	'Lines = '
+29A6  58585858 580A5573 USEB	DB	'XXXXX',NL,'Used  = '
+29AE  65642020 3D20
+29B4  58585858 580A4672 USEC	DB	'XXXXX',NL,'Free  = '
+29BC  65652020 3D20
+29C2  58585858 588A     USED	DB	'XXXXX',ENL
+29C8  C9                	RET
+29C9                    	STL	'WRITE - PROCESS WRITE COMMAND.'
+29C9                    	EJECT
+29C9                    WRITE	SPACE	4,10
+                        **	WRITE - WRITE LINES TO OUTPUT FILE.
+                        *
+                        *	WRITE TEXT BLOCKS FROM THE TOP OF THE BUFFER UNTIL THE CURRENT
+                        *	LINE
+
+      = 29C9            WRITE	EQU	*
+29C9  CD 212C           	CALL	RCR
+29CC  3E 00             WRITE.	MVI	A,MI.NOP;DELETE TEXT AFTER WRITE
+29CE  32 FC29           WRI..	STA	WRIA	;SET FLAG
+29D1  2A 7631           	LHLD	FILPTR
+29D4  22 7E31           	SHLD	WRKPTR	;START AT TOP OF TEXT
+29D7  3A AF31           	LDA	OUTFB+FB.FLG
+29DA  E6 04             	ANI	FT.OW
+29DC  CA 0F2A           	JZ	WRI4	;REQUIRE NEWOUT
+
+                        *	SEE IF MORE TEXT TO WRITE.
+
+29DF  2A 7A31           	LHLD	CRFPTR
+29E2  7C                	MOV	A,H
+29E3  B5                	ORA	L
+29E4  CA FC29           	JZ	WRI3	;NO DATA
+
+                        *	WRITE ANOTHER LINE
+
+29E7  2A 7E31           	LHLD	WRKPTR
+29EA  EB                	XCHG			(DE);= CURRENT LINE
+29EB  2A 7A31           WRI1	LHLD	CRFPTR	;(HL) = LIMIT
+29EE  CD 8E18           	CALL	$CDEHL	;COMPARE
+29F1  F5                	PUSH	PSW	;SAVE RESULTS
+29F2  21 AE31           	LXI	H,OUTFB
+29F5  CD 582F           	CALL	$FWRIL	;WRITE LINE
+29F8  F1                	POP	PSW	;(A) = RESULTS OF TEST
+29F9  C2 EB29           	JNE	WRI1	;MORE TO TO
+
+                        *	END OF WRITTING. DELETE LINES WRITTEN.
+
+      = 29FC            WRI3	EQU	*
+29FC  00                WRIA	NOP			SET;TO *RET* FOR SAVE
+29FD  2A 7A31           	LHLD	CRFPTR
+2A00  22 7C31           	SHLD	CRLPTR	;SET LINES WRITTEN AS COMMAND RANGE
+2A03  2A 7631           	LHLD	FILPTR
+2A06  22 7A31           	SHLD	CRFPTR
+2A09  22 7E31           	SHLD	WRKPTR
+2A0C  C3 9125           	JMP	DEL0	;DELETE
+
+                        *	REQUIRE NEWOUT
+
+2A0F  CD 5E19           WRI4	CALL	$TYPTX
+2A12  0A074E6F 204F7574 	DB	NL,BELL,'No Output Fil','e'+200Q
+2A1A  70757420 46696CE5
+2A22  C3 8022           	JMP	EDIX
+2A25                    	STL	'SUBROUTINES.'
+2A25                    	EJECT
+2A25                    ACL	SPACE	4,10
+                        **	ACL - ADVANCE COMMAND LINE.
+                        *
+                        *	ACL ADVANCES WRKPTR TO THE NEXT COMMAND LINE.
+                        *
+                        *	EXIT	(WRKPTR) UPDATED
+                        *		(HL) = (WRKPTR)
+                        *		'Z' SET IF AT END OF RANGE
+                        *	USES	A,F,H,L
+
+2A25  D5                ACL	PUSH	D
+2A26  2A 7C31           	LHLD	CRLPTR
+2A29  EB                	XCHG
+2A2A  2A 7E31           	LHLD	WRKPTR
+2A2D  CD 8E18           	CALL	$CDEHL	;COMPARE
+2A30  D1                	POP	D
+2A31  C8                	RZ			IF;AT END
+2A32  CD DB2C           	CALL	SNL	;SCAN TO NEXT LINE
+2A35  22 7E31           	SHLD	WRKPTR
+2A38  B4                	ORA	H	;CLEAR 'Z'
+2A39  C9                	RET
+2A3A                    ATL	SPACE	4,10
+                        **	ATL - ACCEPT TEXT LINE
+                        *
+                        *	ATL READS A LINE OF TEXT FROM THE CONSOLE INTO *LINE*.
+                        *
+                        *	THE LINE IS TERMINATED BY A 00 BYTE
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(HL) = #LINE
+                        *		(A) = BYTE COUNT
+                        *	USES	A,F,H,L
+
+2A3A  21 E531           ATL	LXI	H,LINE
+2A3D  AF                	XRA	A
+2A3E  32 D620           	STA	S.CSLMD	;SET LINE-MODE INPUT
+2A41  CD 9B2D           	CALL	$RTL	;READ LINE
+2A44  D0                	RNC			NOT;CTL-D
+2A45  C3 2A23           	JMP	EXIT	;CTL-D STRUCK
+2A48                    AYS	SPACE	4,10
+                        **	AYS - ASK ARE YOU SURE?
+                        *
+                        *	AYS PROMPTS THE USER, 'SURE?'
+                        *	AND GETS HIS REPLY.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	'C' SET IF CTL-D
+                        *		'C' CLEAR IF NOT CTL-D
+                        *		 'Z' SET IF SURE
+                        *	USES	ALL
+
+2A48  CD 5E19           AYS	CALL	$TYPTX
+2A4B  07417265 20596F75 	DB	BELL,'Are You Sure?',' '+200Q
+2A53  20537572 653FA0
+2A5A  CD E12D           	CALL	$RCHAR
+2A5D  CD E72D           	CALL	$WCHAR	;ECHO
+2A60  CD 852D           	CALL	$MCU	;MAP TO UPPER
+2A63  FE 04             	CPI	CTLD
+2A65  37                	STC			ASSUME;CTL-D
+2A66  C8                	RE			CTL-D
+2A67  D6 59             	SUI	'Y'	;SEE IF 'Y'
+2A69  A7                	ANA	A	;CLEAR CARRY
+2A6A  C9                	RET			RETURN;WITH CODES SET
+2A6B                    CBE	SPACE	3,10
+                        **	CBE - CHECK FOR BUFFER EMPTY.
+                        *
+                        *	IF FILPTR=LALPTR, ZERO POINTERS.
+
+2A6B  2A 7631           CBE	LHLD	FILPTR
+2A6E  EB                	XCHG
+2A6F  2A 7831           	LHLD	LALPTR
+2A72  CD 8E18           	CALL	$CDEHL
+2A75  C0                	RNE			NOT;EMPTY
+2A76  C3 3226           	JMP	PURGE.	;HAVE DELETED ALL.
+2A79                    CBO	SPACE	4,10
+                        **	CBO - CHECK BUFFER OVERFLOW
+                        *
+                        *	CBO IS CALLED BY COMMANDS WHICH MAY INCREASE THE SIZE
+                        *	OF THE BUFFER TEXT. IF THERE IS NOT ROOM ENOUGH FOR
+                        *	THE MAXIMUM SIZE INCREASE (120 CHARACTERS), AN OVERFLOW
+                        *	IS DECLARED.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	TO (RET) IF OK
+                        *	USES	A,F
+
+2A79  E5                CBO	PUSH	H
+2A7A  D5                	PUSH	D
+2A7B  2A 7831           	LHLD	LALPTR
+2A7E  11 7800           	LXI	D,120
+2A81  19                	DAD	D
+2A82  EB                	XCHG			(DE);= NEW LIMIT
+2A83  2A 8631           	LHLD	BUFMAX
+2A86  7D                	MOV	A,L
+2A87  93                	SUB	E
+2A88  7C                	MOV	A,H
+2A89  9A                	SBB	D
+2A8A  D1                	POP	D
+2A8B  E1                	POP	H
+2A8C  D0                	RNC			IS;OK
+2A8D  CD 5E19           CBO1	CALL	$TYPTX
+2A90  0A074E6F 7420456E 	DB	NL,BELL,'Not Enough RA','M'+200Q
+2A98  6F756768 205241CD
+2AA0  C3 8022           	JMP	EDIX	;ABORT COMMAND
+2AA3                    CDV	SPACE	4,10
+                        **	CDV - CHECK DECIMAL VALIDITY.
+                        *
+                        *	CDV EXAMINES THE NEXT CHARACTER TO SEE IF IT IS A DECIMAL
+                        *	DIGIT.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NEXT CHARACTER NOT READ
+                        *		'C' SET IF OK
+                        *		 (A) = DIGIT VALUE (0=9)
+                        *		'C' SET IF NOT DECIMAL DIGIT
+
+2AA3  CD 342B           CDV	CALL	ENC	;EXAMINE NEXT CHARACTER
+2AA6  D6 30             	SUI	'0'
+2AA8  D8                	RC
+2AA9  FE 0A             	CPI	9+1
+2AAB  3F                	CMC
+2AAC  C9                	RET
+2AAD                    DCC	SPACE	4,10
+                        **	DCC - DISABLE CTL-C PROCESSING.
+                        *
+                        *	DCC IS CALLED WHEN A PROCESSOR IS ABOUT TO ENTER SENSITIVE CODE.
+                        *	CTL-C'S WILL BE HELD UNTIL A COMPANION CALL TO 'ECC' IS MADE.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+2AAD  F5                DCC	PUSH	PSW
+2AAE  3E 01             	MVI	A,1
+2AB0  32 8431           	STA	CCFLG	;FLAG DISABLED
+2AB3  F1                	POP	PSW
+2AB4  C9                	RET
+2AB5                    DDN	SPACE	4,10
+                        **	DDN - DEOCDE DECIMAL NUMBER.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(BC) = VALUE (IF NON-NULL)
+                        *		TO 'REFUSE' IF NULL
+                        *	USES	A,B,C,F
+
+2AB5  E5                DDN	PUSH	H
+2AB6  D5                	PUSH	D
+2AB7  CD A32A           	CALL	CDV	;CHECK DECIMAL VALUE
+2ABA  DA 1923           	JC	REFUSE	;NOT DECIMAL DIGIT
+2ABD  11 0000           	LXI	D,0	;(DE) = ACCUMULATOR
+2AC0  CD A32A           DDN1	CALL	CDV	;CHECK DECIMAL VALUE
+2AC3  DA DA2A           	JC	DDN2	;NO MORE DIGITS
+2AC6  CD D418           	CALL	$MU10	;(HL) = (DE)*10
+2AC9  DA 1923           	JC	REFUSE	;OVERFLOW
+2ACC  5F                	MOV	E,A
+2ACD  16 00             	MVI	D,0	;(DE) = DIGIT VALUE
+2ACF  19                	DAD	D
+2AD0  DA 1923           	JC	REFUSE	;NO GOOD
+2AD3  EB                	XCHG			(DE);= VALUE
+2AD4  CD 852B           	CALL	GNC	;READ DECIMAL VALUE
+2AD7  C3 C02A           	JMP	DDN1	;ACCEPT ANOTHER
+
+                        *	NUMBER ACCUMULATED, RETURN.
+
+2ADA  42                DDN2	MOV	B,D
+2ADB  4B                	MOV	C,E
+2ADC  D1                	POP	D
+2ADD  E1                	POP	H
+2ADE  C9                	RET
+2ADF                    DTBK	SPACE	4,10
+                        **	DTBK	-  DELETE TEXT BLOCK
+                        *
+                        *	DTBK DELETES THE SPECIFIED TEXT BLOCK FROM THE TABLE
+                        *
+                        *
+                        *	ENTRY:	A	=  COUNT
+                        *		HL	=  ADDRESS IN BLOCK
+                        *
+                        *	EXIT:	NONE
+                        *
+                        *	USES:	PSW
+
+2ADF  C5                DTBK	PUSH	B
+2AE0  4F                	MOV	C,A
+2AE1  06 00             	MVI	B,0	;BC = FULL WORD COUNT
+2AE3  CD E82A           	CALL	DTBK.
+2AE6  C1                	POP	B
+2AE7  C9                	RET
+2AE8                    DTBK.	SPACE	4,10
+                        **	BC	= FULL WORD COUNT
+                        *
+
+2AE8  E5                DTBK.	PUSH	H
+2AE9  D5                	PUSH	D
+2AEA  EB                	XCHG			DE;= BUFFER ADDRESS
+
+                        *	FIX POINTERS THAT WILL MOVE
+
+2AEB  2A 7C31           	LHLD	CRLPTR	;HL = CURRENT RANGE LAST POINTER
+2AEE  CD 8E2D           	CALL	CPDEHL
+2AF1  DA FD2A           	JC	DTBK1	;DELETION IS NOT IN RANGE
+2AF4  CA FD2A           	JZ	DTBK1	;DELETION IS NOT IN RANGE
+
+2AF7  CD 162B           	CALL	DTBK3	;HL = HL - BC
+2AFA  22 7C31           	SHLD	CRLPTR
+      = 2AFD            DTBK1	EQU	*
+
+2AFD  2A 7831           	LHLD	LALPTR
+2B00  E5                	PUSH	H
+2B01  CD 162B           	CALL	DTBK3	;HL = HL - BC
+2B04  22 7831           	SHLD	LALPTR
+2B07  E1                	POP	H
+
+2B08  EB                	XCHG			HL;= ADDRESS IN BUFFER
+2B09  E5                	PUSH	H	;SAVE DESTINATION
+2B0A  09                	DAD	B
+2B0B  EB                	XCHG			DE;= SOURCE ADDRESS
+2B0C  CD 1D2B           	CALL	DTBK4	;BC = HL - DE
+2B0F  E1                	POP	H	;HL = DESTINATION ADDRESS
+
+2B10  CD 082E           DTBK2	CALL	$MOVL
+
+2B13  D1                	POP	D
+2B14  E1                	POP	H
+2B15  C9                	RET
+2B16                    	SPACE	4,10
+2B16  7D                DTBK3	MOV	A,L
+2B17  91                	SUB	C
+2B18  6F                	MOV	L,A
+2B19  7C                	MOV	A,H
+2B1A  98                	SBB	B
+2B1B  67                	MOV	H,A
+2B1C  C9                	RET
+2B1D                    	SPACE	4,10
+2B1D  7D                DTBK4	MOV	A,L
+2B1E  93                	SUB	E
+2B1F  4F                	MOV	C,A
+2B20  7C                	MOV	A,H
+2B21  9A                	SBB	D
+2B22  47                	MOV	B,A
+2B23  C9                	RET
+2B24                    ECC	SPACE	4,10
+                        **	ECC - ENABLE CTL-C.
+                        *
+                        *	ECC IS CALLED TO RESTORE CTL-C PROCESSING AFTER
+                        *	A CALL TO *DCC*
+                        *
+                        *	IF A CTL-C WAS HIT IN THE INTERIM, IT WILL BE PROCESSED NOW.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	TO CTL-C PROCESSOR IF ONE WAS STRUCK
+                        *	USES	NONE
+
+2B24  F5                ECC	PUSH	PSW
+2B25  F3                	DI			INTERLOCK
+2B26  AF                	XRA	A
+2B27  32 8431           	STA	CCFLG	;CLEAR FLAG
+2B2A  3A 8531           	LDA	CCPEND
+2B2D  FB                	EI
+2B2E  A7                	ANA	A
+2B2F  C2 0123           	JNZ	INTRPT. ;PROCESS THAT NOW			/3.0a/
+2B32  F1                	POP	PSW
+2B33  C9                	RET
+2B34                    ENC	SPACE	4,10
+                        **	ENC - EXAMINE NEXT CHARACTER.
+                        *
+                        *	ENC RETURNS A PREVIEW OF THE NEXT INPUT CHARACTER. THE CHARACTER
+                        *	'POINTER' IS NOT UPDATED.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = CHARACTER
+                        *	USES	A,F
+
+2B34  3A 6E2B           ENC	LDA	ENCA
+2B37  A7                	ANA	A
+2B38  C0                	RNZ			HAVE;CHARACTER
+
+                        *	MUST READ ANOTHER CHARACTER FROM LINE OR TERMINAL.
+
+2B39  E5                	PUSH	H
+2B3A  2A 8831           	LHLD	LINPTR
+2B3D  7D                	MOV	A,L
+2B3E  3C                	INR	A
+2B3F  F5                	PUSH	PSW	;SAVE FOR LATER COMPARE
+2B40  7E                	MOV	A,M	;(A) = CHARACTER
+2B41  23                	INX	H
+2B42  A7                	ANA	A
+2B43  C2 5F2B           	JNZ	ENC1	;GOT CHARACTER IN LINE
+
+                        *	MUST READ ANOTHER CHARACTER FROM TERMINAL
+
+2B46  3A 8A31           	LDA	PROCHA
+2B49  A7                	ANA	A
+2B4A  C4 E72D           	CNZ	$WCHAR	;ECHO PROBATION CHARACTER
+2B4D  CD 0D2D           	CALL	$INCHA	;READ ANOTHER CHARACTER
+2B50  FE 04             	CPI	CTLD
+2B52  CA 2A23           	JE	EXIT	;IS CTL-D
+2B55  2A 8831           	LHLD	LINPTR
+2B58  77                	MOV	M,A	;STORE IN LINE
+2B59  32 8A31           	STA	PROCHA	;PUT ON 'PROBATION'
+2B5C  23                	INX	H
+2B5D  36 00             	MVI	M,0
+2B5F  22 8831           ENC1	SHLD	LINPTR	;UPDATE LINE POINTER
+2B62  32 6E2B           	STA	ENCA	;SET PRE-READ CHARACTER
+2B65  67                	MOV	H,A	;SAVE CHARACTER
+2B66  F1                	POP	PSW	;(A) = PREVIOUS *L* VALUE+1
+2B67  BD                	CMP	L
+2B68  C2 A822           	JNE	EDI1	;BACKSPACE OR RUBBOUT
+2B6B  7C                	MOV	A,H	;(A) = SAVED CHARACTER
+2B6C  E1                	POP	H	;RESTORE (HL)
+2B6D  C9                	RET
+
+2B6E  00                ENCA	DB	0	;HELD CHARACTER
+2B6F                    ERROR	SPACE	4,10
+                        **	ERROR - PROCESS ERROR MESSAGES.
+                        *
+                        *	ERROR IS CALLED WHEN A FILE ERROR OCCURS.
+                        *	IT EXITS TO *RESTART*, WHICH CLEANS THE STACK.
+                        *
+                        *	ENTRY	(A) = ERROR CODE
+                        *	EXIT	TO RESTART
+                        *	USES	ALL
+
+2B6F  F5                ERROR	PUSH	PSW	;SAVE CODE
+2B70  CD 5E19           	CALL	$TYPTX
+2B73  0A074572 726F7220 	DB	NL,BELL,'Error -',' '+200Q
+2B7B  2DA0
+2B7D  F1                	POP	PSW
+2B7E  26 0A             	MVI	H,NL
+2B80  FF 2F             	SCALL	.ERROR
+2B82  C3 8022           	JMP	RESTART
+2B85                    GNC	SPACE	4,10
+                        **	GNC - GET NEXT CHARACTER.
+                        *
+                        *	GNC READS THE NEXT CHARACTER, AND ADVANCES THE POINTER.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = CHARACTER
+                        *	USES	A,F
+
+2B85  CD 342B           GNC	CALL	ENC	;EXAMINE NEXT
+2B88  F5                	PUSH	PSW	;SAVE CHARACTER
+2B89  AF                	XRA	A
+2B8A  32 6E2B           	STA	ENCA	;CLEAR HELD CHARACTER
+2B8D  F1                	POP	PSW
+2B8E  C9                	RET
+2B8F                    GTC	SPACE	4,10
+                        **	GTC - GET TEXT CHARACTER.
+                        *
+                        *	GTC GETS A CHARACTER FROM THE INPUT STREAM, AND REQUIRES IT TO B
+                        *	PRINTABLE CHARACTER.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = CHARACTER
+                        *	USES	A,F
+
+2B8F  CD 342B           GTC	CALL	ENC
+2B92  FE 09             	CPI	TAB
+2B94  CA 852B           	JE	GNC	;ALLOW TABS
+2B97  FE 0C             	CPI	FF
+2B99  CA 852B           	JE	GNC	;ALLOW FORM FEEDS
+2B9C  FE 20             	CPI	20H
+2B9E  DA 1923           	JC	REFUSE	;BAD
+2BA1  C3 852B           	JMP	GNC	;GET IT AND RETURN
+2BA4                    ITBK	SPACE	4,10
+                        **	ITBK	-  INSERT TEXT BLOCK
+                        *
+                        *	ITBK INSERTS THE SPECIFIED NUMBER OF BYTES INTO
+                        *	THE SPECIFIED TEXT BLOCK AT THE SPECIFIED ADDRESS.
+                        *
+                        *
+                        *	ENTRY:	A	= COUNT
+                        *		HL	= ADDRESS IN BUFFER
+                        *
+                        *	EXIT:	NONE
+                        *
+                        *	USES:	PSW
+
+2BA4  C5                ITBK	PUSH	B
+2BA5  4F                	MOV	C,A
+2BA6  06 00             	MVI	B,0	;BC = FULL WORD COUNT
+2BA8  CD AD2B           	CALL	ITBK.
+2BAB  C1                	POP	B
+2BAC  C9                	RET
+2BAD                    ITBK.	SPACE	4,10
+                        **	BC	= FULL WORD COUNT
+                        *
+
+2BAD  E5                ITBK.	PUSH	H
+2BAE  D5                	PUSH	D
+2BAF  EB                	XCHG			DE;= ADDRESS IN BUFFER
+
+                        *	FIX MOVING POINTERS
+
+2BB0  2A 7C31           	LHLD	CRLPTR
+2BB3  CD 8E2D           	CALL	CPDEHL
+2BB6  DA C02B           	JC	ITBK1	;DELETION IS NOT IN RANGE
+2BB9  CA C02B           	JZ	ITBK1	;DELETION IS NOT IN RANGE
+
+2BBC  09                	DAD	B
+2BBD  22 7C31           	SHLD	CRLPTR	;UPDATE CURRENT RANGE LAST POINTER
+      = 2BC0            ITBK1	EQU	*
+
+2BC0  2A 7831           	LHLD	LALPTR
+2BC3  E5                	PUSH	H
+2BC4  09                	DAD	B
+2BC5  22 7831           	SHLD	LALPTR
+2BC8  E1                	POP	H
+
+2BC9  C5                	PUSH	B	;SAVE COUNT
+2BCA  CD 1D2B           	CALL	DTBK4	;BC = HL - DE
+2BCD  E1                	POP	H	;HL = COUNT
+2BCE  19                	DAD	D	;HL = HL + DE = DESTINATION
+
+2BCF  C3 102B           	JMP	DTBK2	;MOVE IT OUT
+2BD2                    LQS	SPACE	4,10
+                        **	LQS - LOCATE QUOTED STRING.
+                        *
+                        *	LQS FINDS A QUOTED STRING IN A TEXT LINE.
+                        *
+                        *	THE LINE IS EXPANDED INTO WRKSTR, AND THE SEARCH IS MADE.
+                        *
+                        *	ENTRY	(HL) = ADDRSS OF STRING
+                        *	EXIT	'Z' SET IF FOUND
+                        *		(DE) = ADDRESS IN LINWRK, IF FOUND
+                        *		(HL) UNCHANGED
+                        *	USES	A,F,D,E
+
+2BD2  EB                LQS	XCHG
+2BD3  2A 7E31           	LHLD	WRKPTR	;POINT TO TEXT
+2BD6  CD B42C           	CALL	SFS	;SEARCH FOR STRING
+2BD9  EB                	XCHG
+2BDA  C9                	RET
+2BDB                    MAM	SPACE	4,10
+                        **	MAM - REQUEST MAXIMUM MEMORY ALLOCATION.
+                        *
+                        *	MAM REQUESTS THE MAXIMUM MEMORY AVAILABLE SO THAT THE HDOS OVERLAY
+                        *	CAN REMAIN RESIDENT.
+                        *
+                        *	THE SPACE IS GIVEN TO *BUFFER*.
+                        *
+                        *	* * NOTE * * - SOME OF THE MOVE AND MANAGEMENT ROUTINES
+                        *	USED BY *EDIT* CANNOT HANDLE TRANSFERS OF >32768, THEREFORE
+                        *	MAM REFUSES TO ALLOCATE MORE THAN 32000 TO THE BUFFER.
+                        *	DONT CHANGE THIS WITHOUT CAREFULLY CHECKING THINGS.
+                        *
+                        *	* * NOTE * * - THIS HOPEFULLY HAS BEEN FIXED AS OF  /80.02.GC/
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+2BDB  CD 2C19           MAM	CALL	$SAVALL
+2BDE  2A D020           	LHLD	S.SYSM
+2BE1  11 F6FF           	LXI	D,-10
+2BE4  19                	DAD	D
+2BE5  C3 FA2B           	JMP	MIM1	;REQUEST AND STORE
+2BE8                    MIM	SPACE	4,10
+                        **	MIM - REQUEST MINIMUM MEMORY.
+                        *
+                        *	MIM SETS THE CURRENT PROGRAM SIZE TO THE MINIMUM POSSIBLE
+                        *	(IMMEDIATELY ABOVE THE LAST TEXT IN MEMORY)
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+2BE8  CD 2C19           MIM	CALL	$SAVALL
+2BEB  2A 7831           	LHLD	LALPTR
+2BEE  7C                	MOV	A,H
+2BEF  B5                	ORA	L
+2BF0  C2 F62B           	JNZ	MIM0	;HAVE TEXT
+
+                        *	NO TEXT, JUST LOOK AT BUFFER SIZE
+
+2BF3  21 6538           	LXI	H,BUFFER
+
+2BF6  11 2000           MIM0	LXI	D,32
+2BF9  19                	DAD	D	;ADD SOME SLOP
+2BFA  22 8631           MIM1	SHLD	BUFMAX
+2BFD  EB                	XCHG			(DE);= NEW LIMIT
+2BFE  2A D220           	LHLD	S.USRM
+2C01  CD 8E18           	CALL	$CDEHL	;SEE IF ALREADY HAVE THAT AMOUNT
+2C04  CA 2719           	JE	$RSTALL	;DONT ASK, WE HAVE IT!
+2C07  EB                	XCHG			(HL);= AMOUNT TO ASK FOR
+2C08  FF 2A             	SCALL	.SETTP
+2C0A  D2 2719           	JNC	$RSTALL	;IF OK, RESTORE AND EXIT
+2C0D  C3 6F2B           	JMP	ERROR
+2C10                    PLA	SPACE	4,10
+                        **	PLA - PRINT LINE AFTER.
+                        *
+                        *	PLA PRINTES THE LINE IF THE *A* OPTION HAS BEEN SPECIFIED.
+                        *
+                        *	ENTRY	(WRKPTR) = LINE POINTER
+                        *	EXIT	NONE
+                        *	USES	A,F
+
+2C10  3A 8C31           PLA	LDA	OPTS
+                        	ERRNZ	OPT.A-1
+2C13  1F                	RAR
+2C14  D0                	RNC			NOT;SET
+2C15  C3 E22C           	JMP	TTX.	;TYPE TEXT
+2C18                    PLB	SPACE	4,10
+                        **	PLB - PRINT LINE BEFORE.
+                        *
+                        *	PLB PRINTS THE WORKING LINE IF TGE *BEFORE* OPTION IS
+                        *	SELECTED.
+                        *
+                        *	ENTRY	(WRKPTR) = NEXT LINE TO CONSIDER
+                        *	EXIT	(HL) = (WRKPTR)
+                        *	USES	A,F,H,L
+
+2C18  3A 8C31           PLB	LDA	OPTS
+2C1B  E6 02             	ANI	OPT.B
+2C1D  C8                	RZ			NOT;SET
+2C1E  C3 E22C           	JMP	TTX.	;TYPE TEXT
+2C21                    RCR	SPACE	4,10
+                        **	RCR - REQUIRE CARRIAGE RETURN.
+                        *
+                        *	RCR IS CALLED BY THOSE COMMANDS WHICH END WITH A CARRIAGE
+                        *	RETURN, TOO MAKE SURE THAT CARRIAGE RETURN WAS ENTERED.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	A,F
+
+2C21  CD 852B           RCR	CALL	GNC
+2C24  FE 0A             	CPI	NL
+2C26  C2 1923           	JNE	REFUSE	;NO GOOD
+2C29  CD 022E           	CALL	$CRLF	;ECHO CRLF
+2C2C  E5                	PUSH	H	;SAVE (HL)
+2C2D  2A 7A31           	LHLD	CRFPTR
+2C30  22 8031           	SHLD	PCFPTR	;SAVE PREVIOUS COMMAND BOUNDS
+2C33  2A 7C31           	LHLD	CRLPTR
+2C36  22 8231           	SHLD	PCLPTR
+2C39  E1                	POP	H
+2C3A  C9                	RET
+2C3B                    RQS	SPACE	4,10
+                        **	RQS - READ QUOTED STRING
+                        *
+                        *	RQS READS A QUOTED STRING FROM THE INPUT LINE, AND PLACES
+                        *	IT IN MEMORY.
+                        *
+                        *	ENTRY	(HL) = ADDRESS FOR STRING
+                        *	EXIT	(HL) = UNCHANGED
+                        *		STRING IN MEMORY
+                        *	USES	A,F
+
+2C3B  E5                RQS	PUSH	H
+2C3C  D5                	PUSH	D	;SAVE (DE)
+2C3D  CD 852B           	CALL	GNC	;READ INITIAL QUOTE
+2C40  16 28             	MVI	D,40
+
+                        *	READ ANOTHER CHARACTER
+
+2C42  15                RQS1	DCR	D
+2C43  CA 1923           	JZ	REFUSE	;TOO MANY CHARACTERS
+2C46  CD 8F2B           	CALL	GTC	;GET TEXT CHARACTER
+2C49  FE 27             	CPI	QUOTE
+2C4B  77                	MOV	M,A	;STORE IN MEMORY
+2C4C  23                	INX	H
+2C4D  C2 422C           	JNE	RQS1	;NOT QUOTE
+
+                        *	HAVE QUOTE
+
+2C50  CD 342B           	CALL	ENC	;EXAMINE NEXT
+2C53  FE 27             	CPI	QUOTE
+2C55  C2 5E2C           	JNE	RQS2	;SONGLE QUOTE - EXIT
+
+                        *	HAVE DOUBLE QUOTE
+
+2C58  CD 8F2B           	CALL	GTC	;READ '
+2C5B  C3 422C           	JMP	RQS1
+
+                        *	END OF STRING
+
+2C5E  2B                RQS2	DCX	H
+2C5F  36 00             	MVI	M,0	;END STRING
+2C61  D1                	POP	D
+2C62  E1                	POP	H
+2C63  C9                	RET
+2C64                    RSL	SPACE	4,10
+                        **	RSL - REPLACE SINGLE LINE.
+                        *
+                        *	RSL REPLACES A SINGLE LINE IN THE TEXT BLOCK WITH A LINE
+                        *	IN MEMORY.
+                        *
+                        *	ENTRY	(HL) = REPLACEMENT LINE ADDRESS
+                        *		(C) = LENGTH
+                        *		(WRKPTR) = ADDRESS IN BLOCK OF LINE TO REPLACE
+                        *	EXIT	LINE REPLACED
+                        *	USES
+
+2C64  CD AD2A           RSL	CALL	DCC	;DISABLE CTL-C
+2C67  EB                	XCHG
+2C68  2A 7E31           	LHLD	WRKPTR
+2C6B  CD F12C           	CALL	$CLL	;CHECK OLD LINE LENGTH
+2C6E  91                	SUB	C	;OLD - NEW
+2C6F  DA 782C           	JC	RSL1	;OLD < NEW
+
+                        *	OLD >= NEW, DELETE EXTRA BYTES
+
+2C72  CD DF2A           	CALL	DTBK	;DELETE BLOCK
+2C75  C3 7D2C           	JMP	RSL2
+
+                        *	OLD <  NEW, INSERT EXTRA BYTES
+
+2C78  2F                RSL1	CMA
+2C79  3C                	INR	A
+2C7A  CD A42B           	CALL	ITBK	;INSERT BLOCK
+                        	ERRNZ	*-RSL2
+
+                        *	MOVE THE TEXT ACTUALLY IN
+
+      = 2C7D            RSL2	EQU	*
+2C7D  06 00             	MVI	B,0
+2C7F  CD 082E           	CALL	$MOVL	;ISNERT LINE
+2C82  CD 242B           	CALL	ECC	;RESTORE CTL-C PROCESSING
+2C85  C3 102C           	JMP	PLA	;PRINT LINE AFTER AND RETURN
+2C88                    R8N	SPACE	4,10
+                        **	R8N - READ 8 BIT NUMBER.
+                        *
+                        *	R8N READS AN 8 BIT NUMBER FROM THE COMMAND STREAM.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = VALUE
+                        *		TO 'REFUSE' IF BAD
+                        *	USES	A,B,C,F
+
+2C88  CD B52A           R8N	CALL	DDN	;DECODE NUMBER
+2C8B  78                	MOV	A,B
+2C8C  A7                	ANA	A
+2C8D  C2 1923           	JNZ	REFUSE	;TOO LARGE
+2C90  79                	MOV	A,C	;(A) = VALUE
+2C91  C9                	RET
+2C92                    SEL	SPACE	4,10
+                        **	SEL - SCAN FOR ELIGIBLE LINE.
+                        *
+                        *	SEL SCANS TO FIND THE NEXT LINE MEETING THE QUALIFIER STRING.
+                        *
+                        *	* * NOTE * *  'DELETE' ASSUMES THAT SEL ONLY CHECKS FOR
+                        *		QUALIFIER STRINGS IN Q"QUALS", AND SKIPS
+                        *		CALLING SEL IF "QUALS" IS 00. THIS MUST BE MODIFIED IF MORE
+                        *		QUALIFIACTION SPECIFICATIONS ARE ALLOWED IN THE FUTURE.
+                        *
+                        *	ENTRY	(WRKPTR) = NEXT LINE TO CONSIDER
+                        *	EXIT	(WRKPTR) = NEXT LINE TO PROCESS
+                        *		(HL) = (WRKPTR)
+                        *		'Z' SET IF NO MORE LINES
+                        *	USES	A,F,H,L
+
+2C92  CD 252A           SEL1	CALL	ACL	;ADVANCE COMMAND LINE
+2C95  C8                	RZ			DONE
+
+2C96  CD 792A           SEL.	CALL	CBO	;CHECK FOR BUFFER OVERFLOW
+2C99  2A 7E31           SEL	LHLD	WRKPTR
+2C9C  7C                	MOV	A,H
+2C9D  B5                	ORA	L
+2C9E  C8                	RZ			NO;TEXT ESISTS
+2C9F  21 2733           	LXI	H,QUALS
+2CA2  7E                	MOV	A,M
+2CA3  A7                	ANA	A
+2CA4  CA AF2C           	JZ	SEL2	;NO QUAL STRING
+
+                        *	SEE IF MEET QUALIFIER STRING
+
+2CA7  D5                	PUSH	D
+2CA8  CD D22B           	CALL	LQS	;LOCATE QUOTED STRING
+2CAB  D1                	POP	D
+2CAC  C2 922C           	JNZ	SEL1	;DONT HAVE IT
+
+                        *	HAVE QUALIFIED LINE.
+
+2CAF  2A 7E31           SEL2	LHLD	WRKPTR
+2CB2  B4                	ORA	H	;CLEAR 'Z'
+2CB3  C9                	RET
+2CB4                    SFS	SPACE	4,10
+                        **	SFS - SEARCH FOR STRING.
+                        *
+                        *	SFS SCANS AN EXPANDED CHARACTER STRING FOR A MATCH FOR
+                        *	SOME PATTERN STRING
+                        *
+                        *	ENTRY	(DE) = STRING ADDRESS
+                        *		(HL) = LINE ADDRESS
+                        *	EXIT	(DE) UNCHANGED
+                        *		(HL) = ADDRESS OF 1ST MATCH CHARACTER
+                        *	USES	A,F,H,L
+
+2CB4  D5                SFS	PUSH	D	;SAVE STRING ADDRESS
+2CB5  E5                	PUSH	H
+2CB6  7E                	MOV	A,M
+2CB7  A7                	ANA	A
+2CB8  3E 01             	MVI	A,1
+2CBA  CA CE2C           	JZ	SFS2	;NOT FOUND - NO MORE TEXT
+
+                        *	COMPARE STRINGS
+
+2CBD  1A                SFS1	LDAX	D
+2CBE  A7                	ANA	A
+2CBF  CA CE2C           	JZ	SFS2	;A MATCH
+2CC2  BE                	CMP	M
+2CC3  13                	INX	D
+2CC4  23                	INX	H
+2CC5  CA BD2C           	JE	SFS1	;KEEP TRYING
+
+                        *	A FAILURE
+
+2CC8  E1                	POP	H
+2CC9  D1                	POP	D
+2CCA  23                	INX	H
+2CCB  C3 B42C           	JMP	SFS
+
+2CCE  E1                SFS2	POP	H
+2CCF  D1                	POP	D
+2CD0  A7                	ANA	A	;SET 'Z' IF FOUND
+2CD1  C9                	RET
+2CD2                    SLB	SPACE	4,10
+                        **	SLB - SCAN LINE BACKWARDS.
+                        *
+                        *	SLB SCANS BACKWARDS OVER THE PREVIOUS LINE.
+                        *
+                        *	ENTRY	(HL) = 1ST BYTE OF CURRENT LINE
+                        *	EXIT	(HL) = FIRST BYTE OF PREVIOUS LINE
+                        *	USES	A,F,H,L
+
+2CD2  2B                SLB	DCX	H
+2CD3  2B                SLB1	DCX	H
+2CD4  7E                	MOV	A,M
+2CD5  A7                	ANA	A
+2CD6  C2 D32C           	JNZ	SLB1
+2CD9  23                	INX	H
+2CDA  C9                	RET
+2CDB                    SNL	SPACE	4,10
+                        **	SNL - SCAN TO NEXT LINE.
+                        *
+                        *	SNL SCANS THE TEXT BLOCK FOR THE NEXT LINE.
+                        *
+                        *	ENTRY	(HL) = START OF CURRENT LINE
+                        *	EXIT	(HL) = START OF NEXT LINE
+                        *	USES	A,F,H
+
+2CDB  7E                SNL	MOV	A,M
+2CDC  23                	INX	H
+2CDD  A7                	ANA	A
+2CDE  C2 DB2C           	JNZ	SNL
+2CE1  C9                	RET
+2CE2                    TTX	SPACE	4,10
+                        **	TTX - TYPE TEXT LINE.
+                        *
+                        *	TTX TYPES THE TEXT FOR A LINE.
+                        *
+                        *	ENTRY	(HL) = FIRST BYTE
+                        *	EXIT	(HL) UNCHANGED
+                        *	USES	A,F
+
+2CE2  2A 7E31           TTX.	LHLD	WRKPTR
+2CE5  CD F12C           TTX	CALL	$CLL	;COMPUTE LENGTH
+2CE8  E5                	PUSH	H	;SAVE ADDRESS
+2CE9  3D                	DCR	A	;REMOVE COUNT OF '00'
+2CEA  CD CE2D           	CALL	$TYPCC	;TYPE IT
+2CED  E1                	POP	H
+2CEE  C3 022E           	JMP	$CRLF
+2CF1                    	STL	'COMMON DECKS.'
+2CF1                    	EJECT
+2CF1                    	XTEXT	CLL
+2CF1                    CLL	SPACE	4,10
+                        **	CLL - COMPUTE LINE LENGTH.
+                        *
+                        *	CLL COUNTS THE NUMBER OF CHARACTERS IN A SOURCE LINE.
+                        *	THE LINE IS TERMINATED BY A 00 BYTE; THE 00 BYTE IS ENCLUDED
+                        *	IN THE COUNT.
+                        *
+                        *	ENTRY	(HL) = FWA OF LINE
+                        *	EXIT	(HL) UNCHANGED
+                        *		(A) = LENGTH OF LINE
+                        *	USES	A,F
+
+2CF1  E5                $CLL	PUSH	H	;SAVE STARTING ADDRESS
+2CF2  D5                	PUSH	D
+2CF3  16 00             	MVI	D,0
+
+2CF5  7E                CLL1	MOV	A,M
+2CF6  14                	INR	D
+2CF7  A7                	ANA	A
+2CF8  23                	INX	H
+2CF9  C2 F52C           	JNZ	CLL1	;SCAN FOR END
+2CFC  7A                	MOV	A,D
+2CFD  D1                	POP	D
+2CFE  E1                	POP	H
+2CFF  C9                	RET
+2D00                    	XTEXT	CCO
+2D00                    CCO	SPACE	4,10
+                        **	$CCO - CLEAR CONTROL-O
+                        *
+                        *	$CCO IS CALLED TO CLEAR THE EFFECT OF THE CTL-O CHARACTER.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+
+2D00  CD 2C19           $CCO	CALL	$SAVALL 		; SAVE REGISTERS
+2D03  3E 04             	MVI	A,I.CONFL
+2D05  01 0100           	LXI	B,CO.FLG		; CLEAR CO.FLG
+2D08  FF 06             	SCALL	.CONSL
+2D0A  C3 2719           	JMP	$RSTALL 		; RESTORE REGISTERS AND RETURN
+2D0D                    	XTEXT	INCHA
+2D0D                    $INCHA	SPACE 4,10
+                        **	$INCHA - READ ONE CHARACTER.
+                        *
+                        *	$INCHA READS ONE CHARACTER FROM THE TERMINAL.
+                        *
+                        *	CHAR = CTL-U: ERASE LINE
+                        *	     = BKSP: BACKSPACE CHARACTER
+                        *		= RUBOUT: BACKSPACE CHARACTER
+
+                        **************************************************************************
+                        **									**
+incha.acm:12: *** Error:  Error Not Zero ***
+                        	ERRNZ	1	;THIS ROUTINE IS OBSOLETE		**
+                        **									**
+                        **************************************************************************
+
+
+2D0D  CD E12D           $INCHA	CALL	$RCHAR	;READ A CHARACTER
+2D10  FE 08             	CPI	BKSP
+2D12  CA 332D           	JE	INC0	;IS BKSP
+2D15  FE 7F             	CPI	RUBOUT
+2D17  CA 332D           	JE	INC0	;IS RUBOUT
+2D1A  F5                	PUSH	PSW	;SAVE CODE
+2D1B  3A 682D           	LDA	$INCHAA	;(A) = RUBOUT FLAG
+2D1E  A7                	ANA	A
+2D1F  C4 E72D           	CNZ	$WCHAR	;ECHO RUBOUT CHAR, IF ANY
+2D22  AF                	XRA	A
+2D23  32 682D           	STA	$INCHAA	;CLEAR FLAG
+2D26  F1                	POP	PSW
+2D27  FE 15             	CPI	'U'-'@'
+2D29  C0                	RNE			NOT;CTL-U, RETURN
+
+                        *	IS CTL-U
+
+2D2A  21 E531           	LXI	H,LINE
+2D2D  CD 022E           	CALL	$CRLF
+2D30  C3 4A2D           	JMP	INC1	;CLEAR LINE AND SET LINPTR
+
+                        *	IS BKSP
+
+2D33  2A 8831           INC0	LHLD	LINPTR
+2D36  3E E5             	MVI	A,#LINE
+2D38  BD                	CMP	L
+2D39  CA 0D2D           	JE	$INCHA	;IF ALREADY AT FRONT
+2D3C  2B                	DCX	H
+2D3D  3A D720           	LDA	S.CONTY	;SEE IF BACKSPACING
+2D40  A7                	ANA	A
+2D41  F2 522D           	JP	INC3	;IS NON-CRT
+2D44  CD 5E19           	CALL	$TYPTX
+2D47  082088            	DB	BKSP,' ',BKSP+200Q;BACKSPACE FOR CRT
+2D4A  22 8831           INC1	SHLD	LINPTR
+2D4D  36 00             	MVI	M,0	;CLEAR ENTRY
+2D4F  C3 0D2D           	JMP	$INCHA	;AGAIN
+
+                        *	BACKSPACE FOR NON-CRT
+
+2D52  3A 682D           INC3	LDA	$INCHAA	;(A) = FLAG
+2D55  A7                	ANA	A
+2D56  C2 612D           	JNZ	INC4	;AM STILL BACKSPACING
+2D59  3E 2F             	MVI	A,'/'
+2D5B  32 682D           	STA	$INCHAA	;SET FLAG
+2D5E  CD E72D           	CALL	$WCHAR	;TYPE
+2D61  7E                INC4	MOV	A,M
+2D62  CD E72D           	CALL	$WCHAR	;SHOW CHARACTER BEING REMOVED
+2D65  C3 4A2D           	JMP	INC1	;CLEAR IT
+
+2D68  00                $INCHAA	DB	0	;RUBOUT FLAG
+2D69                    	XTEXT	UDD
+2D69                    UDD	SPACE	4,10
+                        **	$UDD - UNPACK DECIMAL DIGITS.
+                        *
+                        *	UDD CONVERTS A 16 BIT VALUE INTO A SPECIFIED NUMBER OF
+                        *	DECIMAL DIGITS. THE RESULT IS ZERO FILLED.
+                        *
+                        *	ENTRY	(B,C) = ADDRESS VALUE
+                        *		(A) = DIGIT COUNT
+                        *		(H,L) = MEMORY ADDRESS
+                        *	EXIT	(HL) = (HL) + (A)
+                        *	USES	ALL
+
+      = 196F            $UDD	EQU	031157A 		; IN H17 ROM
+2D69                    	XTEXT	MLU
+2D69                    	SPACE	4,10
+                        **	MLU - MAP LOWER CASE LINE TO UPPER CASE.
+                        *
+                        *	MLU MAPS THE LOWER CASE ALPHABETICS IN A LINE TO UPPER CASE.
+                        *
+                        *	ENTRY	(HL)  = LINE FWA
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+2D69  F5                $MLU	PUSH	PSW	;SAVE (PSW)
+2D6A  E5                	PUSH	H	;SAVE FWA
+2D6B  2B                	DCX	H	;ANTICIPATE INX H
+2D6C  23                $MLU1	INX	H
+2D6D  7E                	MOV	A,M	;(A)= CHARACTER
+2D6E  CD 852D           	CALL	$MCU	;MAP CHAR TO UPPER
+2D71  77                	MOV	M,A
+2D72  A7                	ANA	A
+2D73  C2 6C2D           	JNZ	$MLU1	;MORE TO GO
+2D76  E1                	POP	H	;RESTORE (HL)
+2D77  F1                	POP	PSW	;RESTORE (PSW)
+2D78  C9                	RET
+2D79                    	XTEXT	GNL
+2D79                    	SPACE	4,10
+                        **	$GNL - GUARANTEE NEW LINE.
+                        *
+                        *	$GNL GUARANTEES THE START OF A NEW LINE BY ISSUING A CRLF
+                        *	IF THE CURSOR IS NOT AT COLUMN 1..
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	ALL
+
+2D79  3E 02             $GNL	MVI	A,I.CUSOR
+2D7B  01 0000           	LXI	B,0
+2D7E  FF 06             	SCALL	.CONSL			; READ CURSOR
+2D80  3D                	DCR	A
+2D81  C8                	RZ				; AT COLUMN 1
+2D82  C3 022E           	JMP	$CRLF			;  ELSE, NEW LINE
+2D85                    	XTEXT	MCU
+2D85                    	SPACE	4,10
+                        **	MCU - MAP LOWER CASE TO UPPER CASE.
+                        *
+                        *	MCU MAPS A LOWER CASE ALPHABETIC TO UPPER
+                        *	CASE.
+                        *
+                        *	ENTRY	(A) = CHARACTER
+                        *	EXIT	(A) = CHARACTER RESULT
+                        *	USES	A,F
+
+2D85  FE 61             $MCU	CPI	'a'
+2D87  D8                	RC				; NOT LOWER CASE
+2D88  FE 7B             	CPI	'z'+1
+2D8A  D0                	RNC				; NOT LOWER CASE
+2D8B  D6 20             	SUI	'a'-'A'
+2D8D  C9                	RET
+2D8E                    	XTEXT	CHL
+2D8E                    CHL	SPACE	4,10
+                        **	$CHL - COMPLEMENT (HL).
+                        *
+                        *	(HL) = -(HL)		TWO'S COMPLEMENT
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	A,F,H,L
+
+      = 1894            $CHL	EQU	030224A 		; IN H17 ROM
+2D8E                    	XTEXT	CPDEHL
+2D8E                    	SPACE	4,10
+                        ***	CPDEHL - Compare (HL) to (DE)
+                        *
+                        *	Entry:	NONE
+                        *	Exit:	'C' Set if (HL) < (DE)
+                        *		'Z' Set if (HL) = (DE)
+                        *		 else (HL) > (DE)
+                        *	Uses:	A,F
+
+2D8E  7C                CPDEHL	MOV	A,H
+2D8F  BA                	CMP	D
+2D90  C0                	RNZ
+2D91  7D                	MOV	A,L
+2D92  BB                	CMP	E
+2D93  C9                	RET
+2D94                    	XTEXT	SAVALL
+2D94                    SAVALL	SPACE	3,10
+                        **	$RSTALL - RESTORE ALL REGISTERS.
+                        *
+                        *	$RSTALL RESTORES ALL THE REGISTERS OFF THE STACK, AND
+                        *	RETURNS TO THE PREVIOUS CALLER.
+                        *
+                        *	ENTRY	(SP) = PSW
+                        *		(SP+2) = BC
+                        *		(SP+4) = DE
+                        *		(SP+6) = HL
+                        *		(SP+8) = RET
+                        *	EXIT	TO *RET*, REGISTERS RESTORED
+                        *	USES	ALL
+
+      = 1927            $RSTALL EQU	031047A 		; IN H17 ROM
+2D94                    	SPACE	3,10
+                        **	$SAVALL - SAVE ALL REGISTERS ON STACK.
+                        *
+                        *	$SAVALL SAVES ALL THE REGISTERS ON THE STACK.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(SP) = PSW
+                        *		(SP+2) = BC
+                        *		(SP+4) = DE
+                        *		(SP+6) = HL
+                        *	USES	H,L
+
+      = 192C            $SAVALL EQU	031054A 		; IN H17 ROM
+2D94                    	XTEXT	RTL
+2D94                    	SPACE	4,10
+                        **	$RTL - READ TEXT LINE.
+                        *
+                        *	$RTL READS A LINE FROM THE TERMINAL.
+                        *
+                        *	CHARACTER ARE ACCEPTED FROM THE TERMINAL, RUBOUT AND BACKSPACE
+                        *	CHARACTERS ARE PROCESSED. WHEN A CARRIAGE RETURN IS ENTERED,
+                        *	$RTL RETURNS.
+                        *
+                        *	ENTRY	(HL) = BUFFER FWA
+                        *	EXIT	'C' CLEAR IF OK
+                        *		 DATA IN BUFFER
+                        *		 (A) = TEXT LENGTH
+                        *		'C' SET IF CTL-D STRUCK
+                        *	USES	A,F
+
+2D94  CD 9B2D           $RTL.	CALL	$RTL			; $RTL IN UPPER CASE
+2D97  D8                	RC				; CTL-D
+2D98  C3 692D           	JMP	$MLU			; MAP LINE TO UPPER CASE
+
+      = 2D9B            $RTL	EQU	*
+
+2D9B  E5                	PUSH	H			; SAVE FWA
+2D9C  FF 01             $RTL1	SCALL	.SCIN
+2D9E  DA 9C2D           	JC	$RTL1
+2DA1  FE 04             	CPI	CTLD
+2DA3  CA B82D           	JE	$RTL2			; CTL-D STRUCK
+2DA6  77                	MOV	M,A
+2DA7  23                	INX	H
+2DA8  FE 0A             	CPI	NL
+2DAA  C2 9C2D           	JNE	$RTL1
+2DAD  2B                	DCX	H
+2DAE  36 00             	MVI	M,0
+2DB0  23                	INX	H
+
+                        *	ALL DONE. COMPUTE LENGTH
+
+2DB1  EB                	XCHG				; (DE) = LWA+1
+2DB2  E3                	XTHL				; (HL) = FWA
+2DB3  7B                	MOV	A,E
+2DB4  95                	SUB	L			; (A) = LENGTH
+2DB5  A7                	ANA	A			; CLEAR CARRY
+2DB6  D1                	POP	D			; RESTORE (DE)
+2DB7  C9                	RET
+
+                        *	CTL-D STRUCK
+
+2DB8  E1                $RTL2	POP	H			; (HL) = FWA
+2DB9  37                	STC
+2DBA  C9                	RET
+2DBB                    	XTEXT	MOVLL
+2DBB                    $MOVLL	SPACE	4,10
+                        **	$MOVLL - MOVE DATA
+                        *
+                        *	$MOVLL MOVES A BLOCK OF BYTES TO A NEW MEMORY ADDRESS.
+                        *
+                        *	WHEN THE MOVE IS ACTUALLY DONE, THE ROUTINE $MOVL IS CALLED
+                        *	TO DO THE WORK.  $MOVL HAS THE CAPABILITY TO MOVE
+                        *	0 TO 65535 BYTES.
+                        *
+                        *	IF THE MOVE IS TO A LOWER ADDRESS, THE BYTES ARE MOVED FROM
+                        *	FIRST TO LAST.
+                        *
+                        *	IF THE MOVE IS TO A HIGHER ADDRESS, THE BYTES ARE MOVED FROM
+                        *	LAST TO FIRST.
+                        *
+                        *	THIS IS DONE SO THAT AN OVERLAPED MOVE WILL NOT 'RIPPLE'.
+                        *
+                        *	CALL	$MOVLL
+                        *	DW	COUNT
+                        *	DW	FROM
+                        *	DW	TO
+                        *
+                        *	ENTRY	((SP)) = RET
+                        *		(RET+0) = COUNT (WORD VALUE)
+                        *		(RET+2) = FROM
+                        *		(RET+4) = TO
+                        *	EXIT	TO (RET+6)
+                        *		(DE) = ADDRESS OF NEXT FROM BYTE
+                        *		(HL) = ADDRESS OF NEXT *TO* BYTE
+                        *		'C' CLEAR
+                        *	USES	ALL
+
+2DBB  E1                $MOVLL	POP	H	;(HL) = RET
+2DBC  4E                	MOV	C,M
+2DBD  23                	INX	H
+2DBE  46                	MOV	B,M	;(BC) = COUNT
+2DBF  23                	INX	H
+2DC0  5E                	MOV	E,M
+2DC1  23                	INX	H
+2DC2  56                	MOV	D,M	;(DE) = FROM
+2DC3  23                	INX	H
+2DC4  D5                	PUSH	D	;((SP)) = FROM
+2DC5  5E                	MOV	E,M
+2DC6  23                	INX	H
+2DC7  56                	MOV	D,M	;(DE) = TO
+2DC8  23                	INX	H
+2DC9  E3                	XTHL			((SP));= RET, (HL) = FROM
+2DCA  EB                	XCHG			(DE);= FROM , (HL) = TO
+2DCB  C3 082E           	JMP	$MOVL	;MOVE IT
+2DCE                    	XTEXT	TYPCC
+2DCE                    	SPACE	4,10
+                        **	$TYPCC - TYPE A CHARACTER STRING BY COUNT.
+                        *
+                        *	$TYPCC TYPES A STRING OF CHARACTERS. THE CALLER SUPPLIES
+                        *	THE CHARACTER ADDRESS AND COUNT.
+                        *
+                        *	ENTRY	(HL) = ADDRESS
+                        *		(A) = COUNT
+                        *	EXIT	(HL) = LAST CHARACTER ADDRESS+1
+                        *	USES	A,F,H,L
+
+      = 2DCE            $TYPCC	EQU	*
+
+2DCE  A7                	ANA	A
+2DCF  C8                	RZ				; NOTHING TO TYPE
+2DD0  F5                	PUSH	PSW			; SAVE COUNT
+2DD1  7E                	MOV	A,M			; (A) = CHARACTER
+2DD2  23                	INX	H
+2DD3  FF 02             	SCALL	.SCOUT
+2DD5  F1                	POP	PSW
+2DD6  3D                	DCR	A
+2DD7  C3 CE2D           	JMP	$TYPCC
+2DDA                    	XTEXT	TYPCH
+2DDA                    TYPCH	SPACE	4,10
+                        **	$TYPCH - TYPE SINGLE CHARACTER.
+                        *
+                        *	ENTRY	(RET) = CHARACTER
+                        *	EXIT	TO (RET)+1
+                        *		(A) = CHARACTER TYPED
+
+2DDA  E3                $TYPCH	XTHL				; (HL) = RETURN ADDRESS
+2DDB  7E                	MOV	A,M			; (A) = CHARACTER
+2DDC  23                	INX	H
+2DDD  E3                	XTHL				; RESTORE ADVANCED EXIT ADDRESS
+                        *	JMP	$TYPC.
+                                ERRNZ   *-$TYPC.
+2DDE                            SPACE   4,10
+                        **	$TYPC. - TYPE SINGLE CHARACTER.
+                        *
+                        *	ENTRY	(A) = CHARACTER
+                        *	EXIT	TO (RET)
+
+2DDE  FF 02             $TYPC.	SCALL	.SCOUT
+2DE0  C9                	RET
+2DE1                    	XTEXT	RCHAR
+2DE1                    RCHAR	SPACE	4,10
+                        **	$RCHAR - READ SINGLE CHARACTER FROM CONSOLE.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = CHARACTER
+                        *	USES	A,F
+
+2DE1  FF 01             $RCHAR	SCALL	.SCIN
+2DE3  DA E12D           	JC	$RCHAR	;NOT READY
+2DE6  C9                	RET
+
+2DE7  FF 02             $WCHAR	SCALL	.SCOUT
+2DE9  C9                	RET
+2DEA                    	XTEXT	INDL
+2DEA                    INDL	SPACE	4,10
+                        **	$INDL - INDEXED LOAD.
+                        *
+                        *	$INDL LOADS DE WITH THE TWO BYTES AT (HL)+DISPLACMENT
+                        *
+                        *	THIS ACTS AS AN INDEXED FULL WORD LOAD.
+                        *
+                        *	(DE) = ( (HL) + DSPLACEMENT )
+                        *
+                        *	ENTRY	((RET)) = DISPLACMENT (FULL WORD)
+                        *		(HL) = TABLE ADDRESS
+                        *	EXIT	TO (RET+2)
+                        *	USES	A,F,D,E
+
+      = 189C            $INDL	EQU	030234A 		; IN H17 ROM
+2DEA                    	XTEXT	TBLS
+2DEA                    TBLS	SPACE	4,10
+                        **	$TBLS - TABLE SEARCH
+                        *
+                        *	TABLE FORMAT
+                        *
+                        *	DB	KEY1,VAL1,
+                        *	.	.
+                        *	.	.
+                        *	DB	KEYN,VALN
+                        *	DB	0
+                        *
+                        *	ENTRY	(A) = PATTERN
+                        *		(H,L) = TABLE FWA
+                        *	EXIT	(A) = PATTERN IF FOUND
+                        *		'Z' SET IF FOUND
+                        *		'Z' CLEAR IF NOT FOUND OR PATTERN=0
+                        *	USES	A,F,H,L
+
+2DEA  C5                $TBLS	PUSH	B
+2DEB  A7                	ANA	A						;/3.0a/
+2DEC  CA FE2D           	JZ	TBL2
+2DEF  47                	MOV	B,A
+2DF0  7E                TBL1	MOV	A,M			; (A) = CHARACTER
+2DF1  23                	INX	H
+2DF2  B8                	CMP	B
+2DF3  CA 002E           	JZ	TBL3			; IF MATCH
+2DF6  A7                	ANA	A
+2DF7  23                	INX	H			; SKIP PAST
+2DF8  C2 F02D           	JNZ	TBL1			; IF NOT END OF TABLE
+2DFB  2B                	DCX	H
+2DFC  2B                	DCX	H
+2DFD  AF                	XRA	A			; SET TO ZERO FOR OLD USERS
+2DFE  FE 01             TBL2	CPI	1			; CLEAR ZERO
+
+                        *	DONE
+
+2E00  C1                TBL3	POP	B
+2E01  C9                	RET
+2E02                    	XTEXT	CDEHL
+2E02                    CDEHL	SPACE	4,10
+                        **	$CDEHL - COMPARE (DE) TO (HL)
+                        *
+                        *	$CDEHL COMPARES (DE) TO (HL) FOR EQUALITY.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	'Z' SET IF (DE) = (HL)
+                        *	USES	A,F
+
+      = 188E            $CDEHL	EQU	030216A 		; IN H17 ROM
+2E02                    	XTEXT	CRLF
+2E02                    CRLF	SPACE	4,10
+                        **	$CRLF - TYPE CARRIAGE RETURN/ LINE FEED
+                        *
+                        *	$CRLF IS USED TO GENERATE PADDED CRLF'S.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = 0
+                        *	USES	A,F
+
+2E02  3E 0A             $CRLF	MVI	A,NL
+2E04  FF 02             	SCALL	.SCOUT
+2E06  AF                	XRA	A
+2E07  C9                	RET
+2E08                    	XTEXT	DADA
+2E08                    DADA	SPACE	4,10
+                        **	$DADA - PERFORM (H,L) = (H,L) + (0,A)
+                        *
+                        *	ENTRY	(H,L) = BEFORE VALUE
+                        *		(A) = BEFORE VALUE
+                        *	EXIT	(H,L) = (H,L) + (0,A)
+                        *		'C' SET IF OVERFLOW
+                        *	USES	F,H,L
+
+      = 183A            $DADA	EQU	030072A 		; IN H17 ROM
+2E08                    	XTEXT	MOVL
+2E08                    $MOVL	SPACE	4,10
+                        **	$MOVL - MOVE DATA
+                        *
+                        *	$MOVL MOVES A BLOCK OF BYTES TO A NEW MEMORY ADDRESS.
+                        *
+                        *	THIS MOVE ROUTINE WILL MOVE 0 TO 65535 BYTES.  IT SHOULD BE
+                        *	USED IN PLACE OF THE H17 ROM ROUTINE WHICH ONLY MOVES
+                        *	0 TO 32767 BYTES.
+                        *
+                        *	IF THE MOVE IS TO A LOWER ADDRESS, THE BYTES ARE MOVED FROM
+                        *	FIRST TO LAST.
+                        *
+                        *	IF THE MOVE IS TO A HIGHER ADDRESS, THE BYTES ARE MOVED FROM
+                        *	LAST TO FIRST.
+                        *
+                        *	THIS IS DONE SO THAT AN OVERLAPED MOVE WILL NOT 'RIPPLE'.
+                        *
+                        *	ENTRY	(BC) = COUNT
+                        *		(DE) = FROM
+                        *		(HL) = TO
+                        *	EXIT	MOVED
+                        *		(DE) = ADDRESS OF NEXT FROM BYTE
+                        *		(HL) = ADDRESS OF NEXT *TO* BYTE
+                        *		'C' CLEAR
+                        *	USES	ALL
+
+      = 2E08            $MOVL	EQU	*
+
+                        *	IF COUNT IS EQUAL TO 0, THEN RETURN IMMEDIATELY.
+
+2E08  78                	MOV	A,B
+2E09  B1                	ORA	C
+2E0A  C8                	RZ
+
+                        *	DETERMINE IF WE ARE MOVING TO LOWER OR HIGHER ADDRESS.
+
+2E0B  7D                	MOV	A,L
+2E0C  93                	SUB	E
+2E0D  7C                	MOV	A,H
+2E0E  9A                	SBB	D
+2E0F  DA 252E           	JC	$MOVL2	;MOVE IS TO A LOWER ADDRESS
+
+                        *	MOVE IS TO HIGHER ADDRESS, THEREFORE MOVE LAST TO FIRST.
+
+2E12  EB                	XCHG			ADJUST;*FROM*
+2E13  09                	DAD	B		 ;ADDRESS TO
+2E14  EB                	XCHG			    LAST;BYTE + 1
+2E15  D5                	PUSH	D	;SAVE IT
+
+2E16  09                	DAD	B	;ADJUST *TO* ADDRESS TO LAST BYTE + 1
+2E17  E5                	PUSH	H	;SAVE IT
+
+      = 2E18            $MOVL1	EQU	*
+2E18  1B                	DCX	D	;DECREMENT POINTERS
+2E19  2B                	DCX	H
+2E1A  1A                	LDAX	D	;MOVE BYTE
+2E1B  77                	MOV	M,A
+2E1C  0B                	DCX	B	;DECREMENT COUNT
+2E1D  78                	MOV	A,B	;Q. HAS COUNT
+2E1E  B1                	ORA	C		   ;GONE TO ZERO
+2E1F  C2 182E           	JNZ	$MOVL1		    ;BR IF NOT
+
+2E22  E1                	POP	H	;RETRIEVE *TO* LWA+1
+2E23  D1                	POP	D	;RETRIEVE *FROM* LWA+1
+2E24  C9                	RET
+
+                        *	MOVE IS TO A LOWER ADDRESS, THEREFORE MOVE FIRST TO LAST.
+
+      = 2E25            $MOVL2	EQU	*
+2E25  1A                	LDAX	D	;MOVE BYTE
+2E26  77                	MOV	M,A
+2E27  13                	INX	D	;INCREMENT POINTERS
+2E28  23                	INX	H
+2E29  0B                	DCX	B	;DECREMENT COUNT
+2E2A  78                	MOV	A,B	;Q. HAS COUNT
+2E2B  B1                	ORA	C		   ;GONE TO ZERO
+2E2C  C2 252E           	JNZ	$MOVL2		    ;BR IF NOT
+
+2E2F  C9                	RET
+2E30                    	XTEXT	MU10
+2E30                    MU10	SPACE	4,10
+                        **	$MU10 - MULTIPLY UNSIGNED 16 BIT QUANTITY BY 10.
+                        *
+                        *	(HL) = (DE)*10
+                        *
+                        *	ENTRY	(DE) = MULTIPLIER
+                        *	EXIT	'C' CLEAR IF OK
+                        *		 (HL) = PRODUCT
+                        *		'C' SET IF ERROR
+                        *	USES	D,E,H,L,F
+
+      = 18D4            $MU10	EQU	030324A 		; IN H17 ROM
+2E30                    	XTEXT	TBRA
+2E30                    TBRA	SPACE	4,10
+                        **	$TBRA - BRANCH RELATIVE THOUGH TABLE.
+                        *
+                        *	$TBRA USES THE SUPPLIED INDEX TO SELECT A BYTE FROM THE
+                        *	JUMP TABLE. THE CONTENTS OF THIS BYTE ARE ADDED TO THE
+                        *	ADDRESS OF THE BYTE, YEILDING THE PROCESSOR ADDRESS.
+                        *
+                        *	CALL	$TBRA
+                        *	DB	LAB1-*		INDEX = 0 FOR LAB1
+                        *	DB	LAB2-*		INDEX = 1 FOR LAB2
+                        *	DB	LABN-*		INDEX = N-1 FOR LABN
+                        *
+                        *	ENTRY	(A) = INDEX
+                        *		(RET) = TABLE FWA
+                        *	EXIT	TO COMPUTED ADDRESS
+                        *	USES	F,H,L
+
+      = 193E            $TBRA	EQU	031076A 		; IN H17 ROM
+2E30                    	XTEXT	FOPE
+2E30                    	SPACE	4,10
+                        **	$FOPEx - OPEN FILE BLOCK FOR I/O
+                        *
+                        *	$FOPEx IS CALLED BEFORE ANY I/O IS DONE VIA A
+                        *	FILE BLOCK. $FOPEx SETS UP THE FILE BLOCK, AND OPENS
+                        *	THE FILE VIA *HDOS*.
+                        *
+                        *	ENTRY	(DE) = ADDRESS OF DEFAULT BLOCK
+                        *		(HL) = ADDRESS OF FILE BLOCK
+                        *	EXIT	TO $FERROR IF ERROR
+                        *		TO CALLER IF OK
+                        *	USES	A,F,B,C,D,E
+
+2E30  CD 452E           $FOPER	CALL	$FOPER.
+2E33  D0                	RNC
+2E34  C3 9F30           	JMP	$FERROR 		; IN ERROR
+
+2E37  CD 482E           $FOPEW	CALL	$FOPEW.
+2E3A  D0                	RNC
+2E3B  C3 9F30           	JMP	$FERROR 		; IN ERROR
+
+2E3E  CD 4B2E           $FOPEU	CALL	$FOPEU.
+2E41  D0                	RNC
+2E42  C3 9F30           	JMP	$FERROR 		; IN ERROR
+
+2E45  3E 02             $FOPER. MVI	A,FT.OR 		; FILE TYPE OF OPEN FOR READ
+2E47  01                	DB	001Q			; LXI,B TO SKIP NEXT MVI
+
+2E48  3E 04             $FOPEW. MVI	A,FT.OW 		; OPEN FOR WRITE
+2E4A  01                	DB	001Q			; LXI,B TO SKIP NEXT MVI
+
+2E4B  3E 06             $FOPEU.	MVI	A,FT.OR+FT.OW
+
+                        *	(A) = FILE FLAGS
+
+2E4D  E5                	PUSH	H			; SAVE FILE BLOCK ADDRESS
+2E4E  F5                	PUSH	PSW			; SAVE NEW FLAGS
+                        	ERRNZ	FB.CHA
+2E4F  46                	MOV	B,M			; (B) = CHANNEL NUMBER
+2E50  C5                	PUSH	B			; SAVE CHANNEL NUMBER
+                        	ERRNZ	FB.FLG-FB.CHA-1
+2E51  23                	INX	H
+2E52  4F                	MOV	C,A			; (C) = NEW FILE FLAGS
+2E53  7E                	MOV	A,M			; (A) = CURRENT TYPE
+2E54  A7                	ANA	A
+2E55  79                	MOV	A,C			; (A) = NEW FLAGS TO BE SET
+2E56  CA 602E           	JZ	$FOPE1			; NOT ALREADY OPEN
+
+                        *	ALREADY OPEN. SQUACK
+
+2E59  C1                	POP	B			; RESTORE (BC)
+2E5A  F1                	POP	PSW			; DISCARD NEW FLAGS
+2E5B  E1                	POP	H			; (HL) = FB ADDRESS
+2E5C  3E 19             	MVI	A,EC.FAO		; FILE ALREADY OPEN
+2E5E  37                	STC
+2E5F  C9                	RET
+
+                        	ERRNZ	FB.FWA-FB.FLG-1
+2E60  23                $FOPE1	INX	H			; (HL) = #FB.FWA
+2E61  4E                	MOV	C,M
+2E62  23                	INX	H
+2E63  46                	MOV	B,M			; (BC) = FB.FWA
+2E64  23                	INX	H
+                        	ERRNZ	FB.PTR-FB.FWA-2
+2E65  71                	MOV	M,C			; SET FB.PTR = FB.FWA
+2E66  23                	INX	H
+2E67  70                	MOV	M,B
+2E68  23                	INX	H
+                        	ERRNZ	FB.LIM-FB.PTR-2
+2E69  71                	MOV	M,C			; SET FB.LIM = FB.FWA
+2E6A  23                	INX	H
+2E6B  70                	MOV	M,B
+2E6C  23                	INX	H
+                        	ERRNZ	FB.NAM-FB.LIM-4
+2E6D  23                	INX	H
+2E6E  23                	INX	H			; (HL) = #FB.NAM
+
+                        *	FILE BLOCK POINTERS SETUP. OPEN FILE
+
+2E6F  E5                	PUSH	H			; SAVE NEW ADDRESS FOR NAME
+2E70  21 892E           	LXI	H,$FOPEB
+2E73  A7                	ANA	A					;/78.10.GC/
+2E74  CA 7B2E           	JZ	$FOPE2
+                        	ERRNZ	.EXIT
+2E77  CD EA2D           	CALL	$TBLS			; FIND CODE
+2E7A  7E                	MOV	A,M
+2E7B  32 812E           $FOPE2	STA	$FOPEA			; SET SYSCALL CODE
+2E7E  E1                	POP	H			; (HL) = #FB.NAM
+2E7F  F1                	POP	PSW			; (A) = CHANNEL NUMBER
+2E80  FF 00             	SCALL	.EXIT
+      = 2E81            $FOPEA	EQU	*-1			; SYSCALL CODE
+2E82  D1                	POP	D			; (D) = NEW FLAG
+2E83  E1                	POP	H			; (HL) = FILE BLOCK ADDRESS
+2E84  D8                	RC				; EXIT IF ERROR
+2E85  23                	INX	H
+                        	ERRNZ	FB.FLG-1
+2E86  72                	MOV	M,D			; SET NEW FLAGS
+2E87  2B                	DCX	H			; RESTORE (HL)
+2E88  C9                	RET
+
+2E89  0222              $FOPEB	DB	FT.OR,.OPENR		; TABLE OF SYSCALL CODES
+2E8B  0423              	DB	FT.OW,.OPENW
+2E8D  0624              	DB	FT.OR+FT.OW,.OPENU
+2E8F  00                	DB	0			; SHOULD NOT OCCUR
+2E90                    	XTEXT	FCLO
+2E90                    	SPACE	4,10
+                        **	$FCLO - CLOSE FILE BLOCK.
+                        *
+                        *	$FCLO IS CALLED TO TERMINATE PROCESSING THROUGH A FILE
+                        *	BLOCK.
+                        *
+                        *	ENTRY	(HL) = FILE BLOCK ADDRESS
+                        *	EXIT	TO $FERROR IF ERROR
+                        *		 TO CALLER IF OK
+                        *	USES	A,F,B,C,D,E
+
+2E90  CD 972E           $FCLO	CALL	$FCLO.
+2E93  D0                	RNC				; NO ERROR
+2E94  C3 9F30           	JMP	$FERROR
+
+2E97  E5                $FCLO.	PUSH	H			; SAVE FILE BLOCK ADDRESS
+                        	ERRNZ	FB.FLG-1
+2E98  23                	INX	H			; (HL) = #FB.FLG
+2E99  7E                	MOV	A,M
+2E9A  36 00             	MVI	M,0			; CLEAR FLAG
+2E9C  A7                	ANA	A
+2E9D  CA D32E           	JZ	$FCLO4			; FILE NOT OPEN
+2EA0  E6 04             	ANI	FT.OW
+2EA2  CA CD2E           	JZ	$FCLO3			; NO WRITING, NO FLUSHING NEEDED
+
+                        *	WAS OPEN FOR WRITE. SEE IF NEED FLUSH THE LAST SECTOR
+
+2EA5  CD 9C18           	CALL	$INDL
+2EA8  0300              	DW	FB.PTR-FB.FLG
+2EAA  D5                	PUSH	D			; SAVE (FB.PTR)
+2EAB  CD 9C18           	CALL	$INDL			; (DE) = (FB.FWA)
+2EAE  0100              	DW	FB.FWA-FB.FLG
+2EB0  E1                	POP	H			; (HL) = (FB.PTR)
+2EB1  7D                	MOV	A,L
+2EB2  93                	SUB	E
+2EB3  4F                	MOV	C,A
+2EB4  7C                	MOV	A,H
+2EB5  9A                	SBB	D
+2EB6  47                	MOV	B,A			; (BC) = AMOUNT IN BLOCK
+2EB7  B1                	ORA	C
+2EB8  CA CD2E           	JZ	$FCLO3			; NONE TO FLUSH
+
+                        *	NEED TO FLUSH BUFFER
+                        *
+                        *	(BC) = DATA AMOUNT
+                        *	(DE) = FWA
+                        *	(HL) = LWA+1
+
+2EBB  79                	MOV	A,C
+2EBC  A7                	ANA	A
+2EBD  CA C82E           	JZ	$FCLO2			; DONT HAVE PARTIAL SECTOR
+
+                        *	ZERO FILL PARTIAL SECTOR
+
+2EC0  36 00             $FCLO1	MVI	M,0
+2EC2  23                	INX	H
+2EC3  0C                	INR	C
+2EC4  C2 C02E           	JNZ	$FCLO1
+2EC7  04                	INR	B			; COUNT ANOTHER FULL SECTOR
+2EC8  E1                $FCLO2	POP	H			; (HL) = FB FWA
+2EC9  7E                	MOV	A,M			; (A) = CHANNEL NUMBER
+                        	ERRNZ	FB.CHA
+2ECA  E5                	PUSH	H
+2ECB  FF 05             	SCALL	.WRITE			; FLUSH
+
+                        *	READY TO CLOSE FILE.
+                        *
+                        *	'C' SET IF ERROR
+                        *	 (A) = ERROR CODE
+
+2ECD  E1                $FCLO3	POP	H			; (HL) = FILE BLOCK ADDRESS
+2ECE  D8                	RC				; ERROR
+                        	ERRNZ	FB.CHA
+2ECF  7E                	MOV	A,M			; (A) = CHANNEL NUMBER
+2ED0  E5                	PUSH	H
+2ED1  FF 26             	SCALL	.CLOSE			; CLOSE CHANNEL
+2ED3  E1                $FCLO4	POP	H			; (HL) = FILE BLOCK ADDRESS
+2ED4  C9                	RET
+2ED5                    	XTEXT	FREAL
+2ED5                    FREAL	SPACE	4,10
+                        **	$FREAL - READ BYTES FROM FILE BUFFER.
+                        *
+                        *	$FREAL IS CALLED TO READ A NUMBER OF BYTES FROM A FILE BUFFER.
+                        *
+                        *	ENTRY	(BC) = BYTE COUNT
+                        *		(DE) = FWA FOR BYTES
+                        *		(HL) = ADDRESS OF FILE BUFFER
+                        *	EXIT	TO *FERROR* IF ERROR
+                        *		TO CALLER IF OK
+                        *		 (BC) = UNREAD BYTE COUNT (ONLY IF EOF)
+                        *		 (DE) = ADDRESS OF FIRST UNUSED BYTE
+                        *		 'C' SET IF EOF DURING READ
+                        *	USES	A,F,B,C,D,E
+
+2ED5  CD E02E           $FREAL	CALL	$FREAL.
+2ED8  D0                	RNC				; RETURN IF OK
+2ED9  FE 01             	CPI	EC.EOF
+2EDB  C2 9F30           	JNE	$FERROR 		; ERROR IS NOT EOF
+2EDE  37                	STC
+2EDF  C9                	RET				; ERROR IS SIMPLY EOF
+
+
+2EE0  0B                $FREAL. DCX	B			; (BC) = COUNT NOT ENCLUDING 00 BYTE
+2EE1  AF                	XRA	A
+2EE2  32 9E30           	STA	EOFFLG			; CLEAR EOF FLAG
+2EE5  E5                	PUSH	H
+2EE6  CD 3230           	CALL	CBT			; COPY BUFFER POINTERS TO TEMP CELLS
+
+                        *	COPY DATA FROM BUFFER TO TARGET
+
+2EE9  D5                $REAL2	PUSH	D			; SAVE TARGET ADDRESS
+2EEA  3A 9530           	LDA	T.FLG
+2EED  E6 02             	ANI	FT.OR
+2EEF  3E 09             	MVI	A,EC.FNO
+2EF1  37                	STC				; ASSUME FILE NOT OPEN
+2EF2  CA 4E2F           	JZ	$REAL8			; ERROR
+2EF5  78                	MOV	A,B
+2EF6  B1                	ORA	C
+2EF7  CA 4E2F           	JZ	$REAL8			; ALL DONE
+
+                        *	COMPUTE MIN( DATA IN BUFFER, DATA REQUESTED)
+
+2EFA  2A 9830           $REAL3	LHLD	T.PTR
+2EFD  EB                	XCHG				; (DE) = (FB.PTR) = ADDRESS OF DATA
+2EFE  2A 9A30           	LHLD	T.LIM			; (HL) = LIMIT ADDRESS
+2F01  7D                	MOV	A,L
+2F02  93                	SUB	E
+2F03  6F                	MOV	L,A
+2F04  7C                	MOV	A,H
+2F05  9A                	SBB	D
+2F06  67                	MOV	H,A			; (HL) = NUMBER OF BYTES IN BUFFER
+2F07  79                	MOV	A,C
+2F08  95                	SUB	L			; COMPARE TO REQUESTED COUNT
+2F09  78                	MOV	A,B
+2F0A  9C                	SBB	H
+2F0B  D2 102F           	JNC	$REAL4			; LESS THAN REQUESTED COUNT
+2F0E  60                	MOV	H,B
+2F0F  69                	MOV	L,C			; DONT TRANSFER MORE THAN LIMIT
+2F10  7C                $REAL4	MOV	A,H
+2F11  B5                	ORA	L
+2F12  C2 1E2F           	JNZ	$REAL6			; SOME IN BUFFER
+
+                        *	BUFFER IS EMPTY. RE-FILL IT
+
+2F15  CD 6230           	CALL	$FFB			; FILL FILE BUFFER
+2F18  DA 4E2F           	JC	$REAL8			; ERROR CONDITION
+2F1B  C3 FA2E           	JMP	$REAL3			; COUNT THE DATA
+
+                        *	GOT THE DATA. MOVE IT FROM BUFFER TO TARGET
+                        *
+                        *	(BC) = LIMIT COUNT
+                        *	(DE) = FROM
+                        *	(HL) = COUNT
+                        *	((SP)) = TO
+
+2F1E  79                $REAL6	MOV	A,C
+2F1F  95                	SUB	L
+2F20  4F                	MOV	C,A
+2F21  78                	MOV	A,B
+2F22  9C                	SBB	H
+2F23  47                	MOV	B,A			; REMOVE BYTES FROM REQUEST COUNT
+2F24  C5                	PUSH	B
+2F25  E3                	XTHL				; (HL) = REMAINING REQUEST COUNT
+2F26  C1                	POP	B			; (BC) = COUNT FOR THIS COPY
+2F27  E3                	XTHL				; (HL) = TARGET ADDR, ((SP)) = REMAINING
+2F28  1A                $REAL7	LDAX	D
+2F29  13                	INX	D
+2F2A  77                	MOV	M,A
+2F2B  23                	INX	H
+2F2C  A7                	ANA	A			; SEE IF 00 BYTE
+2F2D  C2 342F           	JNZ	$REL7.3 		; NOT 00
+
+                        *	IS 00 BYTE. IGNORE IT
+
+2F30  E3                	XTHL
+2F31  23                	INX	H			; ADD ONE TO UNREQUITED COUNT
+2F32  E3                	XTHL
+2F33  2B                	DCX	H			; BACKSPACE OVER CHARACTER
+2F34  0B                $REL7.3	DCX	B
+2F35  FE 0A             	CPI	NL
+2F37  CA 472F           	JE	$REL7.5 		; IS END OF LINE
+2F3A  78                	MOV	A,B
+2F3B  B1                	ORA	C
+2F3C  C2 282F           	JNZ	$REAL7			; MORE TO GO
+2F3F  EB                	XCHG
+2F40  22 9830           	SHLD	T.PTR			; UPDATE POINTER
+2F43  C1                	POP	B			; (BC) = REMAINING COUNT
+2F44  C3 E92E           	JMP	$REAL2			; SEE IF MORE IN BUFFER
+
+                        *	END OF CODED LINE
+
+2F47  EB                $REL7.5	XCHG
+2F48  1B                	DCX	D			; BACK OVER NL CHARACTER
+2F49  22 9830           	SHLD	T.PTR			; UPDATE POINTER
+2F4C  C1                	POP	B			; (BC) = REMAINING COUNT
+2F4D  D5                	PUSH	D			; SAVE TARGET LWA
+
+                        *	READ COMPLETE.
+                        *
+                        *	(PSW) = COMPLETION FLAGS
+
+2F4E  D1                $REAL8	POP	D			; RESTORE TARGET ADDRESS
+2F4F  F5                	PUSH	PSW			; SAVE RETURN CODE
+2F50  AF                	XRA	A
+2F51  12                	STAX	D			; FLAG END OF LINE
+2F52  F1                	POP	PSW			; RESTORE RESULT FLAGS
+2F53  13                	INX	D			; POINT TO NEXT FREE
+2F54  E1                $REAL9	POP	H
+2F55  C3 4830           	JMP	CTB			; COPY TEMP POINTERS BACK TO BLOCK, EXIT
+2F58                    	XTEXT	FWRIL
+2F58                    FWRIL	SPACE	4,10
+                        **	$FWRIL - WRITE LINE FROM FILE BUFFER.
+                        *
+                        *	$FWRIL IS CALLED TO WRITE A LINE TO A FILE BUFFER.
+                        *
+                        *	ENTRY	(DE) = FWA FOR BYTES
+                        *		(HL) = ADDRESS OF FILE BUFFER
+                        *	EXIT	TO *FERROR* IF ERROR
+                        *		TO CALLER IF OK
+                        *		 (DE) = ADDRESS OF FIRST UNWRITTEN BYTE
+                        *	USES	A,F,B,C,D,E
+
+2F58  CD 5F2F           $FWRIL	CALL	$FWRIL.
+2F5B  D0                	RNC				; RETURN IF OK
+2F5C  C3 9F30           	JMP	$FERROR 		; ERROR
+
+                        *	SCAN FOR END OF LINE
+
+2F5F  D5                $FWRIL. PUSH	D			; SAVE LINE POINTER
+2F60  01 FFFF           	LXI	B,-1			; (BC) = COUNT
+2F63  1A                $FWRIL1	LDAX	D
+2F64  13                	INX	D
+2F65  03                	INX	B
+2F66  A7                	ANA	A
+2F67  C2 632F           	JNZ	$FWRIL1 		; MORE TO GO
+2F6A  D1                	POP	D
+2F6B  CD 7D2F           	CALL	$FWRIB			; WRITE BYTES
+2F6E  D8                	RC				; ERROR
+
+                        *	WRITE 'NL' CHARACTER
+
+2F6F  13                	INX	D
+2F70  D5                	PUSH	D
+2F71  01 0100           	LXI	B,1
+2F74  11 7C2F           	LXI	D,$FWRILA
+2F77  CD 7D2F           	CALL	$FWRIB
+2F7A  D1                	POP	D
+2F7B  C9                	RET
+
+2F7C  0A                $FWRILA	DB	NL
+2F7D                    	XTEXT	FWRIB
+2F7D                    	SPACE	4,10
+                        **	$FWRIB - WRITE BYTES FROM FILE BUFFER.
+                        *
+                        *	$FWRIB IS CALLED TO WRITE A NUMBER OF BYTES FROM A FILE BUFFER.
+                        *
+                        *	ENTRY	(BC) = BYTE COUNT
+                        *		(DE) = FWA FOR BYTES
+                        *		(HL) = ADDRESS OF FILE BUFFER
+                        *	EXIT	TO *FERROR* IF ERROR
+                        *		TO CALLER IF OK
+                        *		 (DE) = ADDRESS OF FIRST UNWRITTEN BYTE
+                        *	USES	A,F,B,C,D,E
+
+2F7D  CD 842F           $FWRIB	CALL	$FWRIB.
+2F80  D0                	RNC				; RETURN IF OK
+2F81  C3 9F30           	JMP	$FERROR 		; ERROR
+
+
+2F84  E5                $FWRIB.	PUSH	H
+2F85  CD 3230           	CALL	CBT			; COPY BUFFER POINTERS TO TEMP CELLS
+
+                        *	COPY DATA FROM USER AREA TO BUFFER
+
+2F88  D5                $WRIB2	PUSH	D			; SAVE AREA ADDRESS
+2F89  3A 9530           	LDA	T.FLG
+2F8C  E6 04             	ANI	FT.OW			; SEE IF OPEN FOR WRITE
+2F8E  CA EA2F           	JZ	$WRIB8			; FILE NOT OPEN FOR WRITE
+2F91  78                	MOV	A,B
+2F92  B1                	ORA	C
+2F93  CA EA2F           	JZ	$WRIB8			; ALL DONE
+
+                        *	COMPUTE MIN( ROOM IN BUFFER, WRITE COUNT REQUESTED)
+
+2F96  2A 9830           $WRIB3	LHLD	T.PTR
+2F99  EB                	XCHG				; (DE) = (FB.PTR) = ADDRESS OF ROOM
+2F9A  2A 9C30           	LHLD	T.LWA			; (HL) = LIMIT ADDRESS
+2F9D  7D                	MOV	A,L
+2F9E  93                	SUB	E
+2F9F  6F                	MOV	L,A
+2FA0  7C                	MOV	A,H
+2FA1  9A                	SBB	D
+2FA2  67                	MOV	H,A			; (HL) = BYTES OF ROOM IN BUFFER
+2FA3  79                	MOV	A,C			; COMPARE REQUESTED COUNT TO BUFFER ROOM
+2FA4  95                	SUB	L
+2FA5  78                	MOV	A,B
+2FA6  9C                	SBB	H
+2FA7  D2 AC2F           	JNC	$WRIB4			; MORE REQUESTED THEN ROOM
+2FAA  60                	MOV	H,B
+2FAB  69                	MOV	L,C			; USE REQUESTED COUNT
+2FAC  7C                $WRIB4	MOV	A,H
+2FAD  B5                	ORA	L
+2FAE  C2 CE2F           	JNZ	$WRIB6			; SOME ROOM IN BUFFER
+
+                        *	BUFFER IS FULL. EMPTY IT
+
+2FB1  C5                	PUSH	B			; SAVE COUNT
+2FB2  2A 9630           	LHLD	T.FWA
+2FB5  22 9830           	SHLD	T.PTR			; CLEAR REMOVAL POINTER
+2FB8  EB                	XCHG
+2FB9  2A 9C30           	LHLD	T.LWA
+2FBC  7D                	MOV	A,L
+2FBD  93                	SUB	E
+2FBE  4F                	MOV	C,A
+2FBF  7C                	MOV	A,H
+2FC0  9A                	SBB	D
+2FC1  47                	MOV	B,A			; (BC) = DATA IN BUFFER
+2FC2  3A 9430           	LDA	T.CHA
+2FC5  FF 05             	SCALL	.WRITE			; WRITE BUFFER
+2FC7  C1                	POP	B			; (BC) = DESIRED COUNT
+2FC8  D2 962F           	JNC	$WRIB3			; GOT THE DATA
+
+                        *	ERROR ON WRITE.
+
+2FCB  C3 EA2F           	JMP	$WRIB8			; HAVE ERROR
+
+                        *	GOT THE DATA. MOVE IT FROM BUFFER TO TARGET
+                        *
+                        *	(BC) = REQUEST COUNT
+                        *	(DE) = TO
+                        *	(HL) = COUNT
+                        *	((SP)) = FROM
+
+2FCE  79                $WRIB6	MOV	A,C
+2FCF  95                	SUB	L
+2FD0  4F                	MOV	C,A
+2FD1  78                	MOV	A,B
+2FD2  9C                	SBB	H
+2FD3  47                	MOV	B,A			; REMOVE BYTES FROM REQUEST COUNT
+2FD4  C5                	PUSH	B
+2FD5  E3                	XTHL				; (HL) = REMAINING REQUEST COUNT
+2FD6  C1                	POP	B			; (BC) = COUNT FOR THIS COPY
+2FD7  E3                	XTHL				; (HL) = TARGET ADDR, ((SP)) = REMAINING
+2FD8  7E                $WRIB7	MOV	A,M
+2FD9  12                	STAX	D
+2FDA  13                	INX	D
+2FDB  23                	INX	H
+2FDC  0B                	DCX	B
+2FDD  78                	MOV	A,B
+2FDE  B1                	ORA	C
+2FDF  C2 D82F           	JNZ	$WRIB7			; MORE TO GO
+2FE2  EB                	XCHG
+2FE3  22 9830           	SHLD	T.PTR			; UPDATE POINTER
+2FE6  C1                	POP	B			; (BC) = REMAINING COUNT
+2FE7  C3 882F           	JMP	$WRIB2			; SEE IF MORE IN BUFFER
+
+                        *	WRITE COMPLETE.
+                        *
+                        *	(PSW) = COMPLETION FLAGS
+
+2FEA  D1                $WRIB8	POP	D			; RESTORE TARGET ADDRESS
+2FEB  E1                	POP	H
+2FEC  C3 4830           	JMP	CTB			; COPY TEMP POINTERS BACK TO BLOCK, EXIT
+2FEF                    	SPACE	4,10
+                        **	$FWBRK	-  BREAKOUTPUT
+                        *
+                        *	$FWBRK empties the specified buffer by filling it with NULLs
+                        *	and then writing it.  Note this is used to insure that block
+                        *	mode I/O is output if it is not really a serial device (eg.
+                        *	writing to AT: from  *EDIT*.
+                        *
+                        *
+                        *	ENTRY:	HL = FILE BLOCK POINTER
+                        *	EXIT:	HL = FILE BLOCK POINTER
+                        *		 to $FERROR IF ERROR
+                        *	USES:	A,F,B,C,D,E
+
+2FEF  CD F62F           $FWBRK	CALL	$FWBRK.
+2FF2  D0                	RNC				; NO ERROR
+
+2FF3  C3 9F30           	JMP	$FERROR
+
+2FF6  E5                $FWBRK.	PUSH	H
+2FF7  CD 3230           	CALL	CBT			; COPY BUFFER TO TEMPORARY
+2FFA  CD 0130           	CALL	$FWBRK1
+2FFD  E1                	POP	H
+2FFE  C3 4830           	JMP	CTB			; COPY TEMPORARY TO BUFFER
+
+3001  2A 9C30           $FWBRK1	LHLD	T.LWA
+3004  EB                	XCHG				; DE = BUFFER LWA
+3005  2A 9830           	LHLD	T.PTR			; HL = BUFFER PTR
+3008  7B                	MOV	A,E
+3009  95                	SUB	L
+300A  4F                	MOV	C,A
+300B  7A                	MOV	A,D
+300C  9C                	SBB	H
+300D  47                	MOV	B,A			; BC = DE - HL
+300E  B1                	ORA	C
+300F  C8                	RZ				; THE BUFFER IS ALREADY FLUSHED
+                        	
+                        *	FILL THE BUFFER WITH NULLS
+
+3010  78                FWBRK2	MOV	A,B
+3011  B1                	ORA	C
+3012  CA 1C30           	JZ	FWBRK3			; NO MORE LEFT TO FILL
+
+3015  36 00             	MVI	M,0
+3017  23                	INX	H
+3018  0B                	DCX	B
+3019  C3 1030           	JMP	FWBRK2
+
+301C  2A 9630           FWBRK3	LHLD	T.FWA
+301F  22 9830           	SHLD	T.PTR
+3022  EB                	XCHG				; DE = BUFFER FWA
+3023  2A 9C30           	LHLD	T.LWA			; HL = BUFFER LWA
+3026  7D                	MOV	A,L
+3027  93                	SUB	E
+3028  4F                	MOV	C,A
+3029  7C                	MOV	A,H
+302A  9A                	SBB	D
+302B  47                	MOV	B,A			; BC = HL - DE	( BC = COUNT )
+302C  3A 9430           	LDA	T.CHA
+302F  FF 05             	SCALL	.WRITE
+3031  C9                	RET
+3032                    	XTEXT	FUTIL
+3032                    	SPACE	4,10
+                        **	$FUTIL - UTILITY ROUTINES FOR FILE BLOCK ROUTINES.
+
+                        **	CBT - COPY BLOCK POINTERS TO TEMP CELLS.
+                        *
+                        *	ENTRY	(HL) = FILE BLOK FWA
+                        *	EXIT	NONE
+                        *	USES	A,F,H,L
+
+3032  D5                CBT	PUSH	D
+3033  C5                	PUSH	B			; SAVE REGISTERS
+                        	ERRNZ	TLEN-10 		; ASSUME 10 BYTES TO MOVE
+3034  11 9430           	LXI	D,T.CHA 		; (DE) = TARGET FOR MOVE
+3037  06 05             	MVI	B,10/2
+3039  7E                CBT1	MOV	A,M			; COPY FILE BUFFER INTO WORK AREA
+303A  12                	STAX	D
+303B  23                	INX	H
+303C  13                	INX	D
+303D  7E                	MOV	A,M
+303E  12                	STAX	D
+303F  23                	INX	H
+3040  13                	INX	D
+3041  05                	DCR	B
+3042  C2 3930           	JNZ	CBT1			; MORE TO GO
+3045  C1                	POP	B
+3046  D1                	POP	D			; (DE) = DATA TARGET ADDRESS
+3047  C9                	RET
+
+
+                        **	CTB - COPY TEMP CELLS BACK TO FILE BLOCK.
+                        *
+                        *	ENTRY	(HL) = FILE BLOCK ADDRESS
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+3048  F5                CTB	PUSH	PSW
+3049  D5                	PUSH	D
+304A  C5                	PUSH	B
+304B  E5                	PUSH	H			; SAVE REGISTERS
+304C  06 04             	MVI	B,8/2
+304E  11 9430           	LXI	D,T.CHA
+3051  1A                CTB1	LDAX	D
+3052  77                	MOV	M,A
+3053  13                	INX	D
+3054  23                	INX	H
+3055  1A                	LDAX	D
+3056  77                	MOV	M,A
+3057  13                	INX	D
+3058  23                	INX	H
+3059  05                	DCR	B
+305A  C2 5130           	JNZ	CTB1			; RESTORE FILE BUFFER VALUES
+305D  E1                	POP	H
+305E  C1                	POP	B
+305F  D1                	POP	D
+3060  F1                	POP	PSW
+3061  C9                	RET
+3062                    	SPACE	4,10
+                        **	$FFB - FILL FILE BUFFER.
+                        *
+                        *	$FFB FILLS THE FILE BUFFER BY READING FROM THE FILE.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	'C' SET IF READ INCOMPLETE
+                        *		 (A) = ERROR CODE
+                        *		'C' CLEAR IF READ COMPLETEE
+                        *		 DATA IN BUFFER
+                        *	USES	A,F,D,E,H,L
+
+3062  3A 9E30           $FFB	LDA	EOFFLG
+3065  1F                	RAR
+3066  D8                	RC				; EOF
+
+                        *	CAN READ MORE. DO SO
+
+3067  C5                	PUSH	B			; SAVE COUNT
+3068  2A 9630           	LHLD	T.FWA
+306B  22 9830           	SHLD	T.PTR			; CLEAR REMOVAL POINTER
+306E  EB                	XCHG
+306F  2A 9C30           	LHLD	T.LWA
+3072  22 9A30           	SHLD	T.LIM			; SET DATA LIMIT
+3075  7D                	MOV	A,L
+3076  93                	SUB	E
+3077  4F                	MOV	C,A
+3078  7C                	MOV	A,H
+3079  9A                	SBB	D
+307A  47                	MOV	B,A			; (BC) = ROOM IN BUFFER
+307B  3A 9430           	LDA	T.CHA
+307E  FF 04             	SCALL	.READ			; READ BUFFER
+3080  50                	MOV	D,B			; (D) = SECTORS UNREAD
+3081  C1                	POP	B			; (BC) = DESIRED COUNT
+3082  D0                	RNC				; GOT THE DATA
+
+                        *	ERROR ON READ. SEE IF EOF
+
+3083  17                	RAL
+3084  32 9E30           	STA	EOFFLG			; SET EOF, WE HOPE
+3087  FE 03             	CPI	EC.EOF*2+1
+3089  1F                	RAR
+308A  C0                	RNE				; IS NOT EOF, RETURN NOW!
+308B  3A 9B30           	LDA	T.LIM+1
+308E  92                	SUB	D
+308F  32 9B30           	STA	T.LIM+1 		; SET AMOUNT OF DATA WE DID GET
+3092  A7                	ANA	A
+3093  C9                	RET				; EXIT WITH DATA
+
+
+                        **	TEMP CELLS TO HOLD FILE BLOCK POINTERS DURING I/O
+
+                        	ERRNZ	FB.CHA
+3094  00                T.CHA	DB	0			; CHANNEL NUMBER
+                        	ERRNZ	*-T.CHA-FB.FLG
+3095  00                T.FLG	DB	0			; FLAG BYTE
+                        	ERRNZ	*-T.CHA-FB.FWA
+3096  0000              T.FWA	DW	0
+                        	ERRNZ	*-T.CHA-FB.PTR
+3098  0000              T.PTR	DW	0
+                        	ERRNZ	*-T.CHA-FB.LIM
+309A  0000              T.LIM	DW	0
+                        	ERRNZ	*-T.CHA-FB.LWA
+309C  0000              T.LWA	DW	0
+      = 000A            TLEN	EQU	*-T.CHA 		; LENGTH OF TEMP CELLS
+
+309E  00                EOFFLG	DB	0
+309F                    	XTEXT	FERROR
+309F                    	SPACE	4,10
+                        **	$FERROR - PROCESS FILE ERRORS.
+                        *
+                        *	$FERROR IS CALLED TO COMPLAIN ABOUT AN ERROR ENCOUNTERED
+                        *	WHEN PROCESSING FILES.
+                        *
+                        *	ENTRY	(A) = ERROR CODE
+                        *		(HL) = ADDRESS OF FILE NAME - FB.NAM
+                        *	EXIT	TO RESTART
+                        *	USES	ALL
+
+309F  F5                $FERROR PUSH	PSW			; SAVE CODE
+30A0  CD 5E19           	CALL	$TYPTX
+30A3  0A457272 6F72206F 	DB	NL,'Error on file',' '+200Q
+30AB  6E206669 6C65A0
+30B2  11 0A00           	LXI	D,FB.NAM
+30B5  19                	DAD	D
+
+                        *	PRINT FILE NAME
+
+30B6  7E                $FERR1	MOV	A,M
+30B7  23                	INX	H			; ADVANCE MESSAGE
+30B8  A7                	ANA	A
+30B9  CA C130           	JZ	$FERR2
+30BC  FF 02             	SCALL	.SCOUT
+30BE  C3 B630           	JMP	$FERR1
+
+                        *	TYPE ERROR MESSAGE
+
+30C1  CD 5E19           $FERR2	CALL	$TYPTX
+30C4  202DA0            	DB	' -',' '+200Q
+30C7  26 0A             	MVI	H,NL
+30C9  F1                	POP	PSW			; (A) = CODE
+30CA  FF 2F             	SCALL	.ERROR
+30CC  C3 8022           	JMP	RESTART 		; EXIT
+30CF                    	XTEXT	TJMP
+30CF                    TJMP   SPACE	 4,10
+                        **     $TJMP - TABLE JUMP.
+                        *
+                        *      USAGE
+                        *
+                        *      CALL	 $TJMP		  (A) = INDEX
+                        *      DW	 ADDR1
+                        *      .	   .
+                        *      .	   .
+                        *      .	   .
+                        *      DW	 ADDRN
+                        *
+                        *      ENTRY	(A) = INDEX
+                        *      EXIT	TO PROCESSOR
+                        *		 (A) = INDEX*2
+                        *      USES	NONE
+
+      = 1931            $TJMP	EQU	031061A 		; IN H17 ROM, (A) = INDEX*2
+
+      = 1932            $TJMP.	EQU	031062A 		; IN H17 ROM
+30CF                    	XTEXT	TYPTX
+30CF                    TYPTX	SPACE	4,10
+                        **	$TYPTX - TYPE TEXT.
+                        *
+                        *	$TYPTX IS CALLED TO TYPE A BLOCK OF TEXT ON THE SYSTEM CONSOLE.
+                        *
+                        *	IMBEDDED ZER0 BYTES INDICATE A CARRIAGE RETURN LINE FEED,
+                        *	A BYTE WITH THE 200Q BIT SET IS THE LAST BYTE IN THE MESSAGE.
+                        *
+                        *	ENTRY	(RET) = TEXT
+                        *	EXIT	TO (RET+LENGTH)
+                        *	USES	A,F
+
+      = 195E            $TYPTX	EQU	031136A 		; IN H17 ROM
+
+      = 1964            $TYPTX. EQU	031144A 		; IN H17 ROM
+30CF                    	STL	'CMDTAB - COMMAND TABLE.'
+30CF                    	EJECT
+                        **	CMDTAB - COMMAND TABLE.
+                        *
+
+      = 30CF            CMDTAB	EQU	*
+30CF  00                	DB	0	;DUMY FIRST COMMAND
+30D0  5052494E 5400     	DB	'PRINT',0
+30D6  44454C45 544500   	DB	'DELETE',0
+30DD  45444954 00       	DB	'EDIT',0
+30E2  5245504C 41434500 	DB	'REPLACE',0
+30EA  57524954 4500     	DB	'WRITE',0
+      = 30F0            CMDTAB.	EQU	*	;THESE COMMANDS ALLOWED WITH NO TEXT
+30F0  58505249 4E5400   	DB	'XPRINT',0;IS DUMMY COMMAND FOR 2ND GROUP, REAL COMMAND FOR 1ST
+30F7  494E5345 525400   	DB	'INSERT',0
+30FE  52454144 00       	DB	'READ',0
+3103  424C4954 5A00     	DB	'BLITZ',0
+3109  464C5553 4800     	DB	'FLUSH',0
+310F  4E455854 00       	DB	'NEXT',0
+3114  53454152 434800   	DB	'SEARCH',0
+311B  4E455749 4E00     	DB	'NEWIN',0
+3121  4E45574F 555400   	DB	'NEWOUT',0
+3128  584F5554 00       	DB	'XOUT',0
+312D  55534500          	DB	'USE',0
+3131  42594500          	DB	'BYE',0
+3135  00                	DB	0
+3136                    	STL	'PATCH AREA'
+3136                    	EJECT
+3136  AAAAAAAA AAAAAAAA PATCH	DC	64,#0AAH
+313E  AAAAAAAA AAAAAAAA
+3146  AAAAAAAA AAAAAAAA
+314E  AAAAAAAA AAAAAAAA
+3156  AAAAAAAA AAAAAAAA
+315E  AAAAAAAA AAAAAAAA
+3166  AAAAAAAA AAAAAAAA
+316E  AAAAAAAA AAAAAAAA
+3176                    	STL	'DATA STRUCTURES.'
+3176                    	EJECT
+3176                    	SPACE	3,10
+                        **	LINE POINTERS INTO TEXT PAGE.
+
+3176  0000              FILPTR	DW	0	;ADDRESS OF 1ST LINE IN BUFFER
+3178  0000              LALPTR	DW	0	;ADDRESS OF END OFLAST LINE IN BUFFER +1
+317A  0000              CRFPTR	DW	0	;COMMAND RANGE 1ST LINE POINTER
+317C  0000              CRLPTR	DW	0	;COMMAND RANGE LAST LINE POINTER
+317E  0000              WRKPTR	DW	0	;COMMAND RANGE WORKING POINTER
+3180  0000              PCFPTR	DW	0	;PREVIOUS COMMAND 'FIRST' POINTER
+3182  0000              PCLPTR	DW	0	;PREVIOUS COMMAND 'LAST' POINTER
+
+3184  00                CCFLG	DB	0	;<>0 IF CTL-C DISABLED
+3185  00                CCPEND	DB	0	;<>0 IF CTL-C HIT DURING DISABLED PERIOD
+
+3186  0000              BUFMAX	DW	0	;MAX ADDRESS FOR *BUFFER*
+3188                    	SPACE	3,10
+                        **	CELLS AND POINTERS
+
+3188  0000              LINPTR	DW	0	;LINE POINTER
+318A  00                PROCHA	DB	0	;PROBATION CHARACTER
+318B  00                SRCDIR	DB	0	;SEARCH DIRECTON
+318C  00                OPTS	DB	0	;OPTION FLAGS
+
+                        *	FILE BUFFERS
+
+318D  53593000 0000     DEFALT	DB	'SY0',0,0,0;DEFAULT DEVICE AND EXTENSION
+
+3193   (0000)           INFB	DS	0	;INPUT FILE BUFFER
+3193  01                	DB	1	;CHANNEL NUMBER
+3194  00                	DB	0	;FLAGS
+3195  6433              	DW	INBUF
+3197  6433              	DW	INBUF
+3199  6433              	DW	INBUF
+319B  6435              	DW	INBUFE
+319D  00000000 00000000 	DC	FB.NAML,#0;NAME
+31A5  00000000 00000000
+31AD  00
+
+31AE   (0000)           OUTFB	DS	0	;OUTPUT FILE BUFFER
+31AE  00                	DB	0
+31AF  00                	DB	0	;FLAGS
+31B0  6435              	DW	OUTBUF
+31B2  6435              	DW	OUTBUF
+31B4  6435              	DW	OUTBUF
+31B6  6437              	DW	OUTBUFE
+31B8  00000000 00000000 	DC	FB.NAML,#0;NAME
+31C0  00000000 00000000
+31C8  00
+
+31C9   (0000)           XOUTFB	DS	0	;XOUT FILE BUFFER
+31C9  02                	DB	2
+31CA  00                	DB	0	;FLAGS
+31CB  6437              	DW	XOTBUF
+31CD  6437              	DW	XOTBUF
+31CF  6437              	DW	XOTBUF
+31D1  6438              	DW	XOTBUFE
+31D3  00000000 00000000 	DC	FB.NAML,#0;NAME
+31DB  00000000 00000000
+31E3  00
+31E4                    	STL	'PRESET CODE (OVERLAID BY BUFFERS)'
+31E4                    	EJECT
+31E4                    PRS	SPACE	4,10
+                        **	PRS - PERFORM PRESET PROCESSING.
+                        *
+                        *	THIS CODE IS ONLY USED UPON ENTRY, AND THEN IS OVERLAID BY BUFFERS.
+                        *
+                        *	IT	1) TYPES THE BANNER MESSAGE
+                        *		2) DETERMINES THE MEMORY SIZE
+                        *		3) PRESETS THE TEXT PAGE TO NULL
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	DATA STRUCTURE INITIALIZED
+
+      = 31E4            ENTRY	EQU	*
+31E4  AF                	XRA	A
+31E5  32 6438           	STA	BUFFER-1;SET DUMY END-OF-LINE FOR BUFFER
+31E8  32 E431           	STA	LINE-1	;SETUP 00 BYTE REQUIRED BEFORE *LINE*
+
+                        *	CHECK VERSION
+
+31EB  FF 09             	SCALL	.VERS
+31ED  DA 2732           	JC	PRSERR1	;PROBABLY NO .VERS SYSTEM CALL
+31F0  FE 30             	CPI	VERS
+31F2  C2 2732           	JNZ	PRSERR1	;NOT THE CORRECT VERSION
+
+                        *	SETUP HIGH MEMORY
+
+31F5  CD DB2B           	CALL	MAM	;SET MAXIMUM MEMORY SIZE
+
+                        *	SETUP CTL-C PROCESSING
+
+31F8  21 FC22           	LXI	H,INTRPT
+31FB  3E 03             	MVI	A,CTLC
+31FD  FF 21             	SCALL	.CTLC
+
+                        *	set default block
+
+31FF  2A 6A00           	LHLD	S.DFBLK
+3202  3A 6C00           	LDA	S.DFBLK+2
+
+3205  22 8D31           	SHLD	DEFALT
+3208  32 8F31           	STA	DEFALT+2
+
+                        *	signon and begin
+
+320B  CD 5E19           	CALL	$TYPTX
+320E  45444954 20497373 	DB	'EDIT Issue #103.07.00',ENL		;/WCZ080480/
+3216  75652023 3130332E
+321E  30372E30 308A
+3224  C3 8022           	JMP	START	;STARTUP
+
+3227  3E 28             PRSERR1	MVI	A,EC.NCV;NOT THE CORRECT VERSION
+
+3229  26 0A             ENTEXT	MVI	H,NL
+322B  FF 2F             	SCALL	.ERROR	;THERE WAS AN ERROR UPON ENTRY
+322D  AF                	XRA	A
+322E  FF 00             	SCALL	.EXIT
+3230                    	SPACE	4,8
+                        **	"what" identification
+
+3230  40282329 48444F53 	DB	'@(#)HDOS 3.0 Line Editor',NL
+3238  20332E30 204C696E
+3240  65204564 69746F72
+3248  0A
+3249  0100              	DW	.DATE.
+324B  0200              	DW	.TIME.
+324D                    	SPACE	3
+                        **	BUFFERS OVERLAYING PRS
+
+      = 324D            MEML	EQU	*	;END OF LOAD IMAGE
+
+324D                    	NOTE	MEML
+
+31E4                    	ORG	ENTRY
+31E4                    TEXT	SPACE	3,10
+                        **	STRING AND TEXT STORE AREAS
+
+31E4   (0001)           	DS	1	;REQUIRED 0 BEFORE 'LINE'
+
+31E5   (0078)           LINE	DS	120	;LINE BUFFER
+      = 31E5            FNRA	EQU	LINE	;$FNR WORK AREA
+325D   (0078)           WRKSTR	DS	120	;EXPANDED STRING WORK AREA
+32D5   (0029)           EDIA	DS	41	;EDIT WORK AREA
+32FE   (0029)           EDIB	DS	41	;EDIT WORK AREA
+3327   (0029)           QUALS	DS	41	;QUALIFIER STRING
+3350   (0001)           NXTCHA	DS	1	;NEXT COMMAND CHARACTER
+3351   (0001)           PATCNT	DS	1	;INDEX OF CURRENT PATTERN
+3352   (0001)           CMDGRP	DS	1	;ZERO IF RESTRICTED COMMAND GROUP
+
+3353   (0011)           $FOPWRK	DS	FB.NAML	;USED BY $FOPEX
+
+3364   (0200)           INBUF	DS	512
+      = 3564            INBUFE	EQU	*
+
+3564   (0200)           OUTBUF	DS	512
+      = 3764            OUTBUFE	EQU	*
+
+3764   (0100)           XOTBUF	DS	256
+      = 3864            XOTBUFE	EQU	*
+3864                    BUFFER	SPACE	4,10
+                        **	TEXT BUFFER.
+
+3864   (0001)           	DS	1	;0 BYTE NEEDED FOR BACKWARDS SCAN OF 1ST LINE
+3865   (0000)           BUFFER	DS	0
+3865                    	SPACE	3,10
+324D                    	ORG	MEML
+
+324D   (31E4)           	END	ENTRY
+
+00001 Total Error 
+
+
+00000 Total Warnings
+
+$CCO               2D00    $CDEHL             188E E  $CHL               1894 E
+$CLL               2CF1    $CRLF              2E02    $DADA              183A E
+$FCLO              2E90    $FCLO.             2E97    $FCLO1             2EC0
+$FCLO2             2EC8    $FCLO3             2ECD    $FCLO4             2ED3
+$FERR1             30B6    $FERR2             30C1    $FERROR            309F
+$FFB               3062    $FOPE1             2E60    $FOPE2             2E7B
+$FOPEA             2E81 E  $FOPEB             2E89    $FOPER             2E30
+$FOPER.            2E45    $FOPEU             2E3E    $FOPEU.            2E4B
+$FOPEW             2E37    $FOPEW.            2E48    $FOPWRK            3353
+$FREAL             2ED5    $FREAL.            2EE0    $FWBRK             2FEF
+$FWBRK.            2FF6    $FWBRK1            3001    $FWRIB             2F7D
+$FWRIB.            2F84    $FWRIL             2F58    $FWRIL.            2F5F
+$FWRIL1            2F63    $FWRILA            2F7C    $GNL               2D79
+$INCHA             2D0D    $INCHAA            2D68    $INDL              189C E
+$MCU               2D85    $MLU               2D69    $MLU1              2D6C
+$MOVL              2E08 E  $MOVL1             2E18 E  $MOVL2             2E25 E
+$MOVLL             2DBB    $MU10              18D4 E  $RCHAR             2DE1
+$REAL2             2EE9    $REAL3             2EFA    $REAL4             2F10
+$REAL6             2F1E    $REAL7             2F28    $REAL8             2F4E
+$REAL9             2F54    $REL7.3            2F34    $REL7.5            2F47
+$RSTALL            1927 E  $RTL               2D9B E  $RTL.              2D94
+$RTL1              2D9C    $RTL2              2DB8    $SAVALL            192C E
+$TBLS              2DEA    $TBRA              193E E  $TJMP              1931 E
+$TJMP.             1932 E  $TYPC.             2DDE    $TYPCC             2DCE E
+$TYPCH             2DDA    $TYPTX             195E E  $TYPTX.            1964 E
+$UDD               196F E  $WCHAR             2DE7    $WRIB2             2F88
+$WRIB3             2F96    $WRIB4             2FAC    $WRIB6             2FCE
+$WRIB7             2FD8    $WRIB8             2FEA    .CHFLG             0030
+.CLEAR             002D    .CLEARA            002E    .CLOSE             0026
+.CLRCO             0007    .CONSL             0006    .CRC16             000B
+.CTLC              0021    .DAD               0086    .DATE.             0001 E
+.DECODE            002B    .DELET             0028    .DELETE            0028 E
+.DISMT             0031    .DMNMS             0083    .DMOUN             0081
+.DMOUNT            0081 E  .ERROR             002F    .EXIT              0000
+.GDA               000A    .LINK              0020    .LOADD             0032
+.LOADO             0008    .MONMS             0082    .MOUNT             0080
+.NAME              002C    .OPENC             0025    .OPENR             0022
+.OPENU             0024    .OPENW             0023    .POSIT             0027
+.PRINT             0003    .READ              0004    .RENAM             0029
+.RENAME            0029 E  .RESET             0084    .RESNMS            0085
+.SCIN              0001    .SCOUT             0002    .SETTOP            002A E
+.SETTP             002A    .SYSRES            000C    .TIME.             0002 E
+.VERS              0009    .WRITE             0005    ABS.COD            0008
+ABS.ENT            0006    ABS.ID             0000    ABS.LDA            0002
+ABS.LEN            0004    ACL                2A25    ATL                2A3A
+AYS                2A48    B.END              0080 E  B.INT0             0000
+B.INT1             0008    B.INT2             0010    B.INT3             0018
+B.INT4             0020    B.INT5             0028    B.INT6             0030
+B.INT7             0038    B.NMI              0066    B.NMIFL            0069
+B.SCALL            003B    BATBUF             0054    BATGNS             0052
+BATNAME            0040    BATPTR             0056    BATSEC             0051
+BELL               0007 E  BKSP               0008 E  BS                 0008 E
+BUFFER             3865    BUFMAX             3186    BYE                2715
+C.STX              0002 E  C.SYN              0016 E  CBE                2A6B
+CBO                2A79    CBO1               2A8D    CBT                3032
+CBT1               3039    CCFLG              3184    CCPEND             3185
+CDV                2AA3    CLL1               2CF5    CMD2               244B
+CMD3               244E    CMD4               2465    CMD5               248A
+CMD6               2496    CMD6.5             249A    CMD7               24B5
+CMDADR             22DA    CMDDSP             0006 E  CMDGRP             3352
+CMDTAB             30CF E  CMDTAB.            30F0 E  CO.FLG             0001 E
+CPDEHL             2D8E    CR                 000D E  CRFPTR             317A
+CRLPTR             317C    CS.FLG             0080 E  CSL.CHR            0001 E
+CSL.ECH            0080 E  CSL.RAW            0004 E  CSL.WRP            0002 E
+CSLIBUF            003E    CTB                3048    CTB1               3051
+CTLA               0001 E  CTLB               0002 E  CTLC               0003 E
+CTLD               0004 E  CTLE               0005 E  CTLO               000F E
+CTLP               0010 E  CTLQ               0011 E  CTLR               0012 E
+CTLS               0013 E  CTLX               0018 E  CTLZ               001A E
+CTP.2SB            0008 E  CTP.BKM            0002 E  CTP.BKS            0080 E
+CTP.FF             0040 E  CTP.HHS            0004 E  CTP.MLI            0020 E
+CTP.MLO            0010 E  CTP.TAB            0001 E  D.CON              2048
+D.RAM              20A0    D.VEC              2058    DCC                2AAD
+DCN                243A E  DCNA               246F E  DCO                24D6
+DCO1               24DB    DCO2               24E9    DCQ                24C8
+DCR                2336 E  DCR1               2361    DDN                2AB5
+DDN1               2AC0    DDN2               2ADA    DEFALT             318D
+DEL                007F E  DEL0               2591    DEL1               2598
+DEL2               25BF E  DEL2.5             25D2    DEL3               25D9
+DEL4               25E5    DELA               2610    DELETE             2586
+DF.CLR             00FE E  DF.EMP             00FF E  DIR.ACD            0015
+DIR.CRD            0013    DIR.CTH            000B    DIR.CTM            000C
+DIR.EXT            0008    DIR.FGN            0010    DIR.FLG            000E
+DIR.LGN            0011    DIR.LSI            0012    DIR.NAM            0000
+DIR.NOA            000D    DIR.USR            000F    DIRELEN            0017 E
+DIRIDL             000B E  DRE                239D    DRE1               23C2
+DRE3               23C5    DRE4               23C8    DRE5               23D9
+DRE6               23EB    DRE7               23FA    DRE8               23FD
+DTBK               2ADF    DTBK.              2AE8    DTBK1              2AFD E
+DTBK2              2B10    DTBK3              2B16    DTBK4              2B1D
+EC.CNA             0004    EC.CNR             0034    EC.CUI             0037
+EC.DDA             0017    EC.DFM             0031    EC.DIF             000F
+EC.DIW             001D    EC.DNI             0025    EC.DNL             002F
+EC.DNP             0030    EC.DNR             0026    EC.DNS             0005
+EC.DSC             0027    EC.EOF             0001    EC.EOM             0002
+EC.FAO             0019    EC.FAP             0016    EC.FIX             002D
+EC.FL              0018    EC.FNF             000C    EC.FNO             0009
+EC.FNR             001C    EC.FOD             0023    EC.FUC             000B
+EC.ICN             000E    EC.IDF             0032    EC.IDN             0006
+EC.IFC             0010    EC.IFN             0007    EC.ILA             002E
+EC.ILC             0003    EC.ILO             0020    EC.ILR             000A
+EC.ILV             001F    EC.IOI             002A    EC.IS              001A
+EC.ITS             0033    EC.LAD             002C    EC.LBO             0036
+EC.NCV             0028    EC.NEM             0011    EC.NOS             0029
+EC.NPM             0024    EC.NRD             0008    EC.NVM             0022
+EC.OTL             002B    EC.RF              0012    EC.SDR             0035
+EC.UNA             001E    EC.UND             000D    EC.UUN             001B
+EC.VPM             0021    EC.WF              0013    EC.WP              0015
+EC.WPV             0014    ECC                2B24    EDI0               2677
+EDI1               22A8    EDI1.5             22D3    EDI2               267D
+EDI3               2680    EDI5               26DD    EDI6               26E3
+EDIA               32D5    EDIB               32FE    EDITC              264E E
+EDIX               2280    EDT0               22A5    ENC                2B34
+ENC1               2B5F    ENCA               2B6E    ENL                008A E
+ENTEXT             3229    ENTRY              31E4 E  EOFFLG             309E
+EOL                0080 E  ERROR              2B6F    ESC                001B E
+EXIT               232A    EXIT1              2333    F.2MHZ             0000 E
+F.4MHZ             0001 E  F.6MHZ             0002 E  F.8080             0000 E
+F.8085             0040 E  F.CLK              0003 E  F.CPU              00C0 E
+F.H19              0010 E  F.H8               0000 E  F.H89              0004 E
+F.MACH             000C E  F.OCPU             00C0 E  F.OMACH            000C E
+F.TERM             0030 E  F.TTY              0000 E  F.Z100             0008 E
+F.Z80              0080 E  FB.CHA             0000    FB.FLG             0001
+FB.FWA             0002    FB.LIM             0006    FB.LWA             0008
+FB.NAM             000A    FB.NAML            0011 E  FB.PTR             0004
+FBENL              001B E  FF                 000C E  FILPTR             3176
+FLUSH              26FF E  FLUSH1             2702    FNRA               31E5 E
+FT.ABS             0000 E  FT.BAC             0003 E  FT.DD              0001 E
+FT.OC              0010 E  FT.OR              0002 E  FT.OU              0008 E
+FT.OW              0004 E  FT.PIC             0001 E  FT.REL             0002 E
+FWBRK2             3010    FWBRK3             301C    GNC                2B85
+GTC                2B8F    HOSBASE            0000 E  I.CONFL            0004 E
+I.CONTY            0001 E  I.CONWI            0003 E  I.CSLMD            0000 E
+I.CUSOR            0002 E  INBUF              3364    INBUFE             3564 E
+INC0               2D33    INC1               2D4A    INC3               2D52
+INC4               2D61    INFB               3193    INS1               251D
+INS2               2525    INS3               253F    INSERT             24F9 E
+INT1               2313    INTRPT             22FC    INTRPT.            2301
+IOC.CGN            0008    IOC.CSI            0009    IOC.DDA            0002
+IOC.DES            000E    IOC.DEV            0010    IOC.DIL            0011 E
+IOC.DIR            0013    IOC.DRL            0008 E  IOC.DTA            000C
+IOC.FLG            0004    IOC.GRT            0005    IOC.LGN            000A
+IOC.LNK            0000    IOC.LSI            000B    IOC.SPG            0007
+IOC.SQL            0003 E  IOC.UNI            0012    IOCCTD             0001 E
+IOCELEN            002A E  ITBK               2BA4    ITBK.              2BAD
+ITBK1              2BC0 E  LALPTR             3178    LF                 000A E
+LINE               31E5    LINPTR             3188    LQS                2BD2
+MAM                2BDB    MEML               324D E  MI.LDA             003A E
+MI.NOP             0000 E  MI.RET             00C9 E  MIM                2BE8
+MIM0               2BF6    MIM1               2BFA    MLP                2410
+MLP1               242B    NEWIN              2721 E  NEWIN1             276D
+NEWIN4             2784    NEWO1              27EA    NEWOUT             279D E
+NEXT               2866 E  NEXT.              2869 E  NL                 000A E
+NUL                0000 E  NUL2               0000 E  NULL               0080 E
+NXTCHA             3350    OPT.A              0001 E  OPT.B              0002 E
+OPTS               318C    OUTBUF             3564    OUTBUFE            3764 E
+OUTFB              31AE    OVL.COD            0000    OVL.ENS            0008 E
+OVL.ENT            0004    OVL.FLB            0006    OVL.SIZ            0002
+OVL0               0000    PATCH              3136    PATCNT             3351
+PCFPTR             3180    PCLPTR             3182    PLA                2C10
+PLB                2C18    PRI1               254C    PRIA               2551 E
+PRINT              2549    PROCHA             318A    PRSERR1            3227
+PURGE              262A    PURGE.             2632 E  QUALS              3327
+QUOTE              0027 E  R8N                2C88    RCR                2C21
+RDS                26E5    RDS1               26EB    READ               2883 E
+READ.              288D    READ0              2895    READ1              28A3
+READ2              28C7    REFUSE             2319    REP1               2615
+REPLAC             2612    RESTART            2280 E  RQS                2C3B
+RQS1               2C42    RQS2               2C5E    RSL                2C64
+RSL1               2C78    RSL2               2C7D E  RUBOUT             007F E
+S.BATCH            0008 E  S.BITS             0062    S.BREAK            0020 E
+S.CAADR            20DB    S.CCTAB            20DD    S.CLKTR            20CD
+S.CONFL            20DA    S.CONTY            20D7    S.CONWI            20D9
+S.COUNT            0060    S.CSLMD            20D6    S.CUSOR            20D8
+S.CVEC             0070    S.DATC             20C8    S.DATE             20BF
+S.DFBLK            006A    S.DLY              002B    S.ECHO             0004 E
+S.EDLIN            005E    S.EXITA            2040    S.EXITC            0010 E
+S.FLAG             007F    S.FMASK            0005    S.HIMEM            20CE
+S.INIT             0080 E  S.INT              20E3    S.LABEL            0003
+S.LWA              0006    S.PATH             005A    S.PRMT             005C
+S.REV              000B    S.SHIFT            0061    S.SOVR             2176
+S.SYSCM            0001 E  S.SYSM             20D0    S.TABUF            0040 E
+S.TIME             20CA    S.USRM             20D2    S.VAL              20BF
+S.VFLG             0002 E  SAP                2638    SEA0               28F1
+SEA1               28FF    SEA2               2917    SEA3               292E
+SEA4               293C    SEARCH             28DF E  SEL                2C99
+SEL.               2C96    SEL1               2C92    SEL2               2CAF
+SFS                2CB4    SFS1               2CBD    SFS2               2CCE
+SLB                2CD2    SLB1               2CD3    SNL                2CDB
+SRCDIR             318B    STACK              2280 E  STACKL             010A E
+START              2280 E  SUBBUF             0058    SYDD               2058 E
+SYSCALL            00FF E  T.CHA              3094    T.FLG              3095
+T.FWA              3096    T.LIM              309A    T.LWA              309C
+T.PTR              3098    TAB                0009 E  TBL1               2DF0
+TBL2               2DFE    TBL3               2E00    TLEN               000A E
+TTX                2CE5    TTX.               2CE2    USE                294A E
+USE1               2950    USE2               2963    USE3               298A E
+USEB               29A6    USEC               29B4    USED               29C2
+USERFWA            2280 E  VERS               0030 E  WRI..              29CE
+WRI1               29EB    WRI3               29FC E  WRI4               2A0F
+WRIA               29FC    WRITE              29C9 E  WRITE.             29CC
+WRKPTR             317E    WRKSTR             325D    XOTBUF             3764
+XOTBUFE            3864 E  XOUT               2801 E  XOUT1              284F
+XOUTFB             31C9    XPR1               2565    XPR2               2574 E
+XPR4               257B E  XPRA               2585    XPRAL              0001 E
+XPRINT             255A E

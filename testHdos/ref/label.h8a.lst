@@ -1,0 +1,348 @@
+0000                    	TITLE	'LABEL - Read or Change a Disk Label'
+0000                    	STL	'  HDOS 3.0 version by Mighty/Soft'
+                        *	LABEL - Read or Change a Disk Label
+                        *
+                        *	Usage:	LABEL DEV:
+                        *
+                        *	DEV: is any valid HDOS device (SY1:, DK0:, etc.)
+                        *
+                        *	The existing label on the specified disk will be displayed.
+                        *	You will be prompted for a new label.  Touch RETURN if you
+                        *	don't want to change the label.  Touch DELETE if you want to
+                        *	remove the existing label and have no new label.
+                        *
+                        *	Based on:	REMARK #9	M. Duttweiler
+                        *			REMARK #35	Pat Swayne
+
+      = 0000            .EXIT	EQU	0
+      = 0001            .SCIN	EQU	1
+      = 0002            .SCOUT	EQU	2
+      = 0006            .CONSL	EQU	6
+      = 0009            .VERS	EQU	11Q
+      = 0021            .CTLC	EQU	41Q
+      = 002F            .ERROR	EQU	57Q
+      = 0032            .LOADD	EQU	62Q
+
+      = 0003            CTLC	EQU	3
+      = 0004            CTLD	EQU	4
+      = 0007            BELL	EQU	7
+      = 000A            NL	EQU	12Q
+      = 0009            TAB	EQU	11Q
+      = 001B            ESC	EQU	33Q
+      = 007F            DEL	EQU	127
+      = 008A            ENL	EQU	212Q
+
+      = 183A            $DADA	EQU	30072A
+      = 1846            $DU66	EQU	30106A
+      = 18AA            $MOVE	EQU	30252A
+      = 195E            $TYPTX	EQU	31136A
+
+      = 0001            DC.WRI	EQU	1			; Write to disk
+      = 0002            DC.RER	EQU	2			; Read regardless from disk
+      = 0007            DC.ABT	EQU	7			; Abort device
+      = 0008            DC.MOU	EQU	8			; Mount device
+
+      = 0003            DEV.JMP EQU	3			; Jump to device driver
+
+      = 0009            DDF.LAB EQU	9			; Label sector
+
+      = 2058            D.SYDD	EQU	40130A			; System device driver (pre 2.0)
+
+      = 20FA            S.DFBLK EQU	40372A			; Resident default block
+
+      = 2131            AIO.UNI EQU	41061A			; Active unit number
+
+2280                    	ORG	42200A
+
+                        *	GET THE DEVICE HE WANTS
+
+2280  21 0000           START	LXI	H,0			; See where stack is
+2283  39                	DAD	SP
+2284  7D                	MOV	A,L
+2285  FE 80             	CPI	200Q
+2287  CA AA22           	JZ	READSEC 		; No arg given, use default
+228A  3E C3             	MVI	A,303Q			; JMP code
+228C  32 C322           	STA	VER30			; Have arg, skip default stuffing
+228F  11 9724           	LXI	D,DEV			; Device name buffer
+2292  06 03             	MVI	B,3			; We want 3 char
+2294  7E                GETARG	MOV	A,M			; Get a char
+2295  B7                	ORA	A			; NUL is end of entry
+2296  CA AA22           	JZ	READSEC 		; At end, proceed
+2299  23                	INX	H			; Bump pointer
+229A  FE 20             	CPI	' '			; Is it a space
+229C  CA 9422           	JE	GETARG			; Skip over spaces
+229F  FE 09             	CPI	TAB			; Is it a tab
+22A1  CA 9422           	JE	GETARG			; Skip over tabs
+22A4  12                	STAX	D			; Stuff char
+22A5  13                	INX	D			; Bump pointer
+22A6  05                	DCR	B			; Count down
+22A7  C2 9422           	JNZ	GETARG			; Still need more
+
+                        *	READ LABEL SECTOR
+
+      = 22AA            READSEC EQU	*
+
+22AA  01 8181           	LXI	B,201201A
+22AD  AF                	XRA	A
+22AE  FF 06             	SCALL	.CONSL
+
+22B0  21 2E23           	LXI	H,GLAB
+22B3  3E 03             	MVI	A,CTLC
+22B5  FF 21             	SCALL	.CTLC			; Set up CTL-C
+
+22B7  FF 09             	SCALL	.VERS			; Get HDOS version
+22B9  DA E122           	JC	OLDVER			; Must be older than 2.0
+22BC  FE 20             	CPI	20H			; Is it 2.0
+22BE  DA E122           	JC	OLDVER			; Must be older than 2.0
+22C1  FE 30             	CPI	30H			; Is it 3.0 or later
+22C3  DA D222           VER30	JC	VER20			; Must be 2.0
+22C6  01 0300           	LXI	B,3			; 3 bytes
+22C9  11 FA20           	LXI	D,S.DFBLK		; From
+22CC  21 9724           	LXI	H,DEV			; To
+22CF  CD AA18           	CALL	$MOVE			; Stuff default if no arg given
+22D2  21 9724           VER20	LXI	H,DEV			; Point to device
+22D5  FF 32             	SCALL	.LOADD			; Load it to get address
+22D7  DA 2324           	JC	ERROR
+22DA  11 0300           	LXI	D,DEV.JMP		; Offset to jump
+22DD  19                	DAD	D			; Point at jump
+22DE  22 2C24           	SHLD	DEVJMP			; Save jump address
+22E1  3A 9924           OLDVER	LDA	DEV+2			; Get unit number
+22E4  D6 30             	SUI	'0'			; Make it binary
+22E6  32 3121           	STA	AIO.UNI 		; Save as active unit
+22E9  21 0000           	LXI	H,0
+22EC  3E 07             	MVI	A,DC.ABT
+22EE  CD 2B24           	CALL	DISK			; Abort device
+22F1  DA 2324           	JC	ERROR
+22F4  21 0900           	LXI	H,DDF.LAB		; Point at label sector
+22F7  11 9C24           	LXI	D,BUFFER		; Point at buffer
+22FA  01 0001           	LXI	B,256			; We want 1 sector
+22FD  3E 02             	MVI	A,DC.RER
+22FF  CD 2B24           	CALL	DISK			; Read label sector
+2302  DA 2324           	JC	ERROR
+
+                        *	PRINT CURRENT LABEL
+
+2305  CD 5E19           	CALL	$TYPTX
+2308  0A437572 72656E74 	DB	NL,'Current Label is:',NL,'"'+200Q
+2310  204C6162 656C2069
+2318  733A0AA2
+231C  21 AD24           	LXI	H,BUFFER+17		; Point at label text
+231F  7E                LABLP	MOV	A,M			; Get a char
+2320  B7                	ORA	A			; NUL is end of label
+2321  CA 2A23           	JZ	GETLAB			; At end
+2324  FF 02             	SCALL	.SCOUT			; Show char
+2326  23                	INX	H			; Bump pointer
+2327  C3 1F23           	JMP	LABLP			; Loop for more
+
+                        *	GET NEW LABEL
+
+232A  3E 22             GETLAB	MVI	A,'"'			; Mark end of LABEL
+232C  FF 02             	SCALL	.SCOUT
+
+232E  31 8022           GLAB	LXI	SP,42200A
+2331  CD 5E19           	CALL	$TYPTX
+2334  1B7931            	DB	ESC,'y1'
+2337  0A456E74 6572206E 	DB	NL,'Enter new label or DELETE to clear or RETURN to exit.'
+233F  6577206C 6162656C
+2347  206F7220 44454C45
+234F  54452074 6F20636C
+2357  65617220 6F722052
+235F  45545552 4E20746F
+2367  20657869 742E
+236D  0A546F75 63682043 	DB	NL,'Touch CTL-D when finished.',NL,ENL
+2375  544C2D44 20776865
+237D  6E206669 6E697368
+2385  65642E0A 8A
+238A  21 AD24           	LXI	H,BUFFER+17		; Point at label text
+238D  06 3D             	MVI	B,61			; Max. 60 chars
+238F  FF 01             	SCALL	.SCIN			; Input char
+2391  DA 8F23           	JC	*-2
+2394  FE 0A             	CPI	NL			; Is it RETURN
+2396  CA 5D24           	JE	EXIT			; Yes, no change
+2399  FE 7F             	CPI	DEL
+239B  CA F023           	JE	DELETE
+239E  C3 A623           	JMP	NORET			; No, use as first char
+
+23A1  FF 01             GETLAB1 SCALL	.SCIN			; Input char
+23A3  DA A123           	JC	*-2
+23A6  77                NORET	MOV	M,A			; Stuff char
+23A7  FF 02             	SCALL	.SCOUT			; Print char
+23A9  23                	INX	H			; Bump pointer
+23AA  05                	DCR	B			; Count down
+23AB  CA 2E24           	JZ	LABOVL			; Label overflow
+23AE  F5                	PUSH	PSW
+23AF  C5                	PUSH	B
+23B0  E5                	PUSH	H
+23B1  05                	DCR	B
+23B2  48                	MOV	C,B
+23B3  06 00             	MVI	B,0
+23B5  21 CB23           	LXI	H,CNT
+23B8  3E 02             	MVI	A,2
+23BA  CD 6524           	CALL	$UDDS
+23BD  CD 5E19           	CALL	$TYPTX
+23C0  1B6A1B78 311B5938 	DB	ESC,'j',ESC,'x1',ESC,'Y8 ',ESC,'K'
+23C8  201B4B
+23CB  6E6E2043 68617261 CNT	DB	'nn Character(s) Left',ESC,'k'+200Q
+23D3  63746572 28732920
+23DB  4C656674 1BEB
+23E1  E1                	POP	H
+23E2  C1                	POP	B
+23E3  F1                	POP	PSW
+23E4  FE 04             	CPI	CTLD			; Is it Control D
+23E6  C2 A123           	JNE	GETLAB1 		; No, get another char
+23E9  2B                	DCX	H			; Yes, back up pointer
+23EA  36 00             	MVI	M,0			; Stuff NUL to flag end of label
+23EC  3E 0A             	MVI	A,NL
+23EE  FF 02             	SCALL	.SCOUT			; Go to next line
+
+23F0  05                DELETE	DCR	B			; Fill rest of LABEL area
+23F1  CA FA23           	JZ	WRITE			;  with NUL's
+23F4  36 00             	MVI	M,0
+23F6  23                	INX	H
+23F7  C3 F023           	JMP	DELETE
+
+                        *	WRITE NEW LABEL SECTOR
+
+23FA  CD 5E19           WRITE	CALL	$TYPTX
+23FD  1B79B1            	DB	ESC,'y','1'+200Q
+2400  2E 00             	MVI	L,0			; Volume Number = 0
+2402  3E 08             	MVI	A,DC.MOU
+2404  CD 2B24           	CALL	DISK			; Mount
+2407  21 0900           	LXI	H,DDF.LAB		; Label sector number
+240A  11 9C24           	LXI	D,BUFFER		; Point at buffer
+240D  01 0001           	LXI	B,256			; We want 1 sector
+2410  3E 01             	MVI	A,DC.WRI
+2412  CD 2B24           	CALL	DISK			; Write label sector
+2415  F5                	PUSH	PSW			; Save possible error condition
+2416  3A 9C24           	LDA	BUFFER			; Get real volume number
+2419  6F                	MOV	L,A			; Save in L
+241A  3E 08             	MVI	A,DC.MOU
+241C  CD 2B24           	CALL	DISK			; Remount
+241F  F1                	POP	PSW			; Restore possible error condition
+2420  D2 5D24           	JNC	EXIT			; No error
+
+                        *	PROCESS ERROR
+
+2423  26 07             ERROR	MVI	H,BELL
+2425  FF 2F             	SCALL	.ERROR			; Print error message
+2427  3E 01             	MVI	A,1
+2429  FF 00             	SCALL	.EXIT			; Abort exit
+
+                        *	CALL DEVICE DRIVER
+
+242B  C3 5820           DISK	JMP	D.SYDD			; Go to device driver
+      = 242C            DEVJMP	EQU	*-2
+
+                        *	LABEL OVERFLOW
+
+242E  CD 5E19           LABOVL	CALL	$TYPTX
+2431  0A0A546F 6F206D61 	DB	NL,NL,'Too many characters in label (60 max.)',ENL
+2439  6E792063 68617261
+2441  63746572 7320696E
+2449  206C6162 656C2028
+2451  3630206D 61782E29
+2459  8A
+245A  C3 2A23           	JMP	GETLAB
+
+245D  AF                EXIT	XRA	A
+245E  FF 00             	SCALL	.EXIT			; Normal exit
+
+2460                    	XTEXT	UDDX
+2460                    	SPACE	4,10
+                        **	$UDDX - UNPACK DECIMAL DIGITS.					/3.0/
+                        *
+                        *	UDDX CONVERTS A 16 BIT VALUE INTO A SPECIFIED NUMBER OF DECIMAL
+                        *	DIGITS.
+                        *
+                        *	$UDDN = PAD WITH NULLS
+                        *
+                        *	$UDDS = PAD WITH SPACES
+                        *
+                        *	ENTRY	(B,C) = ADDRESS VALUE
+                        *		(A) = DIGIT COUNT
+                        *		(H,L) = MEMORY ADDRESS
+                        *	EXIT	(HL) = (HL) + (A)
+                        *	USES	ALL
+
+      = 2460            $UDDN	EQU	*
+
+2460  57                	MOV	D,A	;SAVE (A)
+2461  AF                	XRA	A	;(A) = NUL
+2462  C3 6824           	JMP	$UDDX
+
+      = 2465            $UDDS	EQU	*
+
+2465  57                	MOV	D,A	;SAVE (A)
+2466  3E 20             	MVI	A,' '	;(A) = SPACE
+
+2468  32 9324           $UDDX	STA	UDDPAD	;SET PAD CHARACTER
+246B  7A                	MOV	A,D	;RESTORE (A)
+246C  CD 3A18           	CALL	$DADA
+246F  E5                	PUSH	H	;SAVE FINAL (H,L) VALUE
+
+2470  F5                UDDX1	PUSH	PSW
+2471  E5                	PUSH	H
+2472  11 0A00           	LXI	D,10
+2475  CD 4618           	CALL	$DU66	;(H,L) = VALUE/10
+2478  44                	MOV	B,H
+2479  4D                	MOV	C,L	;(BC) = QUOTIENT
+247A  E1                	POP	H
+247B  3E 30             	MVI	A,'0'
+247D  83                	ADD	E	;ADD REMAINDER
+247E  2B                	DCX	H
+247F  77                	MOV	M,A	;STORE DIGIT
+2480  78                	MOV	A,B
+2481  B1                	ORA	C
+2482  CA 8C24           	JZ	UDDX2	;ALL ZEROS
+2485  F1                	POP	PSW
+2486  3D                	DCR	A
+2487  C2 7024           	JNZ	UDDX1	;IF MORE TO GO
+
+                        *	ALL DONE. EXIT
+
+248A  E1                UDDX1.5	POP	H	;RESTORE H
+248B  C9                	RET			RETURN
+
+                        *	DIGITS LEADING THIS ONE ARE ZERO. STORE NULLS INSTEAD.
+
+248C  F1                UDDX2	POP	PSW
+248D  3D                UDDX3	DCR	A
+248E  CA 8A24           	JE	UDDX1.5 ;ALL DONE
+2491  2B                	DCX	H
+2492  36 00             	MVI	M,0
+      = 2493            UDDPAD	EQU	*-1
+2494  C3 8D24           	JMP	UDDX3
+
+                        *	DATA SPACE
+
+2497  5359303A 00       DEV	DB	'SY0:',0		; Device name
+
+      = 249C            BUFFER	EQU	*			; Label sector buffer
+
+249C   (2280)           	END	START
+
+00000 Total Errors
+
+
+00000 Total Warnings
+
+$DADA              183A E  $DU66              1846 E  $MOVE              18AA E
+$TYPTX             195E E  $UDDN              2460 E  $UDDS              2465 E
+$UDDX              2468    .CONSL             0006 E  .CTLC              0021 E
+.DATE.             0001 E  .ERROR             002F E  .EXIT              0000 E
+.LOADD             0032 E  .SCIN              0001 E  .SCOUT             0002 E
+.TIME.             0002 E  .VERS              0009 E  AIO.UNI            2131 E
+BELL               0007 E  BUFFER             249C E  CNT                23CB
+CTLC               0003 E  CTLD               0004 E  D.SYDD             2058 E
+DC.ABT             0007 E  DC.MOU             0008 E  DC.RER             0002 E
+DC.WRI             0001 E  DDF.LAB            0009 E  DEL                007F E
+DELETE             23F0    DEV                2497    DEV.JMP            0003 E
+DEVJMP             242C E  DISK               242B    ENL                008A E
+ERROR              2423    ESC                001B E  EXIT               245D
+GETARG             2294    GETLAB             232A    GETLAB1            23A1
+GLAB               232E    LABLP              231F    LABOVL             242E
+NL                 000A E  NORET              23A6    OLDVER             22E1
+READSEC            22AA E  S.DFBLK            20FA E  START              2280
+TAB                0009 E  UDDPAD             2493 E  UDDX1              2470
+UDDX1.5            248A    UDDX2              248C    UDDX3              248D
+VER20              22D2    VER30              22C3    WRITE              23FA

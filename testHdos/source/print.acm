@@ -1,0 +1,32 @@
+***	PRINT - Print file(s) on line printer device.
+*
+*	PR[INT] FNAME
+
+PRINT	LHLD	LSTADR			; Get list address
+	MOV	A,H
+	ORA	L			;
+	JZ	NOLST			; No list device around ...
+
+	POP	H			; Get line address
+	CALL	$SOB			; Skip spaces
+	ANA	A			; Null line?
+	JZ	ILLSYN			; Dumb user didn't type anything
+	PUSH	H			; Put new line address in place
+
+	LHLD	LSTDEV
+	SHLD	LISTA			; Set list device name for PIP
+
+	CALL	$MOVEL
+	DW	LISTAL,LISTA,LABEL	; Set up PIP commands
+
+	POP	H
+	CALL	$SOB			; Skip blanks
+	XCHG
+	LXI	H,LABEL+LISTAL		; After the device specification
+	LXI	B,120			; Can't be more than 120 bytes!
+	CALL	$MOVE
+	LXI	B,LABEL
+	JMP	PIP			; EXECUTE PIP
+
+LISTA	DB	'xx0:*.*='		; Do the copy as seperate file(s)
+LISTAL	EQU	*-LISTA

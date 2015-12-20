@@ -1,0 +1,110 @@
+***	DIR - DIRECTORY LIST FOR DEVICE.
+*
+*	DIR [[DEV:]NAMES]
+*	C[AT] [[DEV:]NAMES]
+
+DIR	POP	B
+	PUSH	B
+	CALL	FEC			; FIND END OF COMMAND LINE
+	LXI	B,DIRAL
+	LXI	D,DIRA			; /LIST
+	CALL	$MOVE
+	POP	B
+	JMP	PIP
+
+DIRA	DB	'/L',0
+DIRAL	EQU	*-DIRA
+	EJECT
+***	Cn - PRINT DIRECTORY ON CONSOLE
+*
+*	C[n] [NAMES]
+
+CN	CALL	GUN			; Get unit number
+
+	STA	CUNIT			; Set device unit for Cat
+	CALL	GETDEV			; Get device
+	SHLD	CDEV			; Set it
+
+	CALL	$MOVEL			; Set up beginning of command line
+	DW	CAL,CA,LABEL
+
+	JMP	CPCCOM			; Go to common code
+
+CA	DB	'TT0:BP='
+CDEV	DB	'xx'
+CUNIT	DB	'n:'
+CAL	EQU	*-CA
+	EJECT
+***	PCn - PRINT DIRECTORY ON LINE PRINTER
+*
+*	PC[n] [NAMES]
+
+PCN	LHLD	LSTADR			; Get address of list device
+	MOV	A,H
+	ORA	L
+	JZ	NOLST
+
+	CALL	GUN			; Get unit number
+
+	STA	PCUNIT			; Set device unit for Print Cat
+	CALL	GETDEV
+	SHLD	PCDEV			; Set device name
+
+	LHLD	LSTDEV			; Get list device
+	SHLD	PCA			; Set it
+
+	CALL	$MOVEL			; Set up beginning of command line
+	DW	PCAL,PCA,LABEL
+	PUSH	H			; Save this (HL)
+
+	LXI	H,LSTDEV
+	SCALL	.LOADD			; Load the driver
+	JC	ERROR
+
+	MVI	A,DC.OPW		; Open for write
+	CALL	LSTJMP
+
+	POP	H
+
+*	Cn / PCn Common Code
+
+CPCCOM	SHLD	PCT			; Set next address in line
+	POP	H			; Get address of parameters
+	CALL	$SOB			; Skip leading spaces in parameters
+	SHLD	PCF			; Set *FROM* address for copy
+	MOV	B,H
+	MOV	C,L			; (BC) = Parameter List
+	CALL	FEC			; Find end of list
+	PUSH	B			; Save list pointer
+	XTHL				; (HL) = List Pointer
+	POP	D			; (DE) = End of list
+	CALL	$CHL			; Negate (HL) so we can subtract it
+	DAD	D			; (HL) = Length of list
+	SHLD	PCLN			; Set it for move
+
+	CALL	$MOVEL			; Move in parameters list
+PCLN	DW	0			; Length
+PCF	DW	0			; From
+PCT	DW	0			; To
+
+	LXI	D,DIRA			; /LIST
+	LXI	B,DIRAL
+	CALL	$MOVE			; Move it in
+
+	LXI	B,LABEL
+	JMP	PIP			; Let PIP do all the work
+
+PCA	DB	'xx0:BP='
+PCDEV	DB	'xx'
+PCUNIT	DB	'n:'
+PCAL	EQU	*-PCA
+
+***	No list device is present in the system
+
+NOLST	LHLD	LSTDEV			; Get device name
+	SHLD	NOLSTA
+	CALL	$TYPTX
+	DB	NL,'The list device '
+NOLSTA	DB	'xx: is not present in the system.',ENL
+	POP	H
+	RST	SYSCMD

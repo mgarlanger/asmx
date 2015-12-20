@@ -1,0 +1,330 @@
+	TITLE	'FIX - Fix File Flags'
+	STL	'System Definitions'
+
+	XTEXT	ASCII
+	XTEXT	HOSDEF
+	XTEXT	HOSEQU
+	XTEXT	DEVDEF
+	XTEXT	DIRDEF
+	XTEXT	DISDEF
+	XTEXT	IOCDEF
+	XTEXT	ECDEF
+	XTEXT	DIFDEF
+	XTEXT	ESVAL
+	XTEXT	ESINT
+
+FALSE	EQU	0
+TRUE	EQU	!FALSE
+
+PUBLIC	EQU	TRUE
+
+	STL	'Main Program'
+	EJECT
+
+	ORG	USERFWA
+
+START	XRA	A
+	STA	MODE			; Assume command mode
+
+	LXI	H,0
+	DAD	SP			; (HL) = Pointer to command line
+	MVI	A,#STACK
+	CMP	L			; Is command line empty?
+	JNE	START1			; No ...
+
+START.	LXI	SP,STACK		; Clear stack
+
+	CALL	$TYPTX
+	DB	NL,'fix>',240Q
+
+	MVI	A,1
+	STA	MODE			; Signal prompt mode
+
+	LXI	H,LNBUFF		; Our line buffer
+	CALL	$RTL.			; Read a line
+	JC	EXIT			; Wants out.
+
+START1	CALL	$SOB			; Skip leading spaces
+	JZ	START.			; Entered null line. Go prompt.
+
+	LXI	B,DIRECT		; Destination for decode
+	LXI	D,DEFAULT		; Default value is SY0:
+
+	CALL	DDS			; Decode device specification
+	JC	SYNTAX			; Oops!
+
+	XRA	A
+	STA	CLRFLAG 		; Zap flags to clear
+	STA	SETFLAG 		; and flags to set.
+
+START2	CALL	$SOB			; Skip intervening spaces
+	JZ	START2.
+	CPI	'/'			; Is a switch?
+	JNE	SYNTAX			; No.
+	INX	H			; Bump past
+	CALL	PARSE			; Parse switch string and set masks
+	JC	SYNTAX			; Illegal value found
+	DCX	H			; Back up to last character
+	JMP	START2			; Do another switch
+
+START2. LDA	CLRFLAG 		; Get clear flags
+	CMA				; Make it a mask
+	STA	CLRFLAG 		; Set it back
+
+	JMP	FIXDEV			; Go fix the device
+	SPACE	4,10
+SYNTAX	CALL	$TYPTX
+	DB	NL,NL
+	DB	'Valid Syntax for command is:',NL,NL
+	DB	TAB,'FIX> dev: /[-]flags [/[-]flags] ...',NL,NL
+	DB	'Valid flags are:',TAB,'S,'
+	IFF	PUBLIC
+	DB	'L,'
+	ENDIF
+	DB	'W,A,B,D,U',NL,ENL
+	SPACE	4,10
+EXIT	XRA	A
+	SCALL	.EXIT
+	SPACE	4,10
+ERROR	PUSH	PSW			; Save error
+	CALL	$TYPTX
+	DB	'Error -',240Q
+	POP	PSW
+	MVI	H,BELL
+	SCALL	.ERROR
+	JMP	EXIT
+	SPACE	4,10
+PARSE	LXI	B,0			; (B) = Flags, (C) = Switch type
+
+PARSE1	MOV	A,M			; Get a character
+	INX	H			; Bump past
+	ANA	A
+	JZ	PARSE2			; Done.
+	CPI	' '
+	JE	PARSE1			; Skip a space
+	CPI	TAB
+	JE	PARSE1			; Skip a tab
+	CPI	','
+	JE	PARSE1			; Skip a comma
+	XCHG				; Save address in (DE)
+	LXI	H,FLAGS
+	CALL	$TBLS			; Look it up.
+	XCHG				; Swap back
+	JNZ	PARSE2			; Have invalid flag, end of switch.
+	LDAX	D			; (A) = Flag value
+	CPI	-1			; Is special value?
+	JE	PARSE5			; Yes.
+	ORA	B			; Add it in
+	MOV	B,A			; Save it
+	JMP	PARSE1			; Do another
+
+PARSE2	MOV	A,C			; (A) = Switch type
+	ANA	A			; Check it, if 0 then set, else clear.
+	JZ	PARSE3			; Am to set.
+
+	LDA	CLRFLAG 		; Get flags to clear
+	ORA	B			; Add in new flags
+	STA	CLRFLAG 		; Set it back
+	RET
+
+PARSE3	LDA	SETFLAG 		; Get flags to set
+	ORA	B			; Add in new flags
+	STA	SETFLAG 		; Set it back
+	RET
+
+PARSE4	STC				; Flag error
+	RET
+
+PARSE5	MOV	C,A			; Set switch type
+	JMP	PARSE1			; Go again
+	SPACE	4,10
+FLAGS	DB	'S',DIF.SYS		; System
+	IFF	PUBLIC
+	DB	'L',DIF.LOC		; Flag lock
+	ENDIF
+	DB	'W',DIF.WP		; Write protect
+	DB	'A',DIF.ARC		; Archive attribute
+	DB	'B',DIF.BAD		; File is damaged
+	DB	'D',DIF.DL		; File is delete locked
+	DB	'U',DIF.USR		; User defined
+	DB	'-',-1			; Special value
+	DB	'+',0			; Special value
+	DB	0
+
+	EJECT
+
+DIRECT	DB	'xxn:DIRECT.SYS',0
+
+DEFAULT DB	'SY0'
+
+FIXDEV	LXI	H,DIRECT		; Name of DIRECT.SYS
+	XRA	A			; Channel 0
+	SCALL	.OPENR			; Open for read
+	JC	ERROR			; Huh?
+
+	LXI	H,0
+	SHLD	SECTOR			; Set to beginning of file
+
+*	Kludge the channel open for update.  (clever, huh?)
+
+	LHLD	S.CFWA			; (HL) = Pointer to channel -1
+	CALL	$HLIHL			; (HL) = Pointer to channel 0
+	PUSH	H			; Save it
+	LXI	D,IOC.GRT		; Displace to address of GRT
+	DAD	D			; ((HL)) = Address of GRT
+	MOV	E,M			; Get low order half
+	INX	H			; Move up
+	MOV	D,M			; Get high order half
+	XCHG				; (HL) = Address of GRT
+	SHLD	GRTADR			; Save it
+	POP	H			; (HL) = Address of channel
+	LXI	D,IOC.FLG		; Displace to flag byte
+	DAD	D			; Get up to it.
+	MOV	A,M			; (A) = Flag byte
+	ORI	FT.OW+FT.OU		; Open for write/update
+	MOV	M,A			; Done.
+
+*	Read a directory block
+
+RD.DIR	LXI	B,2*256 		; 2 sectors per block
+	LXI	D,DIRBUF		; Directory buffer
+	XRA	A			; Channel 0
+	SCALL	.READ			; Read it
+	JNC	FIX.DIR 		; Go and fix it
+
+	CPI	EC.EOF			; Done?
+	JNE	ERROR			; Nope ...
+
+	XRA	A			; Channel #0
+	SCALL	.CLEAR			; Clear it to prevent re-write of flags
+
+	LDA	MODE			; Check mode
+	ANA	A
+	JZ	EXIT
+	JMP	START.			; Go again.
+
+*	Fix all the flags in this block
+
+FIX.DIR MVI	B,22			; (B) = 22 entries / block
+	LXI	H,DIRBUF		; Start of buffer
+	LXI	D,DIRELEN		; Entry length
+
+FIXDIR	CALL	FIX.FIL 		; Map a file
+
+	DAD	D			; Move up to next entry
+	DCR	B			; Count down
+	JNZ	FIXDIR			; Go again
+
+	JMP	WRI.DIR 		; Go write it
+
+*	Fix the flag on a single file
+
+MI.LXID EQU	021Q			; LXI D instruction
+
+FIX.FIL MOV	A,M			; (A) = 1st byte of name
+	CPI	DF.EMP			; Empty?
+	RE				; Yep.
+	CPI	DF.CLR			; Directory clear?
+	STC				; Assume it is.
+	RE				; Yep.
+	PUSH	D
+	PUSH	H			; Save registers
+	LXI	D,DIR.FLG		; Displace to flag byte
+	DAD	D			; ((HL)) = Flag byte
+	PUSH	H			; Save it
+	LDA	SETFLAG 		; Get set flags
+	ORA	M			; Set 'em
+	MOV	D,A			; Save that
+	LDA	CLRFLAG 		; Get clear flags
+	ANA	D			; Clear 'em
+	MOV	M,A			; Replace flags byte
+	POP	H			; (HL) = Address of flag byte again
+	PUSH	H			; Save it once more
+	LXI	D,DIR.FGN-DIR.FLG	; Displace to first group number
+	ERRMI	DIR.FGN-DIR.FLG
+	DAD	D			; ((HL)) = FGN this file
+	MOV	C,M			; (C) = FGN
+	CALL	FIX.C			; Go adjust 'C' flag
+	POP	H			; (HL) = Address of flag byte
+	MVI	A,DIF.CNT		; 'C' flag
+	JC	FIXFIL1 		; Clear it
+	ORA	M			; (A) = New flags
+	DB	MI.LXID 		; Skip next 2 instructions
+
+FIXFIL1 CMA				; Flip around to clear
+	ANA	M			; Clear the bit
+	MOV	M,A			; Set the flags back
+
+	POP	H
+	POP	D			; Restore registers
+	RET
+
+*	Determine Contiguous File
+
+FIX.C	LXI	H,*-*			; Address of GRT
+GRTADR	EQU	*-2
+	MOV	L,C			; First link in the file
+
+DCF1	MOV	A,M			; Get the forward link
+	ANA	A			; Is end of file?
+	RZ				; Yep.
+	DCR	A			; Compare it to last
+	CMP	L			; Is right?
+	STC				; Assume not
+	RNE				; Nope.
+	INR	L			; Bump to next group
+	JMP	DCF1
+
+*	Write a directory block
+
+WRI.DIR LHLD	SECTOR
+	MOV	B,H
+	MOV	C,L			; (BC) = Sector number
+	XRA	A			; Channel #0
+	SCALL	.POSIT			; Position the file
+
+	LXI	B,2*256 		; Block length
+	LXI	D,DIRBUF		; Directory buffer
+	XRA	A			; Channel #0
+	SCALL	.WRITE			; Write it back
+	JC	ERROR			; Have an error
+
+	LHLD	SECTOR
+	INX	H
+	INX	H
+	SHLD	SECTOR			; Move to next sector
+
+	JMP	RD.DIR			; Go read another
+
+	STL	'Common Decks'
+	EJECT
+
+	XTEXT	DDS3
+	XTEXT	HLIHL
+	XTEXT	MCU
+	XTEXT	MLU
+	XTEXT	RCHAR
+	XTEXT	RTL
+	XTEXT	SOB
+	XTEXT	TBLS
+	XTEXT	TYPTX
+
+	STL	'Buffers'
+	EJECT
+
+MODE	DB	'w'			; Assume command mode
+
+CLRFLAG DB	'g'
+SETFLAG DB	'p'
+
+SECTOR	DW	0
+
+LNBUFF	EQU	*
+
+	DB	'@(#)HDOS 3.0 Flag Fix Utility',NL
+	DW	.DATE.
+	DW	.TIME.
+
+DIRBUF	EQU	LNBUFF+128
+
+	END	START

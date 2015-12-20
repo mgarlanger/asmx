@@ -1,0 +1,13 @@
+***	HELP - TYPE HELP FILE.
+*
+*	H[ELP]
+*	?[??]
+
+HELP	CALL	$MOVEL
+	DW	HELPAL,HELPA,LINE	; Command line
+	LXI	H,LINE
+	XTHL
+	JMP	TYPE			; Do as in TYPE command
+
+HELPA	DB	'SY0:SYSHELP.DOC/SU/SU',0
+HELPAL	EQU	*-HELPA

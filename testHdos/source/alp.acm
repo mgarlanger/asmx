@@ -1,0 +1,22 @@
+	SPACE	4,10
+**	ALP	-  ALPHA
+*
+*	ALP determines if a character is alphabetic.
+*
+*
+*	ENTRY:	A	=  character to test
+*	EXIT:	PSW	=  'C' clear if     alphabetic
+*			   'C' set   if not alphabetic
+*	USES:	F
+*
+
+ALP	CPI	'A'
+	RC				; NOT VALID
+	CPI	'Z'+1
+	CMC
+	RNC				; VALID
+	CPI	'a'
+	RC				; NOT VALID
+	CPI	'z'+1
+	CMC
+	RET

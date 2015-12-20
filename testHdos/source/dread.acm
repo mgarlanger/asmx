@@ -1,0 +1,27 @@
+DREAD	SPACE	4,10
+**	DREAD	-  Device Driver Read Code
+*
+*	DREAD replaces the H17 rom code of the same name.
+*
+*	NOTE:	The previous version of this routine halted
+*		as a fatal system error for device 0, because
+*		it assumed that it was the system device.
+*		Since this is a more general routine, that
+*		error condition is no longer flagged that
+*		way.  For 'system' device calls,  *S.READ*
+*		and  *S.WRITE*  should be used.
+*
+*
+*	ENTRY:	(BC) = count
+*		(DE) = address
+*		(HL) = sector
+*	EXIT:	'C' SET if errors
+*	USES:	ALL
+*
+
+	ERRNZ	DC.REA
+DREAD	XRA	A
+	JMP	AIO.VEC 		; call device driver		/3.0a/
+	SPACE	2
+DWRITE	MVI	A,DC.WRI
+	JMP	AIO.VEC 						/3.0a/

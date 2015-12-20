@@ -1,0 +1,118 @@
+	SPACE	4,10
+**	HDOS BASE PAGE DEFINITION
+*
+
+	ORG	0
+
+HOSBASE EQU	*
+
+	ERRNZ	*-000000A
+B.INT0	DS	3
+
+S.LABEL DS	2			; address of label buffer
+
+S.FMASK DS	1			; feature mask
+
+F.CLK	EQU	00000011B		; system clock speed
+F.2MHZ	EQU	00000000B		;  2 MHz
+F.4MHZ	EQU	00000001B		;  4 MHz
+F.6MHZ	EQU	00000010B		;  6 MHz
+
+F.MACH	EQU	00001100B		; System type
+F.H8	EQU	00000000B		;  H8
+F.H89	EQU	00000100B		;  H89
+F.Z100	EQU	00001000B		;  Z-100
+F.OMACH EQU	00001100B		;  PC, ETC.
+
+F.TERM	EQU	00110000B		; Terminal type
+F.TTY	EQU	00000000B		;  Dumb TTY
+F.H19	EQU	00010000B		;  H19
+
+F.CPU	EQU	11000000B		; CPU type
+F.8080	EQU	00000000B		;  8080
+F.8085	EQU	01000000B		;  8085
+F.Z80	EQU	10000000B		;  Z-80
+F.OCPU	EQU	11000000B		;  HD64180, V20, ETC.
+
+S.LWA	DS	2			; lwa of HDOS
+
+	ERRNZ	*-000010A
+B.INT1	DS	3			; clock interrupt
+
+S.REV	DS	5			; rev, date, time of HDOS
+
+	ERRNZ	*-000020A
+B.INT2	DS	3			; available
+
+	DS	5
+
+	ERRNZ	*-000030A
+B.INT3	DS	3			; available
+
+	DS	5
+
+	ERRNZ	*-000040A
+B.INT4	DS	3			; available
+
+	DS	5
+
+	ERRNZ	*-000050A
+B.INT5	DS	3			; available
+
+	ERRNZ	*-000053A		; same as .DLY
+S.DLY	DS	3
+
+	DS	2
+
+	ERRNZ	*-000060A
+B.INT6	DS	3			; available
+
+	DS	5
+
+	ERRNZ	*-000070A
+B.INT7	DS	3			; SCALL interrupt
+
+B.SCALL DS	3			; JMP directly to SCALL processor
+
+CSLIBUF DS	2			; FWA of console type-ahead buffer
+
+BATNAME DS	17			; complete batch file name
+BATSEC	DS	1			; current sector index in batch file
+BATGNS	DS	2			; batch file group numbers
+
+BATBUF	DS	2			; address of batch buffer
+BATPTR	DS	2			; address of next char. in BATBUF
+
+SUBBUF	DS	2			; address of substitution buffer
+
+S.PATH	DS	2			; address of path buffer
+S.PRMT	DS	2			; address of prompt buffer
+S.EDLIN DS	2			; adderss of line buffer
+
+S.COUNT DS	1			; counter
+S.SHIFT DS	1			; shift count
+S.BITS	DS	1			; bit flags
+
+	DS	3
+
+	ERRNZ	*-66H
+B.NMI	DS	3			; NMI handler vector
+B.NMIFL DS	1			; NMI flag (0=no NMI's occured)
+
+S.DFBLK DS	6			; system wide default block
+
+S.CVEC	DS	5*3			; console SCALL vectors
+
+S.FLAG	DS	1			; system flags
+
+S.SYSCM equ	00000001b		; SYSCMD.SYS in memory
+S.VFLG	equ	00000010b		; Verify is on
+S.ECHO	equ	00000100b		; Echo is off
+S.BATCH equ	00001000b		; Batch is active
+S.EXITC equ	00010000b		; SYSCMD prints exit code
+S.BREAK equ	00100000b		; used by PIP
+S.TABUF equ	01000000b		; type-ahead is stuffed
+S.INIT	equ	10000000b		; set 1st time SYSCMD.SYS runs
+
+	ERRNZ	*-80H			; MAKE SURE GOT EM' ALL
+B.END	EQU	*

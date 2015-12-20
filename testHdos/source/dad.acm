@@ -1,0 +1,93 @@
+	SPACE	4,10
+**	$DAD - DECODE AUGUSTAN DATE.
+*
+*	$DAD DECODES A 15 BIT DATE CODE OF THE FORMAT:
+*
+*	----------------------------------------
+*	I  0  I  6 BITS  I  4 BITS  I  5 BITS  I
+*	----------------------------------------
+*		YEAR-70       MON       DAY
+*		 1-63        1-12       1-31
+*
+*	TO THE FORM:
+*
+*	DD-MMM-YY
+*
+*	ENTRY	(DE) = 15 BIT VALUE
+*		(HL) = ADDRESS FOR DECODE
+*	EXIT	(HL) = (HL)+9
+*	USES	ALL
+
+$DAD	MOV	A,D
+	ORA	E
+	JZ	DAD2		No-Date
+
+	SHLD	DAD1.		Save HL in case of bad data
+
+	MOV	B,D
+	MOV	C,E
+	LXI	D,32
+	PUSH	H		SAVE ADDRESS
+	CALL	$DU66		(DE) = DAY, (HL) = YEAR & MONTH
+	XTHL			(HL) = ADDRESS
+	MOV	B,D
+	MOV	C,E
+	MOV	A,E
+	ANA	A
+	JZ	DAD1X		BAD VALUE
+	MVI	A,2
+	CALL	$UDD		UNPACK DAY
+	MVI	M,'-'
+	INX	H
+	POP	B		(BC) = YEAR & MONTH
+	LXI	D,16
+	PUSH	H		SAVE ADDRESS
+	CALL	$DU66
+	XTHL			(HL) = ADDRESS, ((SP)) = YEAR
+	MOV	A,E
+	ADD	A
+	ADD	E		(A) = 3*MONTH
+	JZ	DAD1X		BAD VALUE
+	CPI	13*3
+	JNC	DAD1X		TOO LARGE
+	XCHG			(DE) = ADDRESS
+	LXI	H,DADB-3
+	CALL	$DADA.		(HL) = ADDRESS OF MONTH
+	LXI	B,3
+	XCHG			(HL) = BUFFER ADDR, (DE) = ADDR IN 'DADB'
+	CALL	$MOVE		MOVE MONTH IN
+	MVI	M,'-'
+	INX	H
+	POP	B		(BC) = YEAR
+	MOV	A,C
+	ADI	70
+	CPI	100
+	JNC	DAD1		TOO LARGE
+	MOV	C,A		(BC) = YEAR
+	MVI	A,2
+	CALL	$UDD		UNPACK YEAR
+	ANA	A
+	RET
+
+*	ILLEGAL FORMAT
+
+DAD1X	POP	H		RESTORE STACK
+DAD1	LXI	H,*-*
+DAD1.	EQU	*-2
+	LXI	D,DADCX
+	JMP	DAD3
+
+*	No-Date
+
+DAD2	LXI	D,DADC
+DAD3	LXI	B,DADCL
+	JMP	$MOVE
+
+DADB	DB	'Jan','Feb','Mar','Apr','May','Jun'
+	DB	'Jul','Aug','Sep','Oct','Nov','Dec'
+
+DADC	DB	'<No-Date>'
+DADCL	EQU	*-DADC
+
+DADCX	DB	'??-???-??'
+	ERRNZ	*-DADCX-DADCL

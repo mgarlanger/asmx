@@ -1,0 +1,162 @@
+***	DEFAULT - SET/SHOW SYSTEM DEFAULT DEVICE
+*
+*	DEF[AULT]	   -> SHOW DEFAULT
+*	DEF[AULT] XX[n][:] -> SET DEFAULT ( implied unit = 0 )
+*	DEF[AULT] DEVEXT   -> SET DEFAULT DEVICE & EXTENSION
+*	DEF[AULT] :	   -> SET DEFAULT DEFAULT
+*	DEF[AULT] 0	   -> SET DEFAULT EXTENSION TO NULLS
+
+
+DEFAULT POP	H
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	DEF3			; JUST WANTS TO KNOW THE DEFAULT
+
+*	SET NEW DEFAULT
+
+	CPI	'0'
+	JE	DEF4			; NULL EXTENSION
+	CPI	':'
+	JE	DEF5			; SET DEFAULT DEFAULT
+	CALL	CVDD			; CHECK FOR VALID DIR DEVICE
+	JC	ERROR			; SOMETHING WRONG
+
+DEF2	SHLD	S.DFBLK 		; STORE 'XX'
+	LXI	H,S.DFBLK+2		; STORE UNIT #
+	MOV	M,A
+	INX	H
+	LDAX	B			; Get possible char.
+	ANA	A			; Is it null
+	JZ	DEF6			; Yes, end of command line
+	CPI	':'			; Is it ':'
+	JNE	DEF2.0			; No, start stuffing
+	INX	B			; Bump past ':'
+	LDAX	B			; Get possible char.
+	ANA	A			; Is it null
+	JZ	DEF6			; Yes, end of command line
+DEF2.0	MOV	M,A			; Stuff first extension char.
+	INX	H
+	INX	B
+	LDAX	B			; Get next char.
+	MOV	M,A			; Stuff second extension char.
+	INX	H
+	INX	B
+	ANA	A			; Was second char. a null
+	JZ	DEF2.1			; Yes, stuff null in last byte
+	LDAX	B			; No, get next char.
+DEF2.1	MOV	M,A			; Stuff third extension char.
+	JMP	DEF6
+
+*	DISPLAY THE CURRENT DEFAULT
+
+DEF3	CALL	PR.CS
+	CALL	$TYPTX
+	DB	'Default is',' '+200Q
+
+	LXI	H,S.DFBLK
+	MVI	A,6			; TYPE THE DEFAULT DEVICE
+	CALL	$TYPCC			; AND EXTENSION
+	RST	SYSCMD
+
+DEF4	LXI	H,S.DFBLK+3		; FORCE NULL EXTENSION
+	XRA	A
+	MOV	M,A
+	INX	H
+	MOV	M,A
+	INX	H
+	MOV	M,A
+	RST	SYSCMD			; GO HOME
+
+DEF5	CALL	$MOVEL			; SET DEFAULT DEFAULT
+	DW	DEFAL,DEFA,S.DFBLK
+
+DEF6	CALL	SETDEV			; SET DEVICE NAMES
+	RST	SYSCMD			; GO HOME
+
+CVDD	EQU	*			; CHECK FOR VALID DIR DEVICE
+
+	MOV	E,M
+	INX	H
+	MOV	D,M			; (DE) = 'XX'
+	INX	H			; HL => n
+	PUSH	H
+	SCALL	.GDA			; BC => DEV. TABLE ENTRY
+	POP	H
+	RC				; UNKNOWN DEVICE
+	PUSH	H
+	LXI	H,DEV.FLG
+	DAD	B			; HL => FLAG BYTE
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	DT.DD			; IS IT DIRECTORY DEVICE
+	STC				; ASSUME IT ISN'T
+	POP	H
+	MVI	A,EC.DNS
+	RZ				; DEVICE NOT SUITABLE
+	PUSH	H
+	LXI	H,DEV.MNU
+	DAD	B			; HL => MAX. NO. OF UNITS
+	MOV	E,M			; (E) = MAX. NO. OF UNITS
+	DCR	E			; (E) = MAX. UNIT #
+	POP	H
+	MOV	A,M			; (A) = ASCII UNIT #
+	CPI	':'
+	JE	UNIT0			; ASSUME '0'
+	ANA	A
+	JZ	UNIT0			; END OF COMMAND LINE, ASSUME '0'
+	SUI	'0'			; MAKE (A) BINARY
+	MOV	D,A			; D = BINARY UNIT #
+	MVI	A,EC.IDN
+	RC				; ILLEGAL DEVICE NAME
+	INX	H			; BUMP PAST n
+	MVI	A,7
+	CMP	D
+	MVI	A,EC.IDN
+	RC				; ILLEGAL DEVICE NAME
+	MOV	A,E			; (A) = MAX. UNIT #
+	CMP	D
+	MVI	A,EC.UUN
+	RC				; UNKNOWN UNIT #
+	MOV	A,D			; (A) = BINARY UNIT #
+UNITX	ADI	'0'			; MAKE IT ASCII
+	PUSH	PSW			; SAVE ASCII UNIT #
+	CALL	XCHGBC			; BC => BYTE AFTER n, HL => DEV. NAME
+	CALL	$HLIHL			; (HL) = DEV. NAME
+	POP	PSW			; RESTORE ASCII UNIT #
+	ANA	A			; CLEAR CARRY
+	RET
+
+UNIT0	XRA	A			; FORCE UNIT # = 0
+	JMP	UNITX
+
+
+SETDEV	EQU	*
+
+	LHLD	S.DFBLK 		; (HL) = 'XX'
+	MOV	A,H
+	ORA	L
+	RZ				; NO DEFAULT, LEAVE US ALONE
+
+	LDA	S.DFBLK+2		; (A) = ASCII UNIT #
+	SHLD	SYSCB			; Set up implicit RUN
+	STA	SYSCB+2
+	SHLD	RUNA			; Set up RUN
+	STA	RUNA+2
+	SHLD	BATBLK			; Set up Batch files
+	STA	BATBLK+2
+	SHLD	TSKBLK			; Set up Tasks
+	STA	TSKBLK+2
+	SHLD	PRIDEV			; Set Up Primary Device
+
+	XCHG				; (DE) = DEFAULT
+	LHLD	DPDEV			; (HL) = DEF. PRIMARY
+
+	CALL	$CDEHL			; Is it default primary device
+	LHLD	DADEV			; Assume yes.  (HL) = DEF. ALT.
+	JE	SETDV0			; Yes, set default alternate
+
+	CALL	$CDEHL			; Is it default alternate device
+	LHLD	DPDEV			; Assume yes.  (HL) = DEF. PRI.
+	RNE				; No, leave alternate alone
+
+SETDV0	SHLD	ALTDEV			; Set Up Alternate Device
+	RET

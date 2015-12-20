@@ -1,0 +1,177 @@
+***	LOADD  - Load and lock device driver.
+*	FLOAD  - Load and lock device driver, fix in memory.
+*	UNLOAD - Unload device driver.
+*
+*	L[OAD] xx[:]
+*	LOADF xx[:]
+*	UNL[OAD] xx[:]
+*	UNL[OAD] *		Unload all possible devices
+
+LOADD	MVI	A,DR.PR 		; Locked
+
+	DB	21H			; Fake 'LXI H,' CODE
+
+FLOADD	MVI	A,DR.PR+DR.FX		; Locked and Fixed
+	PUSH	PSW
+
+	CALL	SYSXIT1 		; Clear out dormant devices
+
+	POP	PSW
+	STA	L.ORI			; set residence mode
+
+	POP	H			; (HL) = Device specification
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	ILLSYN			; User doesn't want to load anything
+	PUSH	H			; Save spec. address
+	INX	H			; Bump
+	INX	H			;  past it
+	MVI	M,':'			; Force a colon
+	INX	H			;  and
+	MVI	M,NUL			;   a zero
+	POP	H			; Restore spec. address
+	SCALL	.LOADD			; Try to load
+	JC	ERROR			; Not good
+	CALL	LAD.			; Lock devices above us
+
+	RST	SYSCMD
+
+UNLOAD	POP	H			; Get command pointer
+	CALL	M$SOB			; Map + Skip over blanks
+	ANA	A
+	JZ	ILLSYN			; No argument
+
+	LDA	S.MOUNT
+	ANA	A
+	JNZ	UNL.OK			; System disk is mounted
+
+	CALL	$TYPTX
+	DB	BELL,ENL
+	MVI	A,EC.SDR
+	MVI	H,NL
+	SCALL	.ERROR			; System disk is reset
+	RST	SYSCMD
+
+UNL.OK	MOV	A,M
+	CPI	'*'
+	JE	UNLALL			; Do all possible devices
+
+	CALL	$HLIHL			; Get device name
+	SHLD	UNLDN			; Save it
+	XCHG				; DE = Device Name
+	SCALL	.GDA			; BC => DEV. TABLE ENTRY
+	JC	ERROR			; NO SUCH DEVICE
+	LXI	H,DEV.RES
+	DAD	B			; HL => FLAG BYTE
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	DR.IM
+	MVI	A,EC.DNL		; ASSUME ERROR
+	JZ	ERROR			; Device Not Loaded
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	DR.FX
+	MVI	A,EC.DFM		; ASSUME ERROR
+	JNZ	ERROR			; Device Fixed in Memory
+	MOV	A,M			; (A) = FLAG BYTE
+	ANI	DR.PR
+	MVI	A,EC.DNP		; ASSUME ERROR
+	JZ	ERROR			; Device Not Locked
+	MOV	A,M
+	ORI	DR.UNL			; FLAG FOR UNLOAD
+	MOV	M,A			; PUT IT BACK
+	PUSH	H
+	CALL	SYSXIT1 		; TRY TO CLEAR IT OUT NOW
+	POP	H
+	MOV	A,M
+	ANI	377Q-DR.SPL
+	CNZ	UNLPND
+	RST	SYSCMD
+
+UNLPND	CALL	$TYPTX
+	DB	NL
+UNLDN	DB	'XX: - Unload Pending',ENL
+	RET
+
+*	Unload all possible devices
+
+UNLALL	LHLD	S.DFWA			; Point at device table
+UNL0	MOV	A,M
+	ANA	A
+	JZ	SYSCMD. 		; All finished
+
+	PUSH	H			; Save table entry
+	PUSH	H			;  address twice
+	CALL	$HLIHL			; Get device name
+	SHLD	UNLDN			; Save it
+	POP	H
+	INX	H
+	INX	H			; (HL) = DEV.RES
+	MOV	A,M
+	ANI	DR.IM
+	JZ	UNL1			; Not in memory
+	MOV	A,M
+	ANI	DR.FX
+	JNZ	UNL1			; Is fixed in memory
+	MOV	A,M
+	ANI	DR.PR
+	JZ	UNL1			; Not locked in memory
+	MOV	A,M
+	ORI	DR.UNL			; Flag for unload pending
+	MOV	M,A
+	PUSH	H
+	CALL	SYSXIT1 		; Try to unload it now
+	POP	H
+	MOV	A,M
+	ANI	377Q-DR.SPL
+	CNZ	UNLPND			; Still there, try later
+
+UNL1	POP	H
+	LXI	D,DEVELEN
+	DAD	D
+	JMP	UNL0			; Try next entry
+	SPACE	4,10
+***	LAD - Lock All Drivers.
+*
+*	LAD locks into memory all device drivers which it happens
+*	to find hanging around.
+*
+*	Entry:	NONE
+*	Exit:	NONE
+*	Uses:	ALL
+
+LAD	MVI	A,DR.PR
+	STA	L.ORI
+
+LAD.	LHLD	S.SYSM			; Get bottom of memory
+	SHLD	S.RFWA			; Now everything's part of HDOS
+
+LAD..	LXI	B,DEVELEN		; Device table entry size
+	LHLD	S.DFWA			; Start of device table
+
+LAD1	MOV	A,M			; Get 1st byte
+	ANA	A
+	RZ				; End of table
+	CPI	DV.NU			; Entry used ?
+	JE	LAD2			; No ...
+
+	PUSH	H			; Save pointer
+	CALL	$INDL			; Get driver address
+	DW	DEV.DDA
+	LHLD	S.RFWA			; Get S.RFWA
+	XCHG
+	CALL	CPDEHL
+	POP	H			; Restore pointer
+	JC	LAD2			; DDA below S.RFWA
+
+	CALL	$INDLB
+	DW	DEV.RES 		; Get residence code
+	ANI	DR.IM			; Is driver in?
+	JZ	LAD2			; No.  Go for next.
+	CALL	$INDLB
+	DW	DEV.RES 		; Get code back
+	ORI	DR.PR			; Now it shows as locked.
+L.ORI	EQU	*-1
+	CALL	$INDSB
+	DW	DEV.RES 		; Set it.
+
+LAD2	DAD	B
+	JMP	LAD1

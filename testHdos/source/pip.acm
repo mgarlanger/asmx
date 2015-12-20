@@ -1,0 +1,100 @@
+***	PIPX - RUN PIP.
+*
+*	PIP [ANY VALID COMMAND]
+
+PIPX	POP	B			; (BC) = Command Line
+
+	ERRNZ	*-PIP
+
+***	PIP - INVOKE 'PIP'.
+*
+*	PIP IS ENTERED (VIA A JUMP) TO CAUSE A LINK TO 'SY0:PIP.ABS'.
+*
+*	Entry:	(BC) = FWA OF COMMAND LINE
+*	Exit:	TO 'PIP.ABS' IF LINK IS OK.
+*		TO *SYSCMD*, VIA ERROR MESSAGE IF ERROR.
+*	Uses:	ALL
+
+PIP.WS	EQU	110000A 		; PIP Warm start address
+
+PIP	CALL	PCL			; PASS COMMAND LINE
+
+	LDA	PIPMEM			; Is PIP in memory ?
+	ANA	A
+	JNZ	PIPJMP			; YES, jump to warm start
+
+	LDA	PIPCHK			; Has PIP been checked ?
+	ANA	A
+	JNZ	PIP1			; YES, don't check again
+
+	CALL	CHKPIP			; Check for valid PIP first
+	JNE	ODDPIP			; PIP with a different warm start addr
+
+PIP1	MVI	A,1
+	STA	PIPMEM			; Flag PIP as in memory
+
+*	SO FAR, SO GOOD, TRY LINKING TO IT
+
+PIP2	LXI	H,PIPA
+	SCALL	.LINK
+
+*	COULDN'T LINK TO PIP
+
+PIP.	XRA	A			; Insure PIP-in-memory flag
+	STA	PIPMEM			;   is reset
+
+	CALL	$TYPTX
+	DB	NL,BELL
+	DB	'File '
+PIPA	DB	'SY0:PIP.ABS',0
+	DB	' Required For This Command',ENL
+	RST	SYSCMD
+
+PIPMEM	DB	0			; PIP in memory flag
+
+PIPCHK	DB	0			; PIP has been checked flag
+
+PIPERR	PUSH	PSW			; Something is wrong
+	CALL	$TYPTX
+	DB	'PIP -',' '+200Q
+	POP	PSW
+	JMP	ERROR
+
+PIPJMP	LXI	H,S.CCTAB
+	MVI	B,6
+	CALL	$ZERO			; Clear Vector Table
+	JMP	PIP.WS			; PIP, Please !
+
+ODDPIP	CALL	SCGONE
+	JMP	PIP2			; Try linking to odd PIP
+
+SCGONE	LDA	S.FLAG
+	ANI	377Q-S.SYSCM		; Flag SYSCMD gone
+	STA	S.FLAG
+	LXI	H,S.FASER
+	SHLD	B.INT0+1		; Set RESTART 0 -> Fatal System Error
+	RET
+
+**	MAKE SURE WE HAVE A COMPATIBLE VERSION OF PIP
+
+CHKPIP	LXI	H,PIPA			; Name
+	LXI	D,DEFA			; Default
+	XRA	A			; Channel
+	SCALL	.OPENR
+	JNC	PIP3
+	CPI	EC.FNF
+	JE	PIP.			; File Not Found
+	JMP	PIPERR			; Oh Noooo !
+
+PIP3	LXI	D,LABEL 		; Buffer
+	LXI	B,1*256 		; One sector
+	XRA	A			; Channel
+	SCALL	.READ
+	JC	PIPERR
+	XRA	A			; Channel
+	SCALL	.CLOSE
+	JC	PIPERR
+
+	LXI	D,PIP.WS		; DE = Warm Start
+	LHLD	LABEL+ABS.LDA		; HL = Load Address
+	JMP	$CDEHL			: MUST be equal

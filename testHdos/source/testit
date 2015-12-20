@@ -1,0 +1,40 @@
+#!/bin/bash
+# this tests the various assemblers' instruction lists by
+# comparing with pre-assembled .hex files in the ref sub-directory
+
+function testit()
+{
+   echo -n "Testing $1:"
+
+   ../../src/asmx -l -h -C 8080 $1 >/dev/null 2>&1
+
+   diff -q $1.abs ../ref/$1.abs
+
+   if [ $? -ne 0 ]; then
+        echo " FAIL"
+   else
+        echo " pass"
+        rm $1.abs
+        rm $1.lst
+   fi
+}
+
+echo ""
+
+#
+# source/credits.h8a source/fix.h8a     source/init.h8a    source/map.h8a     source/pip.h8a     source/sysgen.h8a
+# source/edit.h8a    source/hos3.h8a    source/label.h8a   source/onecopy.h8a source/syscmd.h8a
+
+testit credits.h8a
+testit edit.h8a
+testit fix.h8a
+testit hos3.h8a
+testit init.h8a
+testit label.h8a
+testit map.h8a
+testit onecopy.h8a
+testit pip.h8a
+testit syscmd.h8a
+testit sysgen.h8a
+
+echo ""

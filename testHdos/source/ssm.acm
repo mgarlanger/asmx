@@ -1,0 +1,60 @@
+***	SSM - SET SYSTEM MEMORY.
+*
+*	SSM SETS THE SYSTEM LOWER MEMORY BOUND DEPENDING UPON
+*	LOCKED DEVICE DRIVERS & DIRECTORY DEVICE DRIVERS WITH
+*	VOLUMES WHICH ARE CURRENTLY MOUNTED.
+*
+*	Entry:	NONE
+*	Exit:	(DE) = NEW S.SYSM
+*	Uses:	ALL
+
+SSM	EQU	*
+
+	LXI	B,DEVELEN		; Device table entry length
+	LHLD	S.RFWA
+	XCHG				; (DE) = System Resident FWA
+	LHLD	S.DFWA			; (HL) = Device Table FWA
+SSM1	MOV	A,M
+	ANA	A			; End of table?
+	RZ				; Yep ...
+	CPI	DV.NU			; Entry empty?
+	JE	SSM4			; Yes, go do next.
+	CALL	$INDLB			; Get driver residence flag
+	DW	DEV.RES
+	ANI	DR.IM			; In memory?
+	JZ	SSM4			; No.  Go do next.
+	CALL	$INDLB			; Get residence flag back
+	DW	DEV.RES
+	ANI	DR.PR			; Is it locked?
+	JNZ	SSM2			; Yes.
+	CALL	$INDLB			; Get driver flag byte
+	DW	DEV.FLG
+	ANI	DT.DD			; Directory device?
+	JZ	SSM4			; No.
+	CALL	$INDLB			; Get mounted unit mask
+	DW	DEV.MUM
+	ANA	A
+	JZ	SSM4			; Nothing's mounted
+SSM2	PUSH	D			; Save System RFWA
+	CALL	$INDL			; Get Driver Address
+	DW	DEV.DDA
+	DCX	D			; Back up two bytes		/3.0a/
+	DCX	D			;   to include S.SYSM pointer	/3.0a/
+	XTHL				; (HL) = RFWA, Save table addr.
+	CALL	CPDEHL			; See if this device above RFWA
+	JC	SSM3			; This driver above RFWA
+
+	PUSH	H			; Save pointers 		/3.0a/
+	PUSH	D							/
+	LXI	H,USERFWA		; Get magic address		/
+	XCHG								/
+	CALL	CPDEHL			; Is it below the beginning ?	/
+	POP	D			; Restore pointers		/
+	POP	H							/
+	JC	SSM3			; Yes, leave us alone		/3.0a/
+
+	XCHG				; (HL) = Driver addr.  (New RFWA)
+SSM3	XTHL				; Put RFWA on stack, restore table addr.
+	POP	D			; Restore RFWA into (DE)
+SSM4	DAD	B			; Find next device entry
+	JMP	SSM1

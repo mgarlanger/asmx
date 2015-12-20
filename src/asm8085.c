@@ -18,7 +18,8 @@ enum instrType
     o_None,         // No operands
 
     o_Immediate,    // one-byte immediate operand
-    o_LImmediate,   // two-byte immediate operand (mostly JMPs)
+    o_LImmediate,   // two-byte immediate operand
+    o_JMP,          // seperated from o_LImmediate - for relocation handling
     o_MOV,          // MOV r,r opcode
     o_RST,          // RST instruction
     o_Arith,        // Arithmetic instructions
@@ -50,7 +51,9 @@ struct OpcdRec I8085_opcdTab[] =
     {"CMC", o_None, 0x3F},
     {"HLT", o_None, 0x76},
     {"RNZ", o_None, 0xC0},
+    {"RNE", o_None, 0xC0},
     {"RZ",  o_None, 0xC8},
+    {"RE",  o_None, 0xC8},
     {"RET", o_None, 0xC9},
     {"RNC", o_None, 0xD0},
     {"RC",  o_None, 0xD8},
@@ -80,24 +83,31 @@ struct OpcdRec I8085_opcdTab[] =
     {"LHLD",o_LImmediate, 0x2A},
     {"STA", o_LImmediate, 0x32},
     {"LDA", o_LImmediate, 0x3A},
-    {"JNZ", o_LImmediate, 0xC2},
-    {"JMP", o_LImmediate, 0xC3},
-    {"CNZ", o_LImmediate, 0xC4},
-    {"JZ",  o_LImmediate, 0xCA},
-    {"CZ",  o_LImmediate, 0xCC},
-    {"CALL",o_LImmediate, 0xCD},
-    {"JNC", o_LImmediate, 0xD2},
-    {"CNC", o_LImmediate, 0xD4},
-    {"JC",  o_LImmediate, 0xDA},
-    {"CC",  o_LImmediate, 0xDC},
-    {"JPO", o_LImmediate, 0xE2},
-    {"CPO", o_LImmediate, 0xE4},
-    {"JPE", o_LImmediate, 0xEA},
-    {"CPE", o_LImmediate, 0xEC},
-    {"JP",  o_LImmediate, 0xF2},
-    {"CP",  o_LImmediate, 0xF4},
-    {"JM",  o_LImmediate, 0xFA},
-    {"CM",  o_LImmediate, 0xFC},
+    {"JNZ", o_JMP, 0xC2},
+    {"JNE", o_JMP, 0xC2},
+    {"JMP", o_JMP, 0xC3},
+    {"CNZ", o_JMP, 0xC4},
+    {"CNE", o_JMP, 0xC4},
+    {"JRZ", o_JMP, 0xCA}, // ?? this appeared to be a Z80 instruction in the HDOS 3.0 source, but 
+                                 // examining the official HDOS 3.0 binaries, shows that this was treated
+                                 // as just a JZ
+    {"JZ",  o_JMP, 0xCA},
+    {"JE",  o_JMP, 0xCA},
+    {"CZ",  o_JMP, 0xCC},
+    {"CE",  o_JMP, 0xCC},
+    {"CALL",o_JMP, 0xCD},
+    {"JNC", o_JMP, 0xD2},
+    {"CNC", o_JMP, 0xD4},
+    {"JC",  o_JMP, 0xDA},
+    {"CC",  o_JMP, 0xDC},
+    {"JPO", o_JMP, 0xE2},
+    {"CPO", o_JMP, 0xE4},
+    {"JPE", o_JMP, 0xEA},
+    {"CPE", o_JMP, 0xEC},
+    {"JP",  o_JMP, 0xF2},
+    {"CP",  o_JMP, 0xF4},
+    {"JM",  o_JMP, 0xFA},
+    {"CM",  o_JMP, 0xFC},
 
     {"MOV", o_MOV,     0},
 
@@ -140,6 +150,9 @@ struct OpcdRec I8085_opcdTab[] =
     {"JNX5",o_LImmediate, 0xDD + I_8085U},
     {"JX5", o_LImmediate, 0xFD + I_8085U},
 
+// HDOS SCALL  - RST 7 + BYTE
+    {"SCALL",o_Immediate,  0xFF },     // RST 7 + BYTE
+
     {"",    o_Illegal,  0}
 };
 
@@ -177,6 +190,19 @@ int I8085_DoCPUOpcode(int typ, int parm)
 
             val = Eval();
             InstrBW(parm,val);
+#if HDOS
+            checkRelocate(1);
+#endif
+            break;
+
+        case o_JMP:
+            if ((parm & I_8085U) && curCPU != CPU_8085U) return 0;
+
+            val = Eval();
+            InstrBW(parm,val);
+#if HDOS
+            checkRelocate(1);
+#endif
             break;
 
         case o_MOV:
@@ -267,6 +293,9 @@ int I8085_DoCPUOpcode(int typ, int parm)
                 {
                     val = Eval();
                     InstrBW(parm + (reg1 << 4), val);
+#if HDOS
+                    checkRelocate(1);
+#endif
                 }
             }
             break;
@@ -315,3 +344,4 @@ void Asm8085Init(void)
     AddCPU(p, "8085",  CPU_8085,  LITTLE_END, ADDR_16, LIST_24, 8, 0, I8085_opcdTab);
     AddCPU(p, "8085U", CPU_8085U, LITTLE_END, ADDR_16, LIST_24, 8, 0, I8085_opcdTab);
 }
+

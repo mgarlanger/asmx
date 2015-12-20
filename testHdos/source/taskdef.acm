@@ -1,0 +1,357 @@
+	SPACE	4,10
+***	TASK Processor Definitions
+
+.TASK	EQU	101Q			; Process TASK function
+TASKID	EQU	317Q			; Task Identification Flag
+TASKID. EQU	327Q
+
+PROCMGR EQU	1			; Assemble for Task Manager
+	SPACE	3
+	ORG	0
+***	TASK Processor Function Codes
+*
+*	Calling sequences.
+	SPACE	2
+**	TAS.ID - Identify TASK
+*
+*	TAS.ID is used to identify a TASK to the Task Manager
+*	and the system.  The TASK is flagged as ACTIVE upon
+*	return with the Task Sequence Number (TSN) in (A).
+*
+*	Entry:	(HL) = Address of TASK Block
+*		(B)  = TAS.ID
+*	Exit:	'C' Set
+*		 (A) = Error code
+*		'C' Clear if Ok.
+*		 (A) = Task Sequence Number
+*	Uses:	ALL
+
+TAS.ID	DS	1			; Identify TASK to System
+	SPACE	4,34
+**	TAS.INQ - Inquire About TASKs in System
+*
+*	TAS.INQ returns a pointer to the task block table in
+*	the Task Manager or to a task block within an individual
+*	task.  The task block table consists of the addresses of
+*	the task blocks of all tasks known to the system.
+*	the Task Manager.  This table consists of the addresses
+*	An address of 000000A signifies an unused entry, while
+*	377377A marks the end of the table.  The general form
+*	of the table is:
+*
+*		DW	Address_of_TASK_Block
+*		DW	TASK_Process_Flag
+*
+*	The TASK Process flag contains a '1' bit for each interrupt
+*	vector the TASK services.  The bits are assigned in the
+*	following manner:
+*
+*		Byte 0 :
+*
+*		    bit 7 = High order bit, Interrupt Level 7
+*		      .
+*		      .
+*		    bit 1 =		    Interrupt Level 1
+*		    bit 0 = Low order bit,  TASK is active
+*
+*	For example, a value of 10001000B (or 210Q) would indicate
+*	that the TASK services the SCALL vector (INT7) and the
+*	console vector (INT3).	Also the task is not currently active.
+*
+*		Byte 1 :
+*
+*		    Reserved for future use
+*
+*	Entry : (A) = TSN desired, or -1 for base of task block
+*
+*	Exit:	'C' Clear
+*		 (HL) = Address of TASK block table
+*		'C' Set
+*		 (A) = Error code  (Illegal SCALL)
+*		 TASK Monitor not STARTed
+*	Uses:	A,F,H,L
+
+TAS.INQ	DS	1			; Inquire about TASKs
+	SPACE	4,25
+**	TAS.DEA - Deactivate a TASK
+*
+*	TAS.DEA flags a TASK as inactive and discontinues all
+*	processing of interrupts by the TASK.  That is, the
+*	Task Manager will not pass control to the task at
+*	interrupt time.  The task's function processor will
+*	receive control, (with the value of TAS.DEA in the (A)
+*	register), to take care of disabling interrupts,
+*	and other 'clean up' type activity before deactivation.
+*
+*	*WARNING*
+*
+*	If an interrupt occurs after deactivation which must be
+*	serviced by this TASK, the system will crash due to the
+*	unserviced interrupt.  The ONLY way to re-activate any
+*	task is via the TAS.REA function.
+*
+*	Entry:	(A) = Task Sequence Number
+*	Exit:	'C' Clear, TASK deactivated
+*		'C' Set
+*		 (A) = Error code
+*		 No such TASK, TASK monitor not STARTed,
+*		 TASK not abortable, or TASK not active
+*	Uses:	A,F
+
+TAS.DEA	DS	1			; Deactivate Task
+	SPACE	4,16
+**	TAS.REA - Re-activate a TASK
+*
+*	TAS.REA Re-activates a previously deactivated task.  Control
+*	is passed to the task's function processor, (with the value
+*	of TAS.REA in the (A) register), to take care of any
+*	initialization which may be required.  Such initialization
+*	may include, but not be limited to, setting up of ports, and
+*	re-requesting interrupt service from the Task manager
+*
+*	Entry:	(A) = Task Sequence Number
+*	Exit:	'C' Clear, TASK re-activated
+*		'C' Set
+*		 No such TASK, TASK monitor not STARTed, or
+*		 TASK already active
+*	Uses:	A,F
+
+TAS.REA	DS	1			; Reactivate TASK
+	SPACE	4,23
+**	TAS.RIS - Request Interrupt Service
+*
+*	TAS.RIS is called by a task to request that interrupt service
+*	be provided by the Task Manager to the task.  It allows the
+*	Manager to control access of interrupt driven tasks, and removes
+*	the burden from the user of setting up and/or clearing of interrupt
+*	service vectors.
+*
+*	*WARNING*
+*
+*	This function must be called before any interrupts occur.
+*
+*	Entry:	(A)  = Task Sequence Number
+*		(B)  = TAS.RIS
+*		(C)  = Interrupt Level	(1-7)
+*		(HL) = Interrupt processor address
+*	Exit:	'C' clear
+*		 Vectors installed
+*		'C' set
+*		 (A) = Error code
+*		 Unknown TSN, or Task Manager not present
+*	Uses:	A,F
+*
+*	Upon entry to the particular interrupt service routine the user
+*	must follow the following conventions;
+*
+*	Vectors 1-6 :	All registers pushed on the stack.
+*		(SP+0) = return to task manager
+*		(SP+2) = return to user program via USR.RST
+*		(SP+4 - SP+6) = Task Manager registers
+*		(SP+8) = return to user program via $RSTALL
+*		(SP+10 - SP+18) = user registers
+*		(SP+20) = users interrupted PC
+*
+*	Vector 7 (SCALL) :
+*
+*		(HL) = users return address (pointer to SCALL)
+*		(SP+0) = return to task manager
+*		(SP+2) = task managers (HL)
+*		(SP+4) = users PSW
+*		(SP+6) = users HL
+*
+*		All other registers unaffected.
+*		If the task intends to handle the SCALL the
+*		task managers return should be popped and
+*		the SCALL handled normally
+
+TAS.RIS DS	1			; Request interrupt service
+	SPACE	4,10
+	IF	PROCMGR 		; turn this off
+**	TAS.KIL - Kill Task from the System
+*
+*	TAS.KIL is used to remove all known features of a task from
+*	the system. The area defined to be part of the task will be
+*	placed into the free node pool for use by other tasks. The task
+*	will be deactivated, if active, and all interrupt nodes removed
+*	from the task. Finally, the header node will be removed along
+*	with any pending send/receive nodes associated with the task.
+*
+*	Entry : (A) = TSN of desired task to terminate
+*		(B) = TAS.KIL function code
+*		(HL)= optional message node to send to the task
+*		    = 0 if no message is to be sent
+*
+*	Exit  : 'C' set
+*		(A) = error code, i.e. task cannot be aborted
+*		'C' clear
+*		task removed from the system
+*
+*	Uses  : *ALL*
+
+TAS.KIL	DS	1			; kill a task
+	ENDIF
+	SPACE	4,10
+	IF	PROCMGR 		; turn this off
+**	TAS.SEN - Send a message to a task
+*
+*	TAS.SEN is used to inform a task of a significant event through
+*	process communication. This method will slow the SCALL deluge by
+*	allowing the task to be notified directly through the process man-
+*	ager. The task will be called immediately, therefor this cannot be
+*	done under the clock interrupt. The message may be sent through a node
+*	or as a null message indicating only a semaphore message.
+*
+*	Entry : (A) = TSN to notify
+*		(B) = TAS.SEN function code
+*		(HL)= optional message buffer
+*
+*	Exit  : 'C' clear - message delivered
+*		'C' set
+*		(A) = error code (either from task, or TMG)
+*
+*	Uses  : *ALL*
+
+TAS.SEN	DS	1			; send task a message
+	ENDIF
+	SPACE	4,10
+	IF	PROCMGR 		; turn this off
+**	TAS.GTN - Get a node from the free pool
+*
+*	TAS.GTN - is used to get a node from the free pool for use as
+*	a list, message buffer or any other special applications. It
+*	should be noted that if a task requests all available free space,
+*	the process manager will cause a fatal system error on a request
+*	from a null node pool. So, please be nice about it.
+*
+*	Entry : (A) = TSN of requesting task
+*		(B) = TAS.GTN function code
+*		(C) = number of bytes desired for node
+*
+*	Exit  : 'C' set
+*		(A) = error code
+*		'C' clear
+*		(HL) = node pointer for use
+*
+*	Uses  : *ALL*
+
+TAS.GTN	DS	1		; get a node from the free pool
+	ENDIF
+	SPACE	4,10
+	IF	PROCMGR 		; turn this off
+**	TAS.RTN - Return a node to the free pool
+*
+*	TAS.RTN is used to return a previously received node to the free
+*	pool. The node will be returned, pending identification of a valid
+*	node.
+*
+*	Entry : (B) = TAS.RTN
+*		(HL) = node pointer address
+*
+*	Exit  : 'C' clear - node returned
+*		'C' set   - invalid node specified
+*
+*	Uses  : *ALL*
+
+TAS.RTN	DS	1		; return a node to the free pool
+	ENDIF
+	SPACE	4,40
+	IF	PROCMGR 		; turn this off
+**	TAS.SUS - Suspend Task
+*
+*	TAS.SUS is used to suspend a Task for a pre-determined period
+*	of time.  After the time has elapsed, the task will be called
+*	by the Task Manager at the specified address.
+*
+*	Entry:	(A)  = Task Sequence Number
+*		(B)  = TAS.SUS function code
+*		(HL) = Processor Addess to Call
+*		(DE) = Delay in seconds (Max is approx. 18:10)
+*		(C)  = 0 if to call during clock interrupt for service
+*		     = 1 if to call during at SCALL time for longer
+*			processing time
+*
+*	Exit:	To caller immediately
+*		'C' Clear
+*		 Request queued and waiting
+*		'C' Set
+*		 (A) = Error code
+*	Uses:	A,F
+*
+*		* WARNING *
+*
+*	This is a real-time event. If (C) := 0 the user must process the
+*	interrupt in one hell of a hurry, since it is called during an
+*	actual clock interrupt. If you are called during a clock interrupt
+*	the following precautions must be taken;
+*
+*		ABSOLUTELY NO SCALL'S
+*		processing must be finished in under 1ms.
+*		interrupts must NOT be enabled.
+*
+*	If you are called during an SCALL interrupt, you may use all registers
+*	and may issue other SCALL's. However, you may be interrupted by another
+*	task during an SCALL and take longer than expected. Therefore don't
+*	suspend yourself until the very end of the code as if you do it prior,
+*	your code better be reentrant.
+*
+*	Upon exit from the call, the user may elect to resuspend itself for
+*	a specified amount of time, this can be accomplished by setting
+*	carry and having (HL) := to the time to delay times 2ms.
+
+TAS.SUS DS	1
+	ERRNZ	TAS.SUS-TAS.MAX-1	; Must be last defined
+	ENDIF
+TAS.MAX	DS	0
+	SPACE	4,40
+***	TASK Block Definition.
+*
+*	The TASK block is a structure used to identify TASKs
+*	to the TASK monitor, and the system.  The format of
+*	the block is as follows:
+*
+*		TASK Name	DB	'TASKNAME'
+*		Version (BCD)	DB	BCD_VERSION
+*		TASK Id 	DB	'XXXX'
+*		Task Status	DB	STATUS_BYTE
+*		Task Start	DW	START_ADDRESS
+*		Task End	DW	END_ADDRESS
+*		Task Processor	DW	PROCESSOR_ADDRESS
+
+	ORG	0
+
+TSB.NAM DS	8			; Name of the TASK
+TSB.VER DS	1			; Version (BCD) of TASK
+TSB.ID	DS	4			; Other Id information
+TSB.STA DS	1			; Task status byte  (See definitions)
+TSB.STR DS	2			; Starting address of TASK in memory
+TSB.END DS	2			; Ending address of TASK in memory
+TSB.PRC DS	2			; Address of TASK function processor
+TSB.LEN EQU	*			; ... If = 0, then no processor.
+
+*	Status byte definitions
+
+TSS.ACT EQU	00000001B		; Task is active
+TSS.DEA EQU	00000000B		; Task is inactive (suspended)
+TSS.UFP EQU	00000010B		; Task uses H8 front panel
+	IF	PROCMGR
+TSS.QUE EQU	00000100B		; Task queued for time period
+	ENDIF
+TSS.MEM EQU	00001000B		; Task uses B/S memory
+TSS.TCA EQU	10000000B		; Task may not be de-activated.
+
+*	Error code definitions
+
+EC.ITF	EQU	300Q			; Illegal TASK Function call
+EC.TAA	EQU	301Q			; TASK already active
+EC.TNA	EQU	302Q			; TASK is not active
+EC.TUN	EQU	303Q			; TASK unknown
+EC.TIF	EQU	304Q			; TASK table is full
+EC.TCA	EQU	305Q			; TASK can't abort
+EC.TSN	EQU	306Q			; Illegal Task Sequence Number
+EC.TNF	EQU	307Q			; Task notification failed
+EC.8KL	EQU	310Q			; Task too large (8K limit)
+EC.NTF	EQU	311Q			; File not TASK format
+EC.NTM	EQU	003Q			; Task Manager not Present  (Bad SCALL)
+
+TASMAX	EQU	16			; Maximum number of tasks in system

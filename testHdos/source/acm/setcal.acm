@@ -1,0 +1,34 @@
+	SPACE	4,10
+**	SETCAL - FIXED ADDRESS ROUTINES IN SET
+*
+*	THESE VECTORS ARE FIXED ENTRY POINTS INTO THE
+*	SET PROGRAM TO UTILIZED BY DEVICE DRIVERS IN
+*	PROCESSING SET COMMANDS.
+
+	ORG	USERFWA+1
+
+$SNA	DS	3			; Scan to Next Argument
+
+$DCS	DS	3			; Delimit Character String
+
+$CNA	DS	3			; Convert Numberic Argument
+
+$FST	DS	3			; Find in Serial Table
+
+$TBLS	DS	3			; Table Search
+
+$WTBLS	DS	3			; Word Table Search
+
+$LBD	DS	3			; Look-Up Baud Rate Divisor
+
+$SOP	DS	3			; SET Options
+
+$PBF	DS	3			; Process Byte Flag
+
+$PBV	DS	3			; Process Byte Value
+
+$PRF	DS	3			; Print Formatted String
+
+$FHM	DS	3			; Flag Header Modified
+
+	DS	54			; Reserved

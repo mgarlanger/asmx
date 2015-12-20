@@ -1,0 +1,97 @@
+	SPACE	4,10
+**	$TYPET - TYPE TEXT.
+*
+*	$TYPET IS CALLED TO TYPE A BLOCK OF TEXT ON THE SYSTEM CONSOLE
+*	AT TASK TIME RATHER THAN AT INTERRUPT TIME.
+*
+*	IMBEDDED ZER0 BYTES INDICATE A CARRIAGE RETURN LINE FEED,
+*	A BYTE WITH THE 200Q BIT SET IS THE LAST BYTE OF THE MESSAGE.
+*
+*	This routine modified to accomodate H8-4 ports by G.Chandler, 1-SEP-78.
+*	This routine assumes that the ports have been previously initialized,
+*	and that S.CDB has been previously initialized.
+*
+*	ENTRY	(RET) = TEXT
+*	EXIT	TO (RET+LENGTH)
+*	USES	A,F
+
+$TYPET	XTHL				; (HL) = TEXT ADDRESS
+	CALL	$TYPET. 		; TYPE IT
+	XTHL
+	RET
+
+$TYPET.	MOV	A,M
+	ANI	177Q
+	CNZ	$TYPEC. 		; IF NOT CRLF
+	ANA	A
+	CZ	$TYPET1 		; IS CRLF
+	CMP	M
+	INX	H
+	RNE				; WAS 200 BIT SET
+	JMP	$TYPET.
+
+*	TYPE CRLF
+
+$TYPET1	CALL	$TYPET
+	DB	CR,ENL
+	XRA	A		RESTORE (A)
+	RET
+	SPACE	4,10
+**	$TYPEC. - TYPE SINGLE CHARACTER.
+*
+*	IF CR, PAD WITH 4 ZERO BYTES
+*
+*	ENTRY	(A) = CHARACTER
+*	EXIT	(A) = CHARACTER
+*	USES	A,F
+
+$TYPEC. PUSH	PSW			; save character for exit	/3.0a/
+	PUSH	PSW			; SAVE CHAR
+	LDA	S.CONTY 		; console type			/3.0a/
+	ANI	CTP.MLO 		; isolate l/c map		/3.0a/
+	JZ	TYPEC0			; not mapping today		/3.0a/
+	POP	PSW			; get character 		/3.0a/
+	CALL	$MCU			; map it			/3.0a/
+	PUSH	PSW			;  and put it back		/3.0a/
+TYPEC0	LDA	S.CDB							/3.0a/
+	CPI	CDB.H84
+	JZ	TYPEC2			; IF H8-4 PORT
+
+*	HAVE 8251 PORT FOR CONSOLE
+
+TYPEC1	IN	SC.UART+USR
+	ANI	USR.TXR
+	JZ	TYPEC1			; NOT READY
+	POP	PSW
+	OUT	SC.UART+UDR
+	JMP	TYPEC3
+
+*	HAVE 8250 PORT FOR CONSOLE
+
+TYPEC2	IN	SC.ACE+UR.LSR
+	ANI	UC.THE
+	JZ	TYPEC2			; NOT READY
+	LDA	S.CONTY 		; check type			/3.0a/
+	ANI	CTP.HHS 		; need to do handshake? 	/3.0a/
+	JZ	TYPEC2B 		; no.				/3.0a/
+TYPEC2A IN	SC.ACE+UR.MSR		; check modem status		/3.0a/
+	ANI	UC.CTS			; have Clear-to-send?		/3.0a/
+	JZ	TYPEC2A 		; not yet.			/3.0a/
+TYPEC2B POP	PSW							/3.0a/
+	OUT	SC.ACE+UR.THR
+
+TYPEC3	POP	PSW			; character we started with	/3.0a/
+	CPI	CR
+	RNE				; NOT CR
+
+*	IS CR. PAD 4 TIMES
+
+	MVI	A,4
+TYPEC4	PUSH	PSW
+	XRA	A
+	CALL	$TYPEC.
+	POP	PSW
+	DCR	A
+	JNZ	TYPEC4
+	MVI	A,CR
+	RET

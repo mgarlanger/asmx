@@ -1,0 +1,234 @@
+***	SI - System Information
+*
+*	SI
+
+SI	POP	H			; Clear stack
+
+	SCALL	.VERS			; Get version #
+	JC	SYSX1			; Oops !
+	LXI	H,MSG1V
+	PUSH	PSW
+	RAR
+	RAR
+	RAR
+	RAR
+	CALL	NIBL			; Unpack first digit
+	INX	H			; Skip '.'
+	POP	PSW
+	CALL	NIBL			; Unpack second digit
+
+	LDA	S.REV			; Get revision #
+	MVI	B,0
+	MOV	C,A
+	MVI	A,3
+	LXI	H,MSG1A
+	CALL	$UDDN			; Unpack revision #
+
+	LHLD	S.REV+1 		; Get assembly date
+	XCHG
+	LXI	H,MSG1B
+	CALL	$DAD			; Unpack assembly date
+
+	LHLD	S.REV+3 		; Get assembly time
+	SHLD	LABEL			; Save for now
+	MVI	A,'a'
+	STA	MSG1D			; Assume am
+	MOV	A,L			; Get hours
+	CPI	12H
+	JC	SI.T0			; am
+	MVI	A,'p'
+	STA	MSG1D			; Make pm
+	MOV	A,L			; Get hours
+	SUI	12H
+	DAA				; Adjust from military time
+SI.T0	ANA	A			; Test for 00:XXm
+	JNZ	SI.T1
+	MVI	A,12H			; Force 12:XXm
+SI.T1	STA	LABEL			; Set time
+	MVI	C,2
+	LXI	D,MSG1C
+	LXI	H,LABEL
+	CALL	DISPL			; Unpack assembly time
+
+	LXI	H,MSG1
+	SCALL	.PRINT
+
+	LDA	S.FMASK
+	ANI	F.CPU
+	ERRNZ	F.CPU-11000000B
+	RLC
+	RLC
+	LXI	H,CTAB
+	CALL	SAYTYPE
+
+	LXI	H,MSG2
+	SCALL	.PRINT
+
+	LDA	S.FMASK
+	ANI	F.TERM
+	ERRNZ	F.TERM-00110000B
+	RRC
+	RRC
+	RRC
+	RRC
+	LXI	H,TTAB
+	CALL	SAYTYPE
+
+	LXI	H,MSG3
+	SCALL	.PRINT
+
+	LDA	S.FMASK
+	ANI	F.MACH
+	ERRNZ	F.MACH-00001100B
+	RRC
+	RRC
+	LXI	H,MTAB
+	CALL	SAYTYPE
+
+	LXI	H,MSG4
+	SCALL	.PRINT
+
+	LDA	S.FMASK
+	ANI	F.CLK
+	ERRNZ	F.CLK-00000011B
+	LXI	H,STAB
+	CALL	SAYTYPE
+
+	LXI	H,MSG5
+	SCALL	.PRINT
+
+	LHLD	S.HIMEM
+	INX	H
+	MOV	A,H			; number of pages
+	RRC
+	RRC
+	ANI	00111111B		; (A) = # K-bytes
+	JNZ	OKK			; non-zero
+	MVI	A,64			;  else is 64k
+
+OKK	MOV	C,A
+	MVI	B,0
+	MVI	A,2
+	LXI	H,MSG6
+	PUSH	H
+	CALL	$UDD			; unpack
+
+	POP	H
+	SCALL	.PRINT			; say #k
+
+*	Show S.MOUNT status
+
+	CALL	$TYPTX
+	DB	NL,'System Disk is',' '+200Q
+	LDA	S.MOUNT
+	ANA	A
+	JNZ	SI.M
+	CALL	$TYPTX
+	DB	'Rese','t'+200Q
+	JMP	SI.C
+
+SI.M	CALL	$TYPTX
+	DB	'Mounte','d'+200Q
+
+*	Show S.CLKTR status
+
+SI.C	CALL	$TYPTX
+	DB	NL,'System Clock is',' '+200Q
+	LDA	S.CLKTR
+	ANA	A
+	JNZ	SI.C.
+	CALL	$TYPTX
+	DB	'NOT',' '+200Q
+SI.C.	CALL	$TYPTX
+	DB	'Residen','t'+200Q
+
+*	Show .MFLAG status
+
+	CALL	$TYPTX
+	DB	NL,'User Clock Vector is',' '+200Q
+	LDA	.MFLAG
+	ANI	UO.CLK
+	JZ	SI.D
+	CALL	$TYPTX
+	DB	'E','n'+200Q
+	JMP	SI.D.
+
+SI.D	CALL	$TYPTX
+	DB	'Di','s'+200Q
+SI.D.	CALL	$TYPTX
+	DB	'abled',ENL
+
+	RST	SYSCMD			; All through
+
+SAYTYPE ADD	A
+	CALL	$DADA
+	CALL	$HLIHL
+	SCALL	.PRINT
+	RET
+
+*	CPU Table
+
+CTAB	DW	M8080
+	DW	M8085
+	DW	MZ80
+	DW	UNKNOWN
+
+*	Terminal Table
+
+TTAB	DW	MTTY
+	DW	MH19
+	DW	UNKNOWN
+	DW	UNKNOWN
+
+*	Machine Table
+
+MTAB	DW	MH8
+	DW	MH89
+	DW	MZ100
+	DW	UNKNOWN
+
+*	Speed Table
+
+STAB	DW	M2MHZ
+	DW	M4MHZ
+	DW	M6MHZ
+	DW	UNKNOWN
+
+*	Messages
+
+MSG1	DB	NL,'HDOS Version: '
+MSG1V	DB	'n.n Rev. '
+MSG1A	DB	'nnn As of '
+MSG1B	DB	'00-???-00 at '
+MSG1C	DB	'00:00'
+MSG1D	DB	'm',NL,NL
+
+
+	DB	TAB,'CPU Type:',TAB+EOL
+
+MZ80	DB	'Z80',ENL
+M8085	DB	'8085',ENL
+M8080	DB	'8080',ENL
+
+MSG2	DB	TAB,'Terminal',TAB+EOL
+
+MTTY	DB	'Dumb TTY',ENL
+MH19	DB	'H19',ENL
+
+MSG3	DB	TAB,'System Type',TAB+EOL
+
+MH8	DB	'H8',ENL
+MH89	DB	'H89',ENL
+MZ100	DB	'Z100',ENL
+
+MSG4	DB	TAB,'Clock Speed',TAB+EOL
+
+M2MHZ	DB	'2 MHz',ENL
+M4MHZ	DB	'4 MHz',ENL
+M6MHZ	DB	'6 MHz',ENL
+
+MSG5	DB	TAB,'Total Memory',TAB+EOL
+
+MSG6	DB	'?? K-Bytes',ENL
+
+UNKNOWN DB	'Unknown',ENL

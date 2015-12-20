@@ -1,0 +1,125 @@
+	SPACE	4,10
+**	MND - MOUNT NEW DISK.
+*
+*	MND MOUNTS A NEW DISK INTO 'SY' UNIT 'UNIT'
+*
+*	1) ABORT DRIVER
+*	2) READ LABEL RECORD
+*	3) SET VOLUME NUMBER FOR DRIVER
+*
+*	EXIT	'C' CLEAR IF OK
+*		 LABEL = LABEL SECTOR
+*		'C' SET IF ERROR
+
+MND	LXI	H,0
+	MVI	A,DC.MOU
+	CALL	DRIVER			; Mount the disk as volume 0
+	RC
+
+	CALL	GETLAB			; GET LABEL
+	RC				; BAD ERROR
+
+*	CALL DEVICE MOUNT ROUTINE
+
+	LHLD	S.LABEL
+	CALL	$INDLB			; (A) = VOLUME TYPE
+	DW	LAB.VLT
+	CPI	LAB.NOD
+	JNC	MND2			; DEVICE DOESNT HAVE A DIRECTORY
+
+	CALL	$INDL			; (DE) = RGT ADDRESS
+	DW	LAB.RGT
+	CALL	$INDLB			; (A) = LABEL VERSION
+	DW	LAB.VER
+	XCHG
+	CPI	017H
+	JNC	MND0			; Volume has RGT pointer
+	LXI	H,10			; force 10 for the old diskettes
+MND0	SHLD	RGTADR			; Save address for later
+
+	XCHG
+	CALL	$INDLB			; (A) = VOLUME SERIAL
+	DW	LAB.SER
+	STA	VOLUME
+	MOV	L,A
+	MVI	H,0
+	MVI	A,DC.MOU
+	CALL	DRIVER			; MOUNT UNIT
+	RC				; BAD ERROR
+
+*	SETUP ENTRY IN DEVLST
+
+	LHLD	S.LABEL
+
+	CALL	$INDL
+	DW	LAB.GRT 		; GRT ADDRESS
+	PUSH	D
+
+	CALL	$INDL			; DIRECTORY SECTOR
+	DW	LAB.DIS
+	PUSH	D
+
+	CALL	$INDLB			; SECTORS PER GROUP
+	DW	LAB.SPG
+
+	LHLD	UNTTAB
+
+	CALL	$INDSB			; Stuff sectors/group
+	DW	UNT.SPG
+	STA	SPG
+
+	POP	D
+	CALL	$INDS			; SAVE	DIRECTORY SECTOR POINTER IN UNIT TABLE
+	DW	UNT.DIS
+
+	POP	D
+	CALL	$INDS			; SAVE	GRT SECTOR POINTER IN TABLE
+	DW	UNT.GTS
+
+*	Set UNT.FLG for disk version and writability
+
+	LHLD	UNTTAB
+	ERRNZ	UNT.FLG
+	MOV	A,M			; UNT.FLG for this device
+	ERRNZ	DT.P3-01000000B
+	ERRNZ	DT.CW-00000100B
+	ANI	10111011B		; remove old bits
+	MOV	B,A			; save
+	PUSH	B
+
+*	check for write protect
+
+	LXI	B,0			; set up dummy write
+	MOV	H,B
+	MOV	L,B
+	MVI	A,DC.WRI
+	CALL	DRIVER			; done.
+	POP	B
+	MVI	A,DT.CW 		; assume is able
+	JNC	MND.5			; yep
+	XRA	A			;  else stay off
+MND.5	ORA	B			; combine
+	MOV	B,A			;  and save
+
+*	check for version 3.0 disk
+
+	LHLD	S.LABEL
+	CALL	$INDLB
+	DW	LAB.VER 		; (a) = version of disk
+	CPI	3*16+0			; is 3.0?
+	MVI	A,DT.P3 		; assume no.
+	JC	MND.6			; go
+	XRA	A			;  else clear
+MND.6	ORA	B			; combine
+
+	LHLD	UNTTAB
+	ERRNZ	UNT.FLG
+	MOV	M,A			; set it.
+
+	RET
+
+*	DEVICE DOES NOT HAVE A DIRECTORY.
+
+MND2	MVI	A,EC.DNI		; DISK NOT INITIALIZED
+	STC				; FLAG ERROR
+	RET

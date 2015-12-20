@@ -1,0 +1,9 @@
+
+H47PAR	SPACE	4,10
+**	H47PAR	-  H47 Parameters
+*
+
+NSPTS	EQU	13		Sectors/Track Single Density	[1-13]
+NSPTD	EQU	26		Sectors/Track Double Density	[1-26]
+
+NTRK	EQU	76+1		Number of Tracks		[0-76]

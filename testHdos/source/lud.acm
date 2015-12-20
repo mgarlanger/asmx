@@ -1,0 +1,50 @@
+	SPACE	4,10
+**	LUD	-  Look-Up Device Information
+*
+*	LUD looks up the device information in the  device table.
+*
+*
+*	ENTRY:	DEVNAME	=  device name
+*		UNIT	=  binary unit number
+*
+*	EXIT:	PSW	=  'C' clear if no errors
+*			    HL =  Entry address
+*			=  'C' set   if    errors
+*			    A  =  error code
+*
+*
+*	USES:	PSW,DE,HL
+*
+
+LUD	LHLD	S.DFWA
+
+LUD1	MOV	A,M
+	ANA	A
+	ERRNZ	DV.EL
+	MVI	A,EC.UND
+	STC
+	RZ				; UNKNOWN DEVICE
+
+	MOV	A,M
+	CPI	DV.NU
+	JZ	LUD3			; ENTRY NOT IN USE
+
+	XCHG
+	LHLD	DEVNAME
+	CMP	L
+	JNZ	LUD2			; NOT FOUND
+	INX	D
+	LDAX	D
+	DCX	D
+	CMP	H
+	JNZ	LUD2			; NOT FOUND
+
+*	ENTRY FOUND
+
+	XCHG				; HL = ENTRY ADDRESS
+	RET
+
+LUD2	XCHG
+LUD3	LXI	D,DEVELEN
+	DAD	D
+	JMP	LUD1

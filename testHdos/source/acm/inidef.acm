@@ -1,0 +1,51 @@
+	SPACE	4,10
+**	INIDEF	-  Init Sub-Function Definitions
+*
+
+	ORG	0
+
+INI.CMV DS	1			; Check Media Validity
+INI.IDS DS	1			; Initialize Disk Surface
+INI.DBI DS	1			; Directory Block Interleave
+INI.PAR DS	1			; Parameters
+
+INI.MAX	EQU	*
+	SPACE	4,10
+**	Definition of Shared Routines
+*
+
+INITVEC EQU	054000A 		; Vector Address
+
+	ORG	INITVEC
+
+$$VER	DS	1			; Version of Init
+
+$$BITC	DS	3			; Bit CLEAR
+
+$$BITS	DS	3			; Bit SET
+
+$$BUFF	DS	2			; 256 byte buffer
+
+$$CHL	DS	3			; Complement HL
+
+$$CNO	DS	3			; Check  NO
+
+$$CYS	DS	3			; Check  YES
+
+$$DRVR	DS	3			; Device Driver
+
+$$DRVR. DS	3			; Device Driver with ERROR detection
+
+$$ITL.	DS	3			; Input Text Line
+
+$$MOVE	DS	3			; Move bytes
+
+$$TBRA	DS	3			; Table Branch
+
+$$TYPTX DS	3			; Type Text
+
+$$VSN	DS	3			; Volume Serial Number
+
+$$RBS	DS	3			; Request Buffer Space		/2.1a/
+
+$$MAX	EQU	*

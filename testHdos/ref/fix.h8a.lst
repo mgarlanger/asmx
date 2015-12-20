@@ -1,0 +1,1252 @@
+0000                    	TITLE	'FIX - Fix File Flags'
+0000                    	STL	'System Definitions'
+
+0000                    	XTEXT	ASCII
+0000                    	SPACE	3,10
+                        **	ASCII CHARACTER EQUIVALENCES.
+
+      = 0000            NUL	EQU	000Q			; null
+      = 0007            BELL	EQU	007Q			; bell
+      = 0008            BKSP	EQU	010Q			; backspace
+      = 0008            BS	EQU	BKSP
+      = 0009            TAB	EQU	011Q			; horizontal tab
+      = 000A            LF	EQU	012Q			; line feed
+      = 000A            NL	EQU	012Q			; new line (HDOS)
+      = 000C            FF	EQU	014Q			; form feed
+      = 000D            CR	EQU	015Q			; carriage return
+      = 001B            ESC	EQU	033Q			; escape
+      = 007F            DEL	EQU	177Q			; delete
+
+                        *	Specials
+
+      = 0080            EOL	EQU	200Q			; end of line flag
+      = 0080            NULL	EQU	200Q			; pad character
+      = 0000            NUL2	EQU	0			; ditto
+      = 007F            RUBOUT	EQU	DEL			; rubout/delete
+      = 0016            C.SYN	EQU	026Q			; SYNC
+      = 0002            C.STX	EQU	002Q			; STX
+      = 0027            QUOTE	EQU	047Q			; quote character (")
+      = 008A            ENL	EQU	NL+EOL			; NL + end-of-line flag
+
+                        *	Control keys
+
+      = 0001            CTLA	EQU	'A'-'@' 		; CTRL/A
+      = 0002            CTLB	EQU	'B'-'@' 		; CTRL/B
+      = 0003            CTLC	EQU	'C'-'@' 		; CTRL/C
+      = 0004            CTLD	EQU	'D'-'@' 		; CTRL/D
+      = 0005            CTLE	EQU	'E'-'@' 		; CTRL/E
+      = 000F            CTLO	EQU	'O'-'@' 		; CTRL/O
+      = 0010            CTLP	EQU	'P'-'@' 		; CTRL/P
+      = 0011            CTLQ	EQU	'Q'-'@' 		; CTRL/Q
+      = 0012            CTLR	EQU	'R'-'@' 		; CTRL/R
+      = 0013            CTLS	EQU	'S'-'@' 		; CTRL/S
+      = 0018            CTLX	EQU	'X'-'@' 		; CTRL/X
+      = 001A            CTLZ	EQU	'Z'-'@' 		; CTRL/Z
+0000                    	XTEXT	HOSDEF
+0000                    	SPACE	3,10
+                        **	HOSDEF - Define HOS Parameters.
+                        *
+
+      = 0030            VERS	equ	3*16+0			; VERSION 3.0			/3.0a/
+
+      = 00FF            SYSCALL equ	377Q			; SYSCALL INSTRUCTION
+
+0000                    	org	0
+
+                        *	Resident Functions
+
+0000   (0001)           .EXIT	ds	1			; EXIT (MUST BE FIRST)
+0001   (0001)           .SCIN	ds	1			; SCIN
+0002   (0001)           .SCOUT	ds	1			; SCOUT
+0003   (0001)           .PRINT	ds	1			; PRINT
+0004   (0001)           .READ	ds	1			; READ
+0005   (0001)           .WRITE	ds	1			; WRITE
+0006   (0001)           .CONSL	ds	1			; SET/CLEAR CONSOLE OPTIONS
+0007   (0001)           .CLRCO	ds	1			; CLEAR CONSOLE BUFFER
+0008   (0001)           .LOADO	ds	1			; LOAD AN OVERLAY (obsolete)	/3.0a/
+0009   (0001)           .VERS	ds	1			; RETURN HDOS VERSION NUMBER
+000A   (0001)           .GDA	ds	1			; Get Device Driver Address	/3.0a/
+000B   (0001)           .CRC16	ds	1			; CRC a block of memory 	/3.0a/
+000C   (0001)           .SYSRES ds	1			; PRECEDING FUNCTIONS ARE RESIDENT
+
+
+                        *	*HDOSOVL0.SYS*  FUNCTIONS
+
+0020                    	org	40Q
+
+0020   (0001)           .LINK	ds	1			; LINK	(MUST BE FIRST)
+0021   (0001)           .CTLC	ds	1			; CTL-C
+0022   (0001)           .OPENR	ds	1			; OPENR
+0023   (0001)           .OPENW	ds	1			; OPENW
+0024   (0001)           .OPENU	ds	1			; OPENU
+0025   (0001)           .OPENC	ds	1			; OPENC
+0026   (0001)           .CLOSE	ds	1			; CLOSE
+0027   (0001)           .POSIT	ds	1			; POSITION
+0028   (0001)           .DELET	ds	1			; DELETE
+      = 0028            .DELETE equ	.DELET
+0029   (0001)           .RENAM	ds	1			; RENAME
+      = 0029            .RENAME equ	.RENAM
+002A   (0001)           .SETTP	ds	1			; SETTOP
+      = 002A            .SETTOP equ	.SETTP
+002B   (0001)           .DECODE ds	1			; NAME DECODE
+002C   (0001)           .NAME	ds	1			; GET FILE NAME FROM CHANNEL
+002D   (0001)           .CLEAR	ds	1			; CLEAR CHAN
+002E   (0001)           .CLEARA ds	1			; CLEAR ALL CHANS
+002F   (0001)           .ERROR	ds	1			; LOOKUP ERROR
+0030   (0001)           .CHFLG	ds	1			; CHANGE FLAGS
+0031   (0001)           .DISMT	ds	1			; FLAG SYSTEM DISK DISMOUNTED
+0032   (0001)           .LOADD	ds	1			; LOAD DEVICE DRIVER
+
+                        *	*HDOSOVL1.SYS*  FUNCTIONS
+
+0080                    	org	200Q
+
+0080   (0001)           .MOUNT	ds	1			; MOUNT  (MUST BE FIRST)
+0081   (0001)           .DMOUN	ds	1			; DISMOUNT
+      = 0081            .DMOUNT equ	.DMOUN
+0082   (0001)           .MONMS	ds	1			; MOUNT/NO MESSAGE
+0083   (0001)           .DMNMS	ds	1			; DISMOUNT/NO MESSAGE
+0084   (0001)           .RESET	ds	1			; RESET = DISMOUNT/MOUNT OF UNIT
+0085   (0001)           .RESNMS ds	1			; RESET/NO (OR USER) MESSAGE
+0086   (0001)           .DAD	ds	1			; Dismount All Disks
+0087                    	XTEXT	HOSEQU
+0087                    	SPACE	4,10
+                        **	HDOS SYSTEM EQUIVALENCES.					/3.0a/
+                        *
+
+2040                    	ORG	040100A
+
+2040   (0008)           S.EXITA DS	8			; Jump to System Exit
+
+2048   (0010)           D.CON	DS	16			; Disk Constants
+
+      = 2058            SYDD	EQU	*			; System Disk Entry Point
+
+2058   (0048)           D.VEC	DS	24*3			; H17 Disk Vectors
+20A0   (001F)           D.RAM	DS	31			; H17 Disk Work Area
+
+20BF   (0024)           S.VAL	DS	36			; SYSTEM VALUES
+20E3   (0093)           S.INT	DS	147			; SYSTEM INTERNAL WORK AREAS
+
+2176   (0002)           S.SOVR	DS	2			; STACK OVERFLOW WARNING
+2178   (0108)           	DS	042200A-*		; SYSTEM STACK
+      = 010A            STACKL	EQU	*-S.SOVR		; STACK SIZE
+
+      = 2280            STACK	EQU	*			; LWA+1 SYSTEM STACK
+      = 2280            USERFWA EQU	*			; USER FWA
+
+                        *	Ensure Compatibility
+
+                        	ERRNZ	040130A-SYDD
+                        	ERRNZ	040277A-S.VAL
+                        	ERRNZ	040343A-S.INT
+                        	ERRNZ	042200A-USERFWA
+2280                    	XTEXT	DEVDEF
+2280                    	SPACE	4,10
+                        ***	DEVICE TABLE ENTRYS.
+
+0000                    	ORG	0
+
+0000   (0002)           DEV.NAM DS	2			; DEVICE NAME
+      = 0000            DV.EL	EQU	00000000B		; END OF DEVICE LIST FLAG
+      = 0001            DV.NU	EQU	00000001B		; DEVICE ENTRY NOT IN USE
+
+0002   (0001)           DEV.RES DS	1			; DRIVER RESIDENSE CODE
+      = 0001            DR.IM	EQU	00000001B		; DRIVER IN MEMORY
+      = 0002            DR.PR	EQU	00000010B		; DRIVER PERMANENTLY RESIDENT
+      = 0004            DR.FX	equ	00000100b		; Driver FIXED in memory	/3.0a/
+      = 0008            DR.UNL	equ	00001000b		; Driver unload pending 	/3.0a/
+                        *	equ	00010000b		; Reserved			/3.0a/
+      = 00E0            DR.SPL	equ	11100000b		; SET preamble size mask	/3.0a/
+
+0003   (0001)           DEV.JMP DS	1			; JMP TO PROCESSOR
+0004   (0002)           DEV.DDA DS	2			; DRIVER ADDRESS
+0006   (0001)           DEV.FLG DS	1			; FLAG BYTE
+      = 0001            DT.DD	EQU	00000001B		; DIRECTORY DEVICE
+      = 0002            DT.CR	EQU	00000010B		; CAPABLE OF READ OPERATION
+      = 0004            DT.CW	EQU	00000100B		; CAPABLE OF WRITE OPERATION
+      = 0008            DT.RN	EQU	00001000B		; Capable of random access
+      = 0010            DT.CH	EQU	00010000B		; Capable of Character mode
+      = 0020            DT.FX	EQU	00100000B		; Fixed Media			/3.0a/
+      = 0040            DT.P3	EQU	01000000B		; pre-3.0 media 		/3.0a/
+      = 0080            DT.UL	EQU	10000000B		; requires unload notification	/3.0a/
+
+0007   (0001)           DEV.MUM DS	1			; MOUNTED UNIT MASK
+0008   (0001)           DEV.MNU DS	1			; MAXIMUM NUMBER OF UNITS
+0009   (0002)           DEV.UNT DS	2			; ADDRESS OF UNIT SPECIFIC DATA TABLE
+
+000B   (0002)           DEV.DVL DS	2			; DRIVER BYTE LENGTH
+000D   (0001)           DEV.DVG DS	1			; DRIVER ROUTINE GROUP ADDRESS
+
+      = 000E            DEVELEN EQU	*			; DEVICE TABLE ENTRY LENGTH
+000E                    UNT.TAB	SPACE	4,10
+                        **	UNIT SPECIFIC DEVICE DATA TABLE ENTRIES
+
+0000                    	ORG	0
+
+0000   (0001)           UNT.FLG DS	1			; UNIT SPECIFIC  *DEV.FLG*
+0001   (0001)           UNT.SPG DS	1			; Sectors Per Group
+0002   (0002)           UNT.GRT DS	2			; ADDRESS OF GRT (IF DT.DD)
+0004   (0002)           UNT.GTS DS	2			; GRT SECTOR NUMBER
+0006   (0002)           UNT.DIS DS	2			; DIRECTORY FIRST SECTOR NUMBER
+
+      = 0008            UNT.SIZ EQU	*			; SIZE OF UNIT SPECIFIC DATA ENTRY
+0008                    	XTEXT	DIRDEF
+0008                    	SPACE	3,10
+                        **	DIRECTORY ENTRY FORMAT.
+
+0000                    	ORG	0
+
+      = 00FF            DF.EMP	EQU	377Q			; ENTRY EMPTY
+      = 00FE            DF.CLR	EQU	376Q			; ENTRY EMPTY, REMAINDER ALSO CLEAR
+
+0000   (0008)           DIR.NAM DS	8			; NAME
+0008   (0003)           DIR.EXT DS	3			; EXTENSION
+      = 000B            DIRIDL	equ	*			; file identification length	/3.0a/
+
+000B   (0001)           DIR.CTH DS	1			; creation time (BCD hours)	/3.0a/
+000C   (0001)           DIR.CTM DS	1			; creation date (BCD minutes)	/3.0a/
+
+000D   (0001)           DIR.NOA DS	1			; number of accesses		/3.0a/
+000E   (0001)           DIR.FLG DS	1			; FLAGS
+000F   (0001)           DIR.USR DS	1			; user area mask		/3.0a/
+0010   (0001)           DIR.FGN DS	1			; FIRST GROUP NUMBER
+0011   (0001)           DIR.LGN DS	1			; LAST GROUP NUMBER
+0012   (0001)           DIR.LSI DS	1			; LAST SECTOR INDEX (IN LAST GROUP)
+0013   (0002)           DIR.CRD DS	2			; CREATION DATE
+0015   (0002)           DIR.ACD DS	2			; last access date		/3.0a/
+
+      = 0017            DIRELEN EQU	*			; DIRECTORY ENTRY LENGTH
+0017                    	XTEXT	DISDEF
+0017                    DISDEF	SPACE	3,10
+                        **	DIRECTORY BLOCK FORMAT.
+
+0000                    	ORG	0
+
+      = 0000            DIS.ENT EQU	*			; FIRST ENTRY ADDRESS
+
+0000   (01FA)           	DS	22*DIRELEN		; 22 DIRECTORY ENTRYS PER BLOCK
+01FA   (0001)           	DS	1			; 0 BYTE = END OF ENTRYS IN THIS BLOCK
+
+01FB                    	ORG	512-5			; AT END OF BLOCK
+
+01FB   (0001)           DIS.ENL DS	1			; LENGTH OF EACH ENTRY (=DIRELEN)
+01FC   (0002)           DIS.SEC DS	2			; BLOCK # OF THIS BLOCK,
+01FE   (0002)           DIS.LNK DS	2			; BLOCK # OF NEXT BLOCK, =0 IF LAST
+0200                    	XTEXT	IOCDEF
+0200                    IOCDEF	SPACE	3,10
+                        **	I/O CHANNEL DEFINITIONS.
+
+0000                    	ORG	0
+
+0000   (0002)           IOC.LNK DS	2			; ADDRESS OF NEXT CHANNEL, =0 IF LAST
+0002   (0002)           IOC.DDA DS	2			; THREAD JUMP TO DEVICE DRIVER (VIA DEV TABLE)
+
+0004   (0001)           IOC.FLG DS	1			; FILE TYPE FLAGS
+      = 0001            FT.DD	EQU	00000001B		;  =1 IF DIRECTORY DEVICE
+      = 0002            FT.OR	EQU	00000010B		;  =1 IF OPEN FOR READ
+      = 0004            FT.OW	EQU	00000100B		;  =1 IF OPEN FOR WRITE
+      = 0008            FT.OU	EQU	00001000B		;  =1 IF OPEN FOR UPDATE
+      = 0010            FT.OC	EQU	00010000B		;  =1 IF OPEN FOR CHARACTER MODE
+      = 0003            IOC.SQL EQU	*-IOC.DDA		; LENGTH OF INFO FOR SEQUENTIAL FILE
+
+0005   (0002)           IOC.GRT DS	2			; ADDRESS OF GROUP RESERVATION TABLE
+0007   (0001)           IOC.SPG DS	1			; SECTORS PER GROUP, THIS DEVICE
+0008   (0001)           IOC.CGN DS	1			; CURRENT GROUP NUMBER
+0009   (0001)           IOC.CSI DS	1			; CURRENT SECTOR INDEX (IN CURRENT GROUP)
+000A   (0001)           IOC.LGN DS	1			; LAST GROUP NUMBER
+000B   (0001)           IOC.LSI DS	1			; LAST SECTOR INDEX (IN LAST GROUP)
+      = 0008            IOC.DRL EQU	*-IOC.FLG		; LENGTH OF INFO NORMALLY COPIED BACK TO
+                        *					; THE CHANNEL TABLE
+000C   (0002)           IOC.DTA DS	2			; DEVICE TABLE ADDRESS FOR THIS DEVICE
+000E   (0002)           IOC.DES DS	2			; SECTOR NUMBER OF DIRECTORY ENTRY
+0010   (0002)           IOC.DEV DS	2			; DEVICE CODE
+0012   (0001)           IOC.UNI DS	1			; UNIT NUMBER (0-9)
+      = 0011            IOC.DIL EQU	*-IOC.DDA		; LENGTH OF INFO FOR DIRECTORY FILE
+
+0013   (0017)           IOC.DIR DS	DIRELEN 		; DIRECTORY ENTRY
+
+      = 002A            IOCELEN EQU	*			; IOC ENTRY LENGTH
+
+      = 0001            IOCCTD	EQU	1			; INDEX OF USER CHANNEL #0 IN CHANTAB (FIRST = 0)
+002A                    	XTEXT	ECDEF
+002A                    	SPACE	4,10
+                        **	ERROR CODE DEFINITIONS.
+
+0000                    	ORG	0
+
+0000   (0001)           	DS	1		; NO ERROR #0
+0001   (0001)           EC.EOF	DS	1		; END OF FILE
+0002   (0001)           EC.EOM	DS	1		; END OF MEDIA
+0003   (0001)           EC.ILC	DS	1		; ILLEGAL SCALL CODE
+0004   (0001)           EC.CNA	DS	1		; CHANNEL NOT AVAILABLE
+0005   (0001)           EC.DNS	DS	1		; DEVICE NOT SUITABLE
+0006   (0001)           EC.IDN	DS	1		; ILLEGAL DEVICE NAME
+0007   (0001)           EC.IFN	DS	1		; ILLEGAL FILE NAME
+0008   (0001)           EC.NRD	DS	1		; NO ROOM FOR DEVICE DRIVER
+0009   (0001)           EC.FNO	DS	1		; CHANNEL NOT OPEN
+000A   (0001)           EC.ILR	DS	1		; ILLEGAL REQUEST
+000B   (0001)           EC.FUC	DS	1		; FILE USAGE CONFLICT
+000C   (0001)           EC.FNF	DS	1		; FILE NAME NOT FOUND
+000D   (0001)           EC.UND	DS	1		; UNKNOWN DEVICE
+000E   (0001)           EC.ICN	DS	1		; ILLEGAL CHANNEL NUMBER
+000F   (0001)           EC.DIF	DS	1		; DIRECTORY FULL
+0010   (0001)           EC.IFC	DS	1		; ILLEGAL FILE CONTENTS
+0011   (0001)           EC.NEM	DS	1		; NOT ENOUGH MEMORY
+0012   (0001)           EC.RF	DS	1		; READ FAILURE
+0013   (0001)           EC.WF	DS	1		; WRITE FAILURE
+0014   (0001)           EC.WPV	DS	1		; WRITE PROTECTION VIOLATION
+0015   (0001)           EC.WP	DS	1		; DISK WRITE PROTECTED
+0016   (0001)           EC.FAP	DS	1		; FILE ALREADY PRESENT
+0017   (0001)           EC.DDA	DS	1		; DEVICE DRIVER ABORT
+0018   (0001)           EC.FL	DS	1		; FILE LOCKED
+0019   (0001)           EC.FAO	DS	1		; FILE ALREADY OPEN
+001A   (0001)           EC.IS	DS	1		; ILLEGAL SWITCH
+001B   (0001)           EC.UUN	DS	1		; UNKNOWN UNIT NUMBER
+001C   (0001)           EC.FNR	DS	1		; FILE NAME REQUIRED
+001D   (0001)           EC.DIW	DS	1		; DEVICE IS NOT WRITABLE (OR WRITE LOCKED)
+001E   (0001)           EC.UNA	DS	1		; UNIT NOT AVAILABLE
+001F   (0001)           EC.ILV	DS	1		; ILLEGAL VALUE
+0020   (0001)           EC.ILO	DS	1		; ILLEGAL OPTION
+0021   (0001)           EC.VPM	DS	1		; VOLUME PRESENTLY MOUNTED ON DEVICE
+0022   (0001)           EC.NVM	DS	1		; NO VOLUME PRESENTLY MOUNTED
+0023   (0001)           EC.FOD	DS	1		; FILE OPEN ON DEVICE
+0024   (0001)           EC.NPM	DS	1		; NO PROVISIONS MADE FOR REMOUNTING MORE DISKS
+0025   (0001)           EC.DNI	DS	1		; DISK NOT INITIALIZED
+0026   (0001)           EC.DNR	DS	1		; DISK IS NOT READABLE
+0027   (0001)           EC.DSC	DS	1		; DISK STRUCTURE IS CORRUPT
+0028   (0001)           EC.NCV	DS	1		; NOT CORRECT VERSION OF HDOS
+0029   (0001)           EC.NOS	DS	1		; NO OPERATING SYSTEM MOUNTED
+002A   (0001)           EC.IOI	DS	1		; ILLEGAL OVERLAY INDEX
+002B   (0001)           EC.OTL	DS	1		; OVERLAY TOO LARGE
+002C   (0001)           EC.LAD	DS	1		; File is locked against delete 	/3.0a/
+002D   (0001)           EC.FIX	DS	1		; Device media is fixed 		/3.0a/
+002E   (0001)           EC.ILA	DS	1		; Illegal Load Address			/3.0a/
+002F   (0001)           EC.DNL	DS	1		; Device Not Loaded			/3.0a/
+0030   (0001)           EC.DNP	DS	1		; Device Not Locked in Memory		/3.0a/
+0031   (0001)           EC.DFM	DS	1		; Device is Fixed in Memory		/3.0a/
+0032   (0001)           EC.IDF	DS	1		; Illegal Date Format			/3.0a/
+0033   (0001)           EC.ITS	DS	1		; Illegal Time Format			/3.0a/
+0034   (0001)           EC.CNR	DS	1		; System Clock Not Resident		/3.0a/
+0035   (0001)           EC.SDR	DS	1		; System Disk is Reset			/3.0a/
+0036   (0001)           EC.LBO	DS	1		; Line Buffer Overflow			/3.0a/
+0037   (0001)           EC.CUI	DS	1		; Can't Unlink from Interrupt Vector	/3.0a/
+0038                    	XTEXT	DIFDEF
+0038                    DIFDEF	SPACE	4,10
+                        **	DIRECTORY FILE FLAGS.
+
+      = 0080            DIF.SYS EQU	10000000B		; System file
+      = 0040            DIF.LOC EQU	01000000B		; Locked from flag changes
+      = 0020            DIF.WP	EQU	00100000B		; Write protected
+      = 0010            DIF.CNT EQU	00010000B		; Contiguous file
+      = 0008            DIF.ARC EQU	00001000B		; File archive attribute	/3.0a/
+      = 0004            DIF.BAD EQU	00000100B		; File is damaged		/3.0a/
+      = 0002            DIF.DL	EQU	00000010B		; Locked against delete 	/3.0a/
+      = 0001            DIF.USR EQU	00000001B		; User-defined			/3.0a/
+0038                    	XTEXT	ESVAL
+0038                    	SPACE	4,10
+                        **	S.VAL - SYSTEM VALUE DEFINTIONS.
+                        *
+                        *	THESE VALUES ARE SET AND MAINTAINED BY THE SYSTEM.
+                        *
+                        *	THE DECK HOSEQU MUST BE MODIFIED WHEN THIS IS MODIFIED.
+
+20BF                    	ORG	S.VAL
+
+20BF   (0009)           S.DATE	DS	9			; SYSTEM DATE (IN ASCII)
+20C8   (0002)           S.DATC	DS	2			; CODED DATE
+20CA   (0003)           S.TIME	DS	3			; TIME (BCD HH MM SS)		/3.0a/
+20CD   (0001)           S.CLKTR DS	1			; 0 if no clock task resident	/3.0a/
+20CE   (0002)           S.HIMEM DS	2			; HARDWARE HIGH MEMORY ADRESS+1
+
+20D0   (0002)           S.SYSM	DS	2			; FWA RESIDENT SYSTEM
+
+20D2   (0002)           S.USRM	DS	2			; LWA USER MEMORY
+
+20D4   (0002)           	DS	2			; obsolete (must be zero!!)	/3.0a/
+20D6                    	SPACE	3,10
+                        **	THE FOLLOWING CELLS SHOULD BE MODIFIED/READ ONLY VIA THE .CONSL SCALL
+
+      = 0080            CSL.ECH EQU	10000000B		; SUPPRESS ECHO
+      = 0004            CSL.RAW EQU	00000100B		; Raw Mode I/O
+      = 0002            CSL.WRP EQU	00000010B		; WRAP LINES AT WIDTH
+      = 0001            CSL.CHR EQU	00000001B		; OPERATE IN CHARACTER MODE
+
+      = 0000            I.CSLMD EQU	0			; S.CSLMD IS FIRST BYTE
+20D6   (0001)           S.CSLMD DS	1			; CONSOLE MODE
+
+
+      = 0080            CTP.BKS EQU	10000000B		; TERMINAL PROCESSES BACKSPACES
+      = 0040            CTP.FF	EQU	01000000B		; Terminal Processes Form-Feed
+      = 0020            CTP.MLI EQU	00100000B		; MAP LOWER CASE TO UPPER ON INPUT
+      = 0010            CTP.MLO EQU	00010000B		; MAP LOWER CASE TO UPPER ON OUTPUT
+      = 0008            CTP.2SB EQU	00001000B		; TERMINAL NEEDS TWO STOP BITS
+      = 0004            CTP.HHS EQU	00000100B		; Terminal uses hdwr handshake	/3.0a/
+      = 0002            CTP.BKM EQU	00000010B		; MAP BKSP (UPON INPUT) TO RUBOUT
+      = 0001            CTP.TAB EQU	00000001B		; TERMINAL SUPPORTS TAB CHARACTERS
+
+      = 0001            I.CONTY EQU	1			; S.CONTY IS 2ND BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONTY
+20D7   (0001)           S.CONTY DS	1			; CONSOLE TYPE FLAGS
+
+
+      = 0002            I.CUSOR EQU	2			; S.CUSOR IS 3RD BYTE
+                        	ERRNZ	*-S.CSLMD-I.CUSOR
+20D8   (0001)           S.CUSOR DS	1			; CURRENT CURSOR POSITION
+
+
+      = 0003            I.CONWI EQU	3			; S.CONWI IS 4TH BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONWI
+20D9   (0001)           S.CONWI DS	1			; CONSOLE WIDTH
+
+
+      = 0001            CO.FLG	EQU	00000001B		; CTL-O FLAG
+      = 0080            CS.FLG	EQU	10000000B		; CTL-S FLAG
+
+      = 0004            I.CONFL EQU	4			; S.CONFL IS 5TH BYTE
+                        	ERRNZ	*-S.CSLMD-I.CONFL
+20DA   (0001)           S.CONFL DS	1			; CONSOLE FLAGS
+
+
+20DB   (0002)           S.CAADR DS	2			; ADDRESS FOR ABORT PROCESSING (>256 IF VALID)
+20DD   (0006)           S.CCTAB DS	6			; ADDR FOR CTL-A, CTL-B, CTL-C PROCESSING
+20E3                    	XTEXT	ESINT
+20E3                    	SPACE	4,10
+                        **	S.INT - SYSTEM INTERNAL WORKAREA DEFINITIONS.
+                        *
+                        *	THESE CELLS ARE REFERENCED BY OVERLAYS AND MAIN CODE, AND
+                        *	MUST THEREFORE RESIDE IN FIXED LOW MEMORY.
+
+20E3                    	ORG	S.INT
+
+                        **	CONSOLE STATUS FLAGS
+
+20E3   (0001)           S.CDB	DS	1			; CONSOLE DESCRIPTOR BYTE
+      = 0000            CDB.H85	EQU	00000000B
+      = 0001            CDB.H84 EQU	00000001B		; =0 IF H8-5, =1 IF H8-4
+20E4   (0002)           S.BAUD	DS	2			; [0-14]  H8-4 BAUD RATE, =0 IF H8-5
+                        *					; [15]	  =1 IF BAUD RATE => 2 STOP BITS
+
+                        **	TABLE ADDRESS WORDS
+
+20E6   (0002)           S.DLINK DS	2			; ADDRESS OF DATA IN HDOS CODE
+20E8   (0002)           S.TFWA	DS	2			; FWA Task Table		/3.1a/
+20EA   (0002)           S.CFWA	DS	2			; FWA CHANNEL TABLE
+20EC   (0002)           S.DFWA	DS	2			; FWA DEVICE TABLE
+20EE   (0002)           S.RFWA	DS	2			; FWA RESIDENT HDOS CODE
+
+                        **	DEVICE DRIVER DELAYED LOAD FLAGS
+
+20F0   (0002)           S.DDLDA DS	2			; DRIVER LOAD ADDRESS (HIGH BYTE=0 IF NO LOAD PENDING)
+20F2   (0002)           S.DDLEN DS	2			; CODE LENGTH IN BYTES
+20F4   (0001)           S.DDGRP DS	1			; GROUP NUMBER FOR DRIVER
+20F5   (0001)           	DS	1			; HOLD PLACE
+20F6   (0002)           S.DDDTA DS	2			; DEVICE'S ADDRESS IN DEVLST +DEV.RES
+20F8   (0001)           S.DDOPC DS	1			; OPEN OPCODE PENDEDING
+
+20F9   (000D)           	DS	13			; reserved
+
+                        *	SYSCALL PROCESSING WORK AREAS
+
+                        	ERRNZ	*-041006A
+2106   (0001)           S.CACC	DS	1			; (ACC) UPON SYSCALL
+2107   (0001)           S.CODE	DS	1			; SYSCALL INDEX IN PROGRESS
+
+                        *	JUMPS TO ROUTINES IN RESIDENT HDOS CODE
+
+2108   (0000)           S.JUMPS DS	0			; START OF DUMP VECTORS
+2108   (0003)           S.SDD	DS	3			; JUMP TO STAND-IN DEVICE DRIVER
+210B   (0003)           S.FASER DS	3			; JUMP TO FATSERR (FATAL SYSTEM ERROR)
+210E   (0003)           S.DIREA DS	3			; JUMP TO DIREAD (DISK FILE READ)
+2111   (0003)           S.FCI	DS	3			; JUMP TO FCI (FETCH CHANNEL INFO)
+2114   (0003)           S.SCI	DS	3			; JUMP TO SCI (STORE CHANNEL INFO)
+2117   (0003)           S.GUP	DS	3			; JUMP TO GUP (GET UNIT POINTER)
+
+211A   (0001)           S.MOUNT DS	1			; <>0 IF THE SYSTEM DISK IS MOUNTED
+211B   (0001)           	DS	1			; reserved			/3.0a/
+
+211C   (0001)           S.BOOTF DS	1			; BOOT FLAGS
+      = 0001            BOOT.P	EQU	00000001B		; EXECUTE PROLOGUE UPON BOOTUP
+
+211D   (0003)           	DS	3			; reserved
+2120                    	SPACE	4,10
+                        **	ACTIVE I/O AREA.
+                        *
+                        *	THE AIO.XXX AREA CONTAINS INFORMATION ABOUT THE I/O OPERATION
+                        *	CURRENTLY BEING PERFORMED. THE INFORMATION IS OBTAINED FROM
+                        *	THE CHANNEL TABLE, AND WILL BE RESTORED THERE WHEN DONE.
+                        *
+                        *	NORMALLY, THE AIO.XXX INFORMATION WOULD BE OBTAINED DIRECTLY
+                        *	FROM VARIOUS SYSTEM TABLES VIA POINTER REGISTERS. SINCE THE
+                        *	8080 HAS NO GOOD INDEXED ADDRESSING, THE DATA IS MANUALLY
+                        *	COPIED INTO THE AIO.XXX CELLS BEFORE PROCESSING, AND
+                        *	BACKDATED AFTER PROCESSING.
+
+                        	ERRNZ	*-041040A
+2120   (0003)           AIO.VEC DS	3			; JUMP INSTRUCTION
+      = 2121            AIO.DDA EQU	*-2			; DEVICE DRIVER ADDRESS
+2123   (0001)           AIO.FLG DS	1			; FLAG BYTE
+2124   (0002)           AIO.GRT DS	2			; ADDRESS OF GROUP RESERV TABLE
+2126   (0001)           AIO.SPG DS	1			; SECTORS PER GROUP
+2127   (0001)           AIO.CGN DS	1			; CURRENT GROUP NUMBER
+2128   (0001)           AIO.CSI DS	1			; CURRENT SECTOR INDEX
+2129   (0001)           AIO.LGN DS	1			; LAST GROUP NUMBER
+212A   (0001)           AIO.LSI DS	1			; LAST SECTOR INDEX
+212B   (0002)           AIO.DTA DS	2			; DEVICE TABLE ADDRESS
+212D   (0002)           AIO.DES DS	2			; DIRECTORY SECTOR
+212F   (0002)           AIO.DEV DS	2			; DEVICE CODE
+2131   (0001)           AIO.UNI DS	1			; UNIT NUMBER (0-9)
+
+2132   (0017)           AIO.DIR DS	DIRELEN 		; DIRECTORY ENTRY
+
+2149   (0001)           AIO.CNT DS	1			; SECTOR COUNT
+214A   (0001)           AIO.EOM DS	1			; END OF MEDIA FLAG
+214B   (0001)           AIO.EOF DS	1			; END OF FILE FLAG
+214C   (0002)           AIO.TFP DS	2			; TEMP FILE POINTERS
+214E   (0002)           AIO.CHA DS	2			; ADDRESS OF CHANNEL BLOCK (IOC.DDA)
+2150                    	SPACE	4,10
+                        *	these cells set by monitor boot code
+
+2150   (0001)           S.BDA	DS	1			; Boot Device Address (Setup by ROM)
+2151   (0002)           S.SCR	DS	2			; SYSTEM SCRATCH AREA ADDRESS
+2153   (0003)           	DS	3
+2156   (0001)           S.OSI	DS	1			; Operating system index	/3.0a/
+2157   (0001)           S.OSO	DS	1			; Operating system occurance	/3.0a/
+2158   (0003)           S.OSZ	DS	3			; Operating system sector zero	/3.0a/
+
+      = 0000            FALSE	EQU	0
+      = 0001            TRUE	EQU	!FALSE
+
+      = 0001            PUBLIC	EQU	TRUE
+
+215B                    	STL	'Main Program'
+215B                    	EJECT
+
+2280                    	ORG	USERFWA
+
+2280  AF                START	XRA	A
+2281  32 4725           	STA	MODE			; Assume command mode
+
+2284  21 0000           	LXI	H,0
+2287  39                	DAD	SP			; (HL) = Pointer to command line
+2288  3E 80             	MVI	A,#STACK
+228A  BD                	CMP	L			; Is command line empty?
+228B  C2 A822           	JNE	START1			; No ...
+
+228E  31 8022           START.	LXI	SP,STACK		; Clear stack
+
+2291  CD 5E19           	CALL	$TYPTX
+2294  0A666978 3EA0     	DB	NL,'fix>',240Q
+
+229A  3E 01             	MVI	A,1
+229C  32 4725           	STA	MODE			; Signal prompt mode
+
+229F  21 4C25           	LXI	H,LNBUFF		; Our line buffer
+22A2  CD FA24           	CALL	$RTL.			; Read a line
+22A5  DA 4823           	JC	EXIT			; Wants out.
+
+22A8  CD 2125           START1	CALL	$SOB			; Skip leading spaces
+22AB  CA 8E22           	JZ	START.			; Entered null line. Go prompt.
+
+22AE  01 B923           	LXI	B,DIRECT		; Destination for decode
+22B1  11 C823           	LXI	D,DEFAULT		; Default value is SY0:
+
+22B4  CD 8524           	CALL	DDS			; Decode device specification
+22B7  DA E122           	JC	SYNTAX			; Oops!
+
+22BA  AF                	XRA	A
+22BB  32 4825           	STA	CLRFLAG 		; Zap flags to clear
+22BE  32 4925           	STA	SETFLAG 		; and flags to set.
+
+22C1  CD 2125           START2	CALL	$SOB			; Skip intervening spaces
+22C4  CA D722           	JZ	START2.
+22C7  FE 2F             	CPI	'/'			; Is a switch?
+22C9  C2 E122           	JNE	SYNTAX			; No.
+22CC  23                	INX	H			; Bump past
+22CD  CD 5F23           	CALL	PARSE			; Parse switch string and set masks
+22D0  DA E122           	JC	SYNTAX			; Illegal value found
+22D3  2B                	DCX	H			; Back up to last character
+22D4  C3 C122           	JMP	START2			; Do another switch
+
+22D7  3A 4825           START2. LDA	CLRFLAG 		; Get clear flags
+22DA  2F                	CMA				; Make it a mask
+22DB  32 4825           	STA	CLRFLAG 		; Set it back
+
+22DE  C3 CB23           	JMP	FIXDEV			; Go fix the device
+22E1                    	SPACE	4,10
+22E1  CD 5E19           SYNTAX	CALL	$TYPTX
+22E4  0A0A              	DB	NL,NL
+22E6  56616C69 64205379 	DB	'Valid Syntax for command is:',NL,NL
+22EE  6E746178 20666F72
+22F6  20636F6D 6D616E64
+22FE  2069733A 0A0A
+2304  09464958 3E206465 	DB	TAB,'FIX> dev: /[-]flags [/[-]flags] ...',NL,NL
+230C  763A202F 5B2D5D66
+2314  6C616773 205B2F5B
+231C  2D5D666C 6167735D
+2324  202E2E2E 0A0A
+232A  56616C69 6420666C 	DB	'Valid flags are:',TAB,'S,'
+2332  61677320 6172653A
+233A  09532C
+                        	IFF	PUBLIC
+                        	ENDIF
+233D  572C412C 422C442C 	DB	'W,A,B,D,U',NL,ENL
+2345  550A8A
+2348                    	SPACE	4,10
+2348  AF                EXIT	XRA	A
+2349  FF 00             	SCALL	.EXIT
+234B                    	SPACE	4,10
+234B  F5                ERROR	PUSH	PSW			; Save error
+234C  CD 5E19           	CALL	$TYPTX
+234F  4572726F 72202DA0 	DB	'Error -',240Q
+2357  F1                	POP	PSW
+2358  26 07             	MVI	H,BELL
+235A  FF 2F             	SCALL	.ERROR
+235C  C3 4823           	JMP	EXIT
+235F                    	SPACE	4,10
+235F  01 0000           PARSE	LXI	B,0			; (B) = Flags, (C) = Switch type
+
+2362  7E                PARSE1	MOV	A,M			; Get a character
+2363  23                	INX	H			; Bump past
+2364  A7                	ANA	A
+2365  CA 8D23           	JZ	PARSE2			; Done.
+2368  FE 20             	CPI	' '
+236A  CA 6223           	JE	PARSE1			; Skip a space
+236D  FE 09             	CPI	TAB
+236F  CA 6223           	JE	PARSE1			; Skip a tab
+2372  FE 2C             	CPI	','
+2374  CA 6223           	JE	PARSE1			; Skip a comma
+2377  EB                	XCHG				; Save address in (DE)
+2378  21 A823           	LXI	H,FLAGS
+237B  CD 2F25           	CALL	$TBLS			; Look it up.
+237E  EB                	XCHG				; Swap back
+237F  C2 8D23           	JNZ	PARSE2			; Have invalid flag, end of switch.
+2382  1A                	LDAX	D			; (A) = Flag value
+2383  FE FF             	CPI	-1			; Is special value?
+2385  CA A423           	JE	PARSE5			; Yes.
+2388  B0                	ORA	B			; Add it in
+2389  47                	MOV	B,A			; Save it
+238A  C3 6223           	JMP	PARSE1			; Do another
+
+238D  79                PARSE2	MOV	A,C			; (A) = Switch type
+238E  A7                	ANA	A			; Check it, if 0 then set, else clear.
+238F  CA 9A23           	JZ	PARSE3			; Am to set.
+
+2392  3A 4825           	LDA	CLRFLAG 		; Get flags to clear
+2395  B0                	ORA	B			; Add in new flags
+2396  32 4825           	STA	CLRFLAG 		; Set it back
+2399  C9                	RET
+
+239A  3A 4925           PARSE3	LDA	SETFLAG 		; Get flags to set
+239D  B0                	ORA	B			; Add in new flags
+239E  32 4925           	STA	SETFLAG 		; Set it back
+23A1  C9                	RET
+
+23A2  37                PARSE4	STC				; Flag error
+23A3  C9                	RET
+
+23A4  4F                PARSE5	MOV	C,A			; Set switch type
+23A5  C3 6223           	JMP	PARSE1			; Go again
+23A8                    	SPACE	4,10
+23A8  5380              FLAGS	DB	'S',DIF.SYS		; System
+                        	IFF	PUBLIC
+                        	ENDIF
+23AA  5720              	DB	'W',DIF.WP		; Write protect
+23AC  4108              	DB	'A',DIF.ARC		; Archive attribute
+23AE  4204              	DB	'B',DIF.BAD		; File is damaged
+23B0  4402              	DB	'D',DIF.DL		; File is delete locked
+23B2  5501              	DB	'U',DIF.USR		; User defined
+23B4  2DFF              	DB	'-',-1			; Special value
+23B6  2B00              	DB	'+',0			; Special value
+23B8  00                	DB	0
+
+23B9                    	EJECT
+
+23B9  78786E3A 44495245 DIRECT	DB	'xxn:DIRECT.SYS',0
+23C1  43542E53 595300
+
+23C8  535930            DEFAULT DB	'SY0'
+
+23CB  21 B923           FIXDEV	LXI	H,DIRECT		; Name of DIRECT.SYS
+23CE  AF                	XRA	A			; Channel 0
+23CF  FF 22             	SCALL	.OPENR			; Open for read
+23D1  DA 4B23           	JC	ERROR			; Huh?
+
+23D4  21 0000           	LXI	H,0
+23D7  22 4A25           	SHLD	SECTOR			; Set to beginning of file
+
+                        *	Kludge the channel open for update.  (clever, huh?)
+
+23DA  2A EA20           	LHLD	S.CFWA			; (HL) = Pointer to channel -1
+23DD  CD 8918           	CALL	$HLIHL			; (HL) = Pointer to channel 0
+23E0  E5                	PUSH	H			; Save it
+23E1  11 0500           	LXI	D,IOC.GRT		; Displace to address of GRT
+23E4  19                	DAD	D			; ((HL)) = Address of GRT
+23E5  5E                	MOV	E,M			; Get low order half
+23E6  23                	INX	H			; Move up
+23E7  56                	MOV	D,M			; Get high order half
+23E8  EB                	XCHG				; (HL) = Address of GRT
+23E9  22 5824           	SHLD	GRTADR			; Save it
+23EC  E1                	POP	H			; (HL) = Address of channel
+23ED  11 0400           	LXI	D,IOC.FLG		; Displace to flag byte
+23F0  19                	DAD	D			; Get up to it.
+23F1  7E                	MOV	A,M			; (A) = Flag byte
+23F2  F6 0C             	ORI	FT.OW+FT.OU		; Open for write/update
+23F4  77                	MOV	M,A			; Done.
+
+                        *	Read a directory block
+
+23F5  01 0002           RD.DIR	LXI	B,2*256 		; 2 sectors per block
+23F8  11 CC25           	LXI	D,DIRBUF		; Directory buffer
+23FB  AF                	XRA	A			; Channel 0
+23FC  FF 04             	SCALL	.READ			; Read it
+23FE  D2 1324           	JNC	FIX.DIR 		; Go and fix it
+
+2401  FE 01             	CPI	EC.EOF			; Done?
+2403  C2 4B23           	JNE	ERROR			; Nope ...
+
+2406  AF                	XRA	A			; Channel #0
+2407  FF 2D             	SCALL	.CLEAR			; Clear it to prevent re-write of flags
+
+2409  3A 4725           	LDA	MODE			; Check mode
+240C  A7                	ANA	A
+240D  CA 4823           	JZ	EXIT
+2410  C3 8E22           	JMP	START.			; Go again.
+
+                        *	Fix all the flags in this block
+
+2413  06 16             FIX.DIR MVI	B,22			; (B) = 22 entries / block
+2415  21 CC25           	LXI	H,DIRBUF		; Start of buffer
+2418  11 1700           	LXI	D,DIRELEN		; Entry length
+
+241B  CD 2624           FIXDIR	CALL	FIX.FIL 		; Map a file
+
+241E  19                	DAD	D			; Move up to next entry
+241F  05                	DCR	B			; Count down
+2420  C2 1B24           	JNZ	FIXDIR			; Go again
+
+2423  C3 6624           	JMP	WRI.DIR 		; Go write it
+
+                        *	Fix the flag on a single file
+
+      = 0011            MI.LXID EQU	021Q			; LXI D instruction
+
+2426  7E                FIX.FIL MOV	A,M			; (A) = 1st byte of name
+2427  FE FF             	CPI	DF.EMP			; Empty?
+2429  C8                	RE				; Yep.
+242A  FE FE             	CPI	DF.CLR			; Directory clear?
+242C  37                	STC				; Assume it is.
+242D  C8                	RE				; Yep.
+242E  D5                	PUSH	D
+242F  E5                	PUSH	H			; Save registers
+2430  11 0E00           	LXI	D,DIR.FLG		; Displace to flag byte
+2433  19                	DAD	D			; ((HL)) = Flag byte
+2434  E5                	PUSH	H			; Save it
+2435  3A 4925           	LDA	SETFLAG 		; Get set flags
+2438  B6                	ORA	M			; Set 'em
+2439  57                	MOV	D,A			; Save that
+243A  3A 4825           	LDA	CLRFLAG 		; Get clear flags
+243D  A2                	ANA	D			; Clear 'em
+243E  77                	MOV	M,A			; Replace flags byte
+243F  E1                	POP	H			; (HL) = Address of flag byte again
+2440  E5                	PUSH	H			; Save it once more
+2441  11 0200           	LXI	D,DIR.FGN-DIR.FLG	; Displace to first group number
+                        	ERRMI	DIR.FGN-DIR.FLG
+2444  19                	DAD	D			; ((HL)) = FGN this file
+2445  4E                	MOV	C,M			; (C) = FGN
+2446  CD 5724           	CALL	FIX.C			; Go adjust 'C' flag
+2449  E1                	POP	H			; (HL) = Address of flag byte
+244A  3E 10             	MVI	A,DIF.CNT		; 'C' flag
+244C  DA 5124           	JC	FIXFIL1 		; Clear it
+244F  B6                	ORA	M			; (A) = New flags
+2450  11                	DB	MI.LXID 		; Skip next 2 instructions
+
+2451  2F                FIXFIL1 CMA				; Flip around to clear
+2452  A6                	ANA	M			; Clear the bit
+2453  77                	MOV	M,A			; Set the flags back
+
+2454  E1                	POP	H
+2455  D1                	POP	D			; Restore registers
+2456  C9                	RET
+
+                        *	Determine Contiguous File
+
+2457  21 0000           FIX.C	LXI	H,*-*			; Address of GRT
+      = 2458            GRTADR	EQU	*-2
+245A  69                	MOV	L,C			; First link in the file
+
+245B  7E                DCF1	MOV	A,M			; Get the forward link
+245C  A7                	ANA	A			; Is end of file?
+245D  C8                	RZ				; Yep.
+245E  3D                	DCR	A			; Compare it to last
+245F  BD                	CMP	L			; Is right?
+2460  37                	STC				; Assume not
+2461  C0                	RNE				; Nope.
+2462  2C                	INR	L			; Bump to next group
+2463  C3 5B24           	JMP	DCF1
+
+                        *	Write a directory block
+
+2466  2A 4A25           WRI.DIR LHLD	SECTOR
+2469  44                	MOV	B,H
+246A  4D                	MOV	C,L			; (BC) = Sector number
+246B  AF                	XRA	A			; Channel #0
+246C  FF 27             	SCALL	.POSIT			; Position the file
+
+246E  01 0002           	LXI	B,2*256 		; Block length
+2471  11 CC25           	LXI	D,DIRBUF		; Directory buffer
+2474  AF                	XRA	A			; Channel #0
+2475  FF 05             	SCALL	.WRITE			; Write it back
+2477  DA 4B23           	JC	ERROR			; Have an error
+
+247A  2A 4A25           	LHLD	SECTOR
+247D  23                	INX	H
+247E  23                	INX	H
+247F  22 4A25           	SHLD	SECTOR			; Move to next sector
+
+2482  C3 F523           	JMP	RD.DIR			; Go read another
+
+2485                    	STL	'Common Decks'
+2485                    	EJECT
+
+2485                    	XTEXT	DDS3
+
+2485                    DDS	SPACE	4,10
+                        **	DDS	-  Decode Device Specification			/80.05.gc/
+                        *
+                        *	DDS decodes the device specification, returning a two character
+                        *	device name, and one byte unit number.
+                        *
+                        *
+                        *	ENTRY:	BC	= Address of destination fields
+                        *		DE	= Address of default
+                        *		HL	= Address of string specifier
+                        *
+                        *	EXIT:	PSW	= 'C' SET   if ERROR
+                        *			  'C' CLEAR if NO ERROR
+                        *
+                        *	USES:	ALL
+                        *
+
+      = 2485            DDS	EQU	*
+
+                        *	Initialize the fields to the defaults
+
+2485  C5                	PUSH	B
+2486  CD D024           	CALL	DDS3
+2489  CD D024           	CALL	DDS3
+248C  1A                	LDAX	D
+248D  02                	STAX	B
+248E  C1                	POP	B
+
+248F  7E                	MOV	A,M
+2490  A7                	ANA	A
+2491  C8                	RZ			took;the default
+
+                        *	Check the supplied name
+
+2492  CD C124           	CALL	DDS2
+2495  D8                	RC			Not;alpha
+2496  CD C124           	CALL	DDS2
+2499  D8                	RC			Not;alpha
+
+249A  7E                	MOV	A,M
+249B  FE 3A             	CPI	':'
+249D  3E 30             	MVI	A,'0'	;assume unit 0
+249F  CA AB24           	JZ	DDS1	;default to unit 0
+
+                        *	Check for a valid digit
+
+24A2  7E                	MOV	A,M
+24A3  FE 30             	CPI	'0'
+24A5  D8                	RC			Not;digit
+24A6  FE 38             	CPI	'7'+1
+24A8  3F                	CMC
+24A9  D8                	RC			digit;too large
+24AA  23                	INX	H
+
+24AB  02                DDS1	STAX	B
+24AC  03                	INX	B
+24AD  7E                	MOV	A,M
+24AE  23                	INX	H
+24AF  FE 3A             	CPI	':'
+24B1  37                	STC
+24B2  C0                	RNZ			requires;':'
+
+24B3  7E                	MOV	A,M
+24B4  A7                	ANA	A
+24B5  C8                	RZ			; need a terminator
+24B6  FE 3D             	CPI	'='		; thats ok
+24B8  C8                	RZ
+24B9  FE 20             	CPI	' '		; space is valid
+24BB  C8                	RZ
+24BC  FE 2F             	CPI	'/'		; is it a switch
+24BE  C8                	RZ
+24BF  37                	STC
+24C0  C9                	RET			; got an error
+
+
+24C1  7E                DDS2	MOV	A,M
+24C2  23                	INX	H
+24C3  CD D824           	CALL	$MCU
+24C6  FE 41             	CPI	'A'
+24C8  D8                	RC			Not;alpha
+
+24C9  FE 5B             	CPI	'Z'+1
+24CB  3F                	CMC
+24CC  D8                	RC			Not;alpha
+
+24CD  02                	STAX	B
+24CE  03                	INX	B	;replace the default char
+24CF  C9                	RET
+
+24D0  1A                DDS3	LDAX	D
+24D1  13                	INX	D
+24D2  CD D824           	CALL	$MCU	;Map to upper case
+24D5  02                	STAX	B
+24D6  03                	INX	B
+24D7  C9                	RET
+                        	ERRNZ	IOC.UNI-IOC.DEV-2;2 byte device
+                        	ERRNZ	IOC.DIR-IOC.UNI-1;1 byte unit
+24D8                    	XTEXT	HLIHL
+24D8                    HLIHL	SPACE	4,10
+                        **	$HLIHL - LOAD HL INDIRECT THROUGH HL.
+                        *
+                        *	(HL) = ((HL))
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	NONE
+                        *	USES	A,H,L
+
+      = 1889            $HLIHL	EQU	030211A 		; IN H17 ROM
+24D8                    	XTEXT	MCU
+24D8                    	SPACE	4,10
+                        **	MCU - MAP LOWER CASE TO UPPER CASE.
+                        *
+                        *	MCU MAPS A LOWER CASE ALPHABETIC TO UPPER
+                        *	CASE.
+                        *
+                        *	ENTRY	(A) = CHARACTER
+                        *	EXIT	(A) = CHARACTER RESULT
+                        *	USES	A,F
+
+24D8  FE 61             $MCU	CPI	'a'
+24DA  D8                	RC				; NOT LOWER CASE
+24DB  FE 7B             	CPI	'z'+1
+24DD  D0                	RNC				; NOT LOWER CASE
+24DE  D6 20             	SUI	'a'-'A'
+24E0  C9                	RET
+24E1                    	XTEXT	MLU
+24E1                    	SPACE	4,10
+                        **	MLU - MAP LOWER CASE LINE TO UPPER CASE.
+                        *
+                        *	MLU MAPS THE LOWER CASE ALPHABETICS IN A LINE TO UPPER CASE.
+                        *
+                        *	ENTRY	(HL)  = LINE FWA
+                        *	EXIT	NONE
+                        *	USES	NONE
+
+24E1  F5                $MLU	PUSH	PSW	;SAVE (PSW)
+24E2  E5                	PUSH	H	;SAVE FWA
+24E3  2B                	DCX	H	;ANTICIPATE INX H
+24E4  23                $MLU1	INX	H
+24E5  7E                	MOV	A,M	;(A)= CHARACTER
+24E6  CD D824           	CALL	$MCU	;MAP CHAR TO UPPER
+24E9  77                	MOV	M,A
+24EA  A7                	ANA	A
+24EB  C2 E424           	JNZ	$MLU1	;MORE TO GO
+24EE  E1                	POP	H	;RESTORE (HL)
+24EF  F1                	POP	PSW	;RESTORE (PSW)
+24F0  C9                	RET
+24F1                    	XTEXT	RCHAR
+24F1                    RCHAR	SPACE	4,10
+                        **	$RCHAR - READ SINGLE CHARACTER FROM CONSOLE.
+                        *
+                        *	ENTRY	NONE
+                        *	EXIT	(A) = CHARACTER
+                        *	USES	A,F
+
+24F1  FF 01             $RCHAR	SCALL	.SCIN
+24F3  DA F124           	JC	$RCHAR	;NOT READY
+24F6  C9                	RET
+
+24F7  FF 02             $WCHAR	SCALL	.SCOUT
+24F9  C9                	RET
+24FA                    	XTEXT	RTL
+24FA                    	SPACE	4,10
+                        **	$RTL - READ TEXT LINE.
+                        *
+                        *	$RTL READS A LINE FROM THE TERMINAL.
+                        *
+                        *	CHARACTER ARE ACCEPTED FROM THE TERMINAL, RUBOUT AND BACKSPACE
+                        *	CHARACTERS ARE PROCESSED. WHEN A CARRIAGE RETURN IS ENTERED,
+                        *	$RTL RETURNS.
+                        *
+                        *	ENTRY	(HL) = BUFFER FWA
+                        *	EXIT	'C' CLEAR IF OK
+                        *		 DATA IN BUFFER
+                        *		 (A) = TEXT LENGTH
+                        *		'C' SET IF CTL-D STRUCK
+                        *	USES	A,F
+
+24FA  CD 0125           $RTL.	CALL	$RTL			; $RTL IN UPPER CASE
+24FD  D8                	RC				; CTL-D
+24FE  C3 E124           	JMP	$MLU			; MAP LINE TO UPPER CASE
+
+      = 2501            $RTL	EQU	*
+
+2501  E5                	PUSH	H			; SAVE FWA
+2502  FF 01             $RTL1	SCALL	.SCIN
+2504  DA 0225           	JC	$RTL1
+2507  FE 04             	CPI	CTLD
+2509  CA 1E25           	JE	$RTL2			; CTL-D STRUCK
+250C  77                	MOV	M,A
+250D  23                	INX	H
+250E  FE 0A             	CPI	NL
+2510  C2 0225           	JNE	$RTL1
+2513  2B                	DCX	H
+2514  36 00             	MVI	M,0
+2516  23                	INX	H
+
+                        *	ALL DONE. COMPUTE LENGTH
+
+2517  EB                	XCHG				; (DE) = LWA+1
+2518  E3                	XTHL				; (HL) = FWA
+2519  7B                	MOV	A,E
+251A  95                	SUB	L			; (A) = LENGTH
+251B  A7                	ANA	A			; CLEAR CARRY
+251C  D1                	POP	D			; RESTORE (DE)
+251D  C9                	RET
+
+                        *	CTL-D STRUCK
+
+251E  E1                $RTL2	POP	H			; (HL) = FWA
+251F  37                	STC
+2520  C9                	RET
+2521                    	XTEXT	SOB
+2521                    	SPACE	4,10
+                        **	$SOB - SKIP OVER BLANKS.
+                        *
+                        *	$SOB IS CALLED TO SKIP AN ARBITRARILY LONG STRING OF BLANKS AND TABS.
+                        *
+                        *	ENTRY	(HL) = FWA OF (POSSIBLE) BLANK STRING
+                        *	EXIT	(HL) = LWA+1 OF BLANK STRING (UNCHANGED IF NO BLANKS)
+                        *		(A) = FIRST NON-BLANK, NON-TAB CHARACTER EEN
+                        *	USES	A,F,H,L
+
+2521  2B                $SOB	DCX	H			; PRE-DECREMENT
+2522  23                $SOB1	INX	H
+2523  7E                	MOV	A,M
+2524  FE 20             	CPI	' '
+2526  CA 2225           	JE	$SOB1			; GOT BLANK
+2529  FE 09             	CPI	TAB
+252B  CA 2225           	JE	$SOB1			; GOT TAB
+252E  C9                	RET
+252F                    	XTEXT	TBLS
+252F                    TBLS	SPACE	4,10
+                        **	$TBLS - TABLE SEARCH
+                        *
+                        *	TABLE FORMAT
+                        *
+                        *	DB	KEY1,VAL1,
+                        *	.	.
+                        *	.	.
+                        *	DB	KEYN,VALN
+                        *	DB	0
+                        *
+                        *	ENTRY	(A) = PATTERN
+                        *		(H,L) = TABLE FWA
+                        *	EXIT	(A) = PATTERN IF FOUND
+                        *		'Z' SET IF FOUND
+                        *		'Z' CLEAR IF NOT FOUND OR PATTERN=0
+                        *	USES	A,F,H,L
+
+252F  C5                $TBLS	PUSH	B
+2530  A7                	ANA	A						;/3.0a/
+2531  CA 4325           	JZ	TBL2
+2534  47                	MOV	B,A
+2535  7E                TBL1	MOV	A,M			; (A) = CHARACTER
+2536  23                	INX	H
+2537  B8                	CMP	B
+2538  CA 4525           	JZ	TBL3			; IF MATCH
+253B  A7                	ANA	A
+253C  23                	INX	H			; SKIP PAST
+253D  C2 3525           	JNZ	TBL1			; IF NOT END OF TABLE
+2540  2B                	DCX	H
+2541  2B                	DCX	H
+2542  AF                	XRA	A			; SET TO ZERO FOR OLD USERS
+2543  FE 01             TBL2	CPI	1			; CLEAR ZERO
+
+                        *	DONE
+
+2545  C1                TBL3	POP	B
+2546  C9                	RET
+2547                    	XTEXT	TYPTX
+2547                    TYPTX	SPACE	4,10
+                        **	$TYPTX - TYPE TEXT.
+                        *
+                        *	$TYPTX IS CALLED TO TYPE A BLOCK OF TEXT ON THE SYSTEM CONSOLE.
+                        *
+                        *	IMBEDDED ZER0 BYTES INDICATE A CARRIAGE RETURN LINE FEED,
+                        *	A BYTE WITH THE 200Q BIT SET IS THE LAST BYTE IN THE MESSAGE.
+                        *
+                        *	ENTRY	(RET) = TEXT
+                        *	EXIT	TO (RET+LENGTH)
+                        *	USES	A,F
+
+      = 195E            $TYPTX	EQU	031136A 		; IN H17 ROM
+
+      = 1964            $TYPTX. EQU	031144A 		; IN H17 ROM
+
+2547                    	STL	'Buffers'
+2547                    	EJECT
+
+2547  77                MODE	DB	'w'			; Assume command mode
+
+2548  67                CLRFLAG DB	'g'
+2549  70                SETFLAG DB	'p'
+
+254A  0000              SECTOR	DW	0
+
+      = 254C            LNBUFF	EQU	*
+
+254C  40282329 48444F53 	DB	'@(#)HDOS 3.0 Flag Fix Utility',NL
+2554  20332E30 20466C61
+255C  67204669 78205574
+2564  696C6974 790A
+256A  0100              	DW	.DATE.
+256C  0200              	DW	.TIME.
+
+      = 25CC            DIRBUF	EQU	LNBUFF+128
+
+256E   (2280)           	END	START
+
+00000 Total Errors
+
+
+00000 Total Warnings
+
+$HLIHL             1889 E  $MCU               24D8    $MLU               24E1
+$MLU1              24E4    $RCHAR             24F1    $RTL               2501 E
+$RTL.              24FA    $RTL1              2502    $RTL2              251E
+$SOB               2521    $SOB1              2522    $TBLS              252F
+$TYPTX             195E E  $TYPTX.            1964 E  $WCHAR             24F7
+.CHFLG             0030    .CLEAR             002D    .CLEARA            002E
+.CLOSE             0026    .CLRCO             0007    .CONSL             0006
+.CRC16             000B    .CTLC              0021    .DAD               0086
+.DATE.             0001 E  .DECODE            002B    .DELET             0028
+.DELETE            0028 E  .DISMT             0031    .DMNMS             0083
+.DMOUN             0081    .DMOUNT            0081 E  .ERROR             002F
+.EXIT              0000    .GDA               000A    .LINK              0020
+.LOADD             0032    .LOADO             0008    .MONMS             0082
+.MOUNT             0080    .NAME              002C    .OPENC             0025
+.OPENR             0022    .OPENU             0024    .OPENW             0023
+.POSIT             0027    .PRINT             0003    .READ              0004
+.RENAM             0029    .RENAME            0029 E  .RESET             0084
+.RESNMS            0085    .SCIN              0001    .SCOUT             0002
+.SETTOP            002A E  .SETTP             002A    .SYSRES            000C
+.TIME.             0002 E  .VERS              0009    .WRITE             0005
+AIO.CGN            2127    AIO.CHA            214E    AIO.CNT            2149
+AIO.CSI            2128    AIO.DDA            2121 E  AIO.DES            212D
+AIO.DEV            212F    AIO.DIR            2132    AIO.DTA            212B
+AIO.EOF            214B    AIO.EOM            214A    AIO.FLG            2123
+AIO.GRT            2124    AIO.LGN            2129    AIO.LSI            212A
+AIO.SPG            2126    AIO.TFP            214C    AIO.UNI            2131
+AIO.VEC            2120    BELL               0007 E  BKSP               0008 E
+BOOT.P             0001 E  BS                 0008 E  C.STX              0002 E
+C.SYN              0016 E  CDB.H84            0001 E  CDB.H85            0000 E
+CLRFLAG            2548    CO.FLG             0001 E  CR                 000D E
+CS.FLG             0080 E  CSL.CHR            0001 E  CSL.ECH            0080 E
+CSL.RAW            0004 E  CSL.WRP            0002 E  CTLA               0001 E
+CTLB               0002 E  CTLC               0003 E  CTLD               0004 E
+CTLE               0005 E  CTLO               000F E  CTLP               0010 E
+CTLQ               0011 E  CTLR               0012 E  CTLS               0013 E
+CTLX               0018 E  CTLZ               001A E  CTP.2SB            0008 E
+CTP.BKM            0002 E  CTP.BKS            0080 E  CTP.FF             0040 E
+CTP.HHS            0004 E  CTP.MLI            0020 E  CTP.MLO            0010 E
+CTP.TAB            0001 E  D.CON              2048    D.RAM              20A0
+D.VEC              2058    DCF1               245B    DDS                2485 E
+DDS1               24AB    DDS2               24C1    DDS3               24D0
+DEFAULT            23C8    DEL                007F E  DEV.DDA            0004
+DEV.DVG            000D    DEV.DVL            000B    DEV.FLG            0006
+DEV.JMP            0003    DEV.MNU            0008    DEV.MUM            0007
+DEV.NAM            0000    DEV.RES            0002    DEV.UNT            0009
+DEVELEN            000E E  DF.CLR             00FE E  DF.EMP             00FF E
+DIF.ARC            0008 E  DIF.BAD            0004 E  DIF.CNT            0010 E
+DIF.DL             0002 E  DIF.LOC            0040 E  DIF.SYS            0080 E
+DIF.USR            0001 E  DIF.WP             0020 E  DIR.ACD            0015
+DIR.CRD            0013    DIR.CTH            000B    DIR.CTM            000C
+DIR.EXT            0008    DIR.FGN            0010    DIR.FLG            000E
+DIR.LGN            0011    DIR.LSI            0012    DIR.NAM            0000
+DIR.NOA            000D    DIR.USR            000F    DIRBUF             25CC E
+DIRECT             23B9    DIRELEN            0017 E  DIRIDL             000B E
+DIS.ENL            01FB    DIS.ENT            0000 E  DIS.LNK            01FE
+DIS.SEC            01FC    DR.FX              0004 E  DR.IM              0001 E
+DR.PR              0002 E  DR.SPL             00E0 E  DR.UNL             0008 E
+DT.CH              0010 E  DT.CR              0002 E  DT.CW              0004 E
+DT.DD              0001 E  DT.FX              0020 E  DT.P3              0040 E
+DT.RN              0008 E  DT.UL              0080 E  DV.EL              0000 E
+DV.NU              0001 E  EC.CNA             0004    EC.CNR             0034
+EC.CUI             0037    EC.DDA             0017    EC.DFM             0031
+EC.DIF             000F    EC.DIW             001D    EC.DNI             0025
+EC.DNL             002F    EC.DNP             0030    EC.DNR             0026
+EC.DNS             0005    EC.DSC             0027    EC.EOF             0001
+EC.EOM             0002    EC.FAO             0019    EC.FAP             0016
+EC.FIX             002D    EC.FL              0018    EC.FNF             000C
+EC.FNO             0009    EC.FNR             001C    EC.FOD             0023
+EC.FUC             000B    EC.ICN             000E    EC.IDF             0032
+EC.IDN             0006    EC.IFC             0010    EC.IFN             0007
+EC.ILA             002E    EC.ILC             0003    EC.ILO             0020
+EC.ILR             000A    EC.ILV             001F    EC.IOI             002A
+EC.IS              001A    EC.ITS             0033    EC.LAD             002C
+EC.LBO             0036    EC.NCV             0028    EC.NEM             0011
+EC.NOS             0029    EC.NPM             0024    EC.NRD             0008
+EC.NVM             0022    EC.OTL             002B    EC.RF              0012
+EC.SDR             0035    EC.UNA             001E    EC.UND             000D
+EC.UUN             001B    EC.VPM             0021    EC.WF              0013
+EC.WP              0015    EC.WPV             0014    ENL                008A E
+EOL                0080 E  ERROR              234B    ESC                001B E
+EXIT               2348    FALSE              0000 E  FF                 000C E
+FIX.C              2457    FIX.DIR            2413    FIX.FIL            2426
+FIXDEV             23CB    FIXDIR             241B    FIXFIL1            2451
+FLAGS              23A8    FT.DD              0001 E  FT.OC              0010 E
+FT.OR              0002 E  FT.OU              0008 E  FT.OW              0004 E
+GRTADR             2458 E  I.CONFL            0004 E  I.CONTY            0001 E
+I.CONWI            0003 E  I.CSLMD            0000 E  I.CUSOR            0002 E
+IOC.CGN            0008    IOC.CSI            0009    IOC.DDA            0002
+IOC.DES            000E    IOC.DEV            0010    IOC.DIL            0011 E
+IOC.DIR            0013    IOC.DRL            0008 E  IOC.DTA            000C
+IOC.FLG            0004    IOC.GRT            0005    IOC.LGN            000A
+IOC.LNK            0000    IOC.LSI            000B    IOC.SPG            0007
+IOC.SQL            0003 E  IOC.UNI            0012    IOCCTD             0001 E
+IOCELEN            002A E  LF                 000A E  LNBUFF             254C E
+MI.LXID            0011 E  MODE               2547    NL                 000A E
+NUL                0000 E  NUL2               0000 E  NULL               0080 E
+PARSE              235F    PARSE1             2362    PARSE2             238D
+PARSE3             239A    PARSE4             23A2    PARSE5             23A4
+PUBLIC             0001 E  QUOTE              0027 E  RD.DIR             23F5
+RUBOUT             007F E  S.BAUD             20E4    S.BDA              2150
+S.BOOTF            211C    S.CAADR            20DB    S.CACC             2106
+S.CCTAB            20DD    S.CDB              20E3    S.CFWA             20EA
+S.CLKTR            20CD    S.CODE             2107    S.CONFL            20DA
+S.CONTY            20D7    S.CONWI            20D9    S.CSLMD            20D6
+S.CUSOR            20D8    S.DATC             20C8    S.DATE             20BF
+S.DDDTA            20F6    S.DDGRP            20F4    S.DDLDA            20F0
+S.DDLEN            20F2    S.DDOPC            20F8    S.DFWA             20EC
+S.DIREA            210E    S.DLINK            20E6    S.EXITA            2040
+S.FASER            210B    S.FCI              2111    S.GUP              2117
+S.HIMEM            20CE    S.INT              20E3    S.JUMPS            2108
+S.MOUNT            211A    S.OSI              2156    S.OSO              2157
+S.OSZ              2158    S.RFWA             20EE    S.SCI              2114
+S.SCR              2151    S.SDD              2108    S.SOVR             2176
+S.SYSM             20D0    S.TFWA             20E8    S.TIME             20CA
+S.USRM             20D2    S.VAL              20BF    SECTOR             254A
+SETFLAG            2549    STACK              2280 E  STACKL             010A E
+START              2280    START.             228E    START1             22A8
+START2             22C1    START2.            22D7    SYDD               2058 E
+SYNTAX             22E1    SYSCALL            00FF E  TAB                0009 E
+TBL1               2535    TBL2               2543    TBL3               2545
+TRUE               0001 E  UNT.DIS            0006    UNT.FLG            0000
+UNT.GRT            0002    UNT.GTS            0004    UNT.SIZ            0008 E
+UNT.SPG            0001    USERFWA            2280 E  VERS               0030 E
+WRI.DIR            2466

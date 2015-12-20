@@ -1,0 +1,40 @@
+	SPACE	3,10
+**	ASCII CHARACTER EQUIVALENCES.
+
+NUL	EQU	000Q			; null
+BELL	EQU	007Q			; bell
+BKSP	EQU	010Q			; backspace
+BS	EQU	BKSP
+TAB	EQU	011Q			; horizontal tab
+LF	EQU	012Q			; line feed
+NL	EQU	012Q			; new line (HDOS)
+FF	EQU	014Q			; form feed
+CR	EQU	015Q			; carriage return
+ESC	EQU	033Q			; escape
+DEL	EQU	177Q			; delete
+
+*	Specials
+
+EOL	EQU	200Q			; end of line flag
+NULL	EQU	200Q			; pad character
+NUL2	EQU	0			; ditto
+RUBOUT	EQU	DEL			; rubout/delete
+C.SYN	EQU	026Q			; SYNC
+C.STX	EQU	002Q			; STX
+QUOTE	EQU	047Q			; quote character (")
+ENL	EQU	NL+EOL			; NL + end-of-line flag
+
+*	Control keys
+
+CTLA	EQU	'A'-'@' 		; CTRL/A
+CTLB	EQU	'B'-'@' 		; CTRL/B
+CTLC	EQU	'C'-'@' 		; CTRL/C
+CTLD	EQU	'D'-'@' 		; CTRL/D
+CTLE	EQU	'E'-'@' 		; CTRL/E
+CTLO	EQU	'O'-'@' 		; CTRL/O
+CTLP	EQU	'P'-'@' 		; CTRL/P
+CTLQ	EQU	'Q'-'@' 		; CTRL/Q
+CTLR	EQU	'R'-'@' 		; CTRL/R
+CTLS	EQU	'S'-'@' 		; CTRL/S
+CTLX	EQU	'X'-'@' 		; CTRL/X
+CTLZ	EQU	'Z'-'@' 		; CTRL/Z
