@@ -1454,8 +1454,8 @@ int Z80_DoCPULabelOp(int typ, int parm, char *labl)
             }
             else
             {
-                DefSym(labl,locPtr,FALSE,FALSE); // define label if present
-                showAddr = TRUE;
+                DefSym(labl,locPtr,false,false); // define label if present
+                showAddr = true;
                 if (token != ',')           // validate that comma is present
                 {
                     Error("\",\" expected");

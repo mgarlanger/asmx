@@ -115,7 +115,7 @@ void SetThumbMultiReg(int reg, u_short *regbits, bool *warned)
     if (!*warned && *regbits & (1 << reg))
     {
         Warning("register specified twice");
-        *warned = TRUE;
+        *warned = true;
     }
     *regbits |= 1 << reg;
 }
@@ -130,7 +130,7 @@ int ThumbGetMultiRegs(bool useLR, u_short *regbits)
     bool    warned;
 
     *regbits = 0;
-    warned = FALSE;
+    warned = false;
 
     // looking for {r0,r2-r5,r6,lr}
 
@@ -495,7 +495,7 @@ int Thumb_DoCPUOpcode(int typ, int parm)
             if (Expect("!")) break;
             if (Comma()) break;
 
-            if (ThumbGetMultiRegs(FALSE,&regbits)) break;
+            if (ThumbGetMultiRegs(false,&regbits)) break;
 
             InstrW(parm | (reg1 << 8) | regbits);
             break;
@@ -614,7 +614,7 @@ int Thumb_DoCPUOpcode(int typ, int parm)
 
         case o_PUSH_POP:     // PUSH/POP
             // FIXME: at least one reg must be specified
-            if (ThumbGetMultiRegs(TRUE,&regbits)) break;
+            if (ThumbGetMultiRegs(true,&regbits)) break;
 
             InstrW(parm | (regbits & 0x1FF));
             break;

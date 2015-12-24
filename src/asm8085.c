@@ -190,9 +190,7 @@ int I8085_DoCPUOpcode(int typ, int parm)
 
             val = Eval();
             InstrBW(parm,val);
-#if HDOS
             checkRelocate(1);
-#endif
             break;
 
         case o_JMP:
@@ -200,9 +198,7 @@ int I8085_DoCPUOpcode(int typ, int parm)
 
             val = Eval();
             InstrBW(parm,val);
-#if HDOS
             checkRelocate(1);
-#endif
             break;
 
         case o_MOV:
@@ -293,9 +289,7 @@ int I8085_DoCPUOpcode(int typ, int parm)
                 {
                     val = Eval();
                     InstrBW(parm + (reg1 << 4), val);
-#if HDOS
                     checkRelocate(1);
-#endif
                 }
             }
             break;

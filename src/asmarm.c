@@ -667,7 +667,7 @@ void SetARMMultiReg(int reg, u_short *regbits, bool *warned)
     if (!*warned && *regbits & (1 << reg))
     {
         Warning("register specified twice");
-        *warned = TRUE;
+        *warned = true;
     }
     *regbits |= 1 << reg;
 }
@@ -682,7 +682,7 @@ int ARMGetMultiRegs(u_short *regbits)
     bool    warned;
 
     *regbits = 0;
-    warned = FALSE;
+    warned = false;
 
     // looking for {r0,r2-r5,r6,lr}
 
@@ -837,12 +837,12 @@ bool ARMCond(int *cond, char *word)
     if (word[0])
     {
         reg1 = FindReg(word,"EQ NE CS CC MI PL VS VC HI LS GE LT GT LE AL HS LO");
-        if (reg1 < 0) return TRUE;
+        if (reg1 < 0) return true;
         if (reg1 > 14) reg1 = reg1 - 14 + 2; // HS -> CS / LO -> CC
         *cond = reg1;
     }
 
-    return FALSE;
+    return false;
 }
 
 

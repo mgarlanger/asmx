@@ -568,8 +568,8 @@ int M6502_DoCPUOpcode(int typ, int parm)
                         {
                             // allow '>' in front of address to force absolute addressing
                             // modes instead of zero-page addressing modes
-                            forceabs = FALSE;
-                            if (token == '>')   forceabs = TRUE;
+                            forceabs = false;
+                            if (token == '>')   forceabs = true;
                                         else    linePtr = oldLine;
 
                             val   = Eval();

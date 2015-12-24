@@ -6,9 +6,7 @@
 #define VERSION_NAME "asmx multi-assembler"
 
 //#define ENABLE_REP    // uncomment to enable REPEAT pseudo-op (still under development)
-#if HDOS
-#define DOLLAR_SYM    // allow symbols to start with '$' (incompatible with $ for hexadecimal constants!)
-#endif
+//#define DOLLAR_SYM    // allow symbols to start with '$' (incompatible with $ for hexadecimal constants!)
 //#define TEMP_LBLAT    // enable use of '@' temporary labels (deprecated)
 
 
@@ -128,6 +126,7 @@ u_long          codPtr;             // Current program "real" address
 int             pass;               // Current assembler pass
 bool            warnFlag;           // TRUE if warning occurred this line
 int             warnCount;          // Total number of warnings
+bool            hdosMode;           // TRUE if emulating HDOS Assembler
 bool            errFlag;            // TRUE if error occurred this line
 int             errCount;           // Total number of errors
 
@@ -186,7 +185,6 @@ typedef enum {   // values for cl_ObjType
 
 ObjType         cl_ObjType;         // type of object file to generate:
 
-#if HDOS
 typedef enum { // values for cl_HdosType
     OBJ_ABS,
     OBJ_PIC,
@@ -194,7 +192,6 @@ typedef enum { // values for cl_HdosType
 } HdosObjType;
 
 HdosObjType     cl_HdosType;
-#endif
 
 bool            cl_Relocating;      // TRUE if currently relocating 
 
@@ -204,13 +201,11 @@ int             cl_S9type;          // type of S9 file: 9, 19, 28, or 37
 bool            cl_Stdout;          // TRUE to send object file to stdout
 bool            cl_ListP1;          // TRUE to show listing in first assembler pass
 
-#if HDOS
 uint16_t        cl_HdosPicTableSize;    // HDOS load Address
 uint16_t        cl_HdosLoadAddr;        // HDOS load Address
 uint16_t        cl_HdosLength;          // HDOS length of entire record
 uint16_t        cl_HdosRelocationStart; // HDOS start address for relocatable code
 uint16_t        cl_HdosEntryPoint;      // HDOS entry point
-#endif
 
 FILE            *source;            // source input file
 FILE            *object;            // object output file
@@ -238,7 +233,6 @@ int             addrMax;            // maximum addrWid used
 OpcdPtr         opcdTab;            // current CPU's opcode table
 Str255          defCPU;             // default CPU name
 
-#if HDOS
 
 Str255          title;              // current title
 Str255          subTitle;           // current subtitle
@@ -246,7 +240,6 @@ Str255          subTitle;           // current subtitle
 uint8_t         picTable[20000];    
 uint16_t        picPos;
 
-#endif
 
 // --------------------------------------------------------------
 
@@ -580,7 +573,6 @@ void AsmInit(void)
     p = AddAsm("None", NULL, NULL, NULL);
     AddCPU(p, "NONE",  0, UNKNOWN_END, ADDR_32, LIST_24, 8, 0, NULL);
 
-#if !HDOS
     ASSEMBLER(1802);
     ASSEMBLER(6502);
     ASSEMBLER(68K);
@@ -594,7 +586,6 @@ void AsmInit(void)
     ASSEMBLER(Jag);
     ASSEMBLER(Thumb);
     ASSEMBLER(ARM);
-#endif
     ASSEMBLER(8085);
     ASSEMBLER(Z80);
 
@@ -639,7 +630,7 @@ void Error(char *message)
     char *name;
     int line;
 
-    errFlag = TRUE;
+    errFlag = true;
     errCount++;
 
     name = cl_SrcName;
@@ -652,7 +643,7 @@ void Error(char *message)
 
     if (pass == 2)
     {
-        listThisLine = TRUE;
+        listThisLine = true;
         if (cl_List)    fprintf(listing, "%s:%d: *** Error:  %s ***\n",name,line,message);
         if (cl_Err)     fprintf(stderr,  "%s:%d: *** Error:  %s ***\n",name,line,message);
     }
@@ -668,7 +659,7 @@ void Warning(char *message)
     char *name;
     int line;
 
-    warnFlag = TRUE;
+    warnFlag = true;
     warnCount++;
 
     name = cl_SrcName;
@@ -681,7 +672,7 @@ void Warning(char *message)
 
     if (pass == 2 && cl_Warn)
     {
-        listThisLine = TRUE;
+        listThisLine = true;
         if (cl_List)    fprintf(listing, "%s:%d: *** Warning:  %s ***\n",name,line,message);
         if (cl_Warn)    fprintf(stderr,  "%s:%d: *** Warning:  %s ***\n",name,line,message);
     }
@@ -782,13 +773,13 @@ u_int EvalBin(char *binStr)
     int     evalErr;
     int     c;
 
-    evalErr = FALSE;
+    evalErr = false;
     binVal  = 0;
 
     while ((c = *binStr++))
     {
         if (c < '0' || c > '1')
-            evalErr = TRUE;
+            evalErr = true;
         else
             binVal = binVal * 2 + c - '0';
     }
@@ -809,13 +800,13 @@ u_int EvalOct(char *octStr)
     int     evalErr;
     int     c;
 
-    evalErr = FALSE;
+    evalErr = false;
     octVal  = 0;
 
     while ((c = *octStr++))
     {
         if (c < '0' || c > '7')
-            evalErr = TRUE;
+            evalErr = true;
         else
             octVal = octVal * 8 + c - '0';
     }
@@ -838,7 +829,7 @@ u_int EvalSplitOct(char *octStr)
     int     len = strlen(octStr);
     int     pos = 0;
     
-    evalErr = FALSE;
+    evalErr = false;
     octVal  = 0;
 
     while (pos < len)
@@ -848,7 +839,7 @@ u_int EvalSplitOct(char *octStr)
         c = octStr[pos++];
         
         if (c < '0' || c > maxDigit)
-            evalErr = TRUE;
+            evalErr = true;
         else
             octVal = octVal * multiplier + c - '0';
     }
@@ -868,13 +859,13 @@ u_int EvalDec(char *decStr)
     int     evalErr;
     int     c;
 
-    evalErr = FALSE;
+    evalErr = false;
     decVal  = 0;
 
     while ((c = *decStr++))
     {
         if (!isdigit(c))
-            evalErr = TRUE;
+            evalErr = true;
         else
             decVal = decVal * 10 + c - '0';
     }
@@ -904,13 +895,13 @@ u_int EvalHex(char *hexStr)
     int     evalErr;
     int     c;
 
-    evalErr = FALSE;
+    evalErr = false;
     hexVal  = 0;
 
     while ((c = *hexStr++))
     {
         if (!ishex(c))
-            evalErr = TRUE;
+            evalErr = true;
         else
             hexVal = hexVal * 16 + Hex2Dec(c);
     }
@@ -1297,11 +1288,14 @@ int GetWord(char *word)
     if (c)
     {
         // test for alphanumeric token
-#if 1
 #if HDOS 
         if (isalphanum(c) || (c == '.') || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')))
 #else
+#ifdef DOLLAR_SYM
+        if (isalphanum(c) || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')) ||
+#else
         if (isalphanum(c) ||
+#endif
             (
              (((opts & OPT_DOLLARSYM) && c == '$') || ((opts & OPT_ATSYM) && c == '@'))
              && ((isalphanum(linePtr[1]) ||
@@ -1310,16 +1304,7 @@ int GetWord(char *word)
                 )
            ))
 #endif
-#else
 
-#if 0
-#ifdef DOLLAR_SYM
-        if (isalphanum(c) || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')))
-#else
-        if (isalphanum(c))
-#endif
-#endif 
-#endif
         {
 #if HDOS
             while (isalphanum(c) || c == '$' || c == '.' || ((opts & OPT_ATSYM) && c == '@'))
@@ -1707,7 +1692,7 @@ u_int GetBackslashChar(void)
 MacroPtr FindMacro(char *name)
 {
     MacroPtr p = macroTab;
-    bool found = FALSE;
+    bool found = false;
 
     while (p && !found)
     {
@@ -1729,8 +1714,8 @@ MacroPtr NewMacro(char *name)
     if (p)
     {
         strcpy(p -> name, name);
-        p -> def     = FALSE;
-        p -> toomany = FALSE;
+        p -> def     = false;
+        p -> toomany = false;
         p -> text    = NULL;
         p -> next    = macroTab;
         p -> parms   = NULL;
@@ -1833,7 +1818,7 @@ void GetMacParms(MacroPtr macro)
         n++;
 
         quote = 0;
-        done = FALSE;
+        done = false;
         // skip to end of parameter
         while(!done)
         {
@@ -1842,14 +1827,14 @@ void GetMacParms(MacroPtr macro)
             {
                 case 0:
                     --p;
-                    done = TRUE;
+                    done = true;
                     break;
 
                 case ';':
                     if (quote==0)
                     {
                         *--p = 0;
-                        done = TRUE;
+                        done = true;
                     }
                     break;
 
@@ -1857,7 +1842,7 @@ void GetMacParms(MacroPtr macro)
                     if (quote==0)
                     {
                         *(p-1) = 0;
-                        done = TRUE;
+                        done = true;
                     }
                     break;
 
@@ -2082,7 +2067,7 @@ int opcode_strcmp(const char *s1, const char *s2)
 
 OpcdPtr FindOpcodeTab(OpcdPtr p, char *name, int *typ, int *parm)
 {
-    bool found = FALSE;
+    bool found = false;
 
 //  while (p -> typ != o_Illegal && !found)
     while (*(p -> name) && !found)
@@ -2160,7 +2145,7 @@ if (pass == 2 && !strcmp(opcode,"FROB"))
 SymPtr FindSym(char *symName)
 {
     SymPtr p = symTab;
-    bool found = FALSE;
+    bool found = false;
 
     while (p && !found)
     {
@@ -2186,12 +2171,12 @@ SymPtr AddSym(char *symName)
     strcpy(p -> name, symName);
     p -> value      = 0;
     p -> next       = symTab;
-    p -> defined    = FALSE;
-    p -> multiDef   = FALSE;
-    p -> isSet      = FALSE;
-    p -> equ        = FALSE;
-    p -> known      = FALSE;
-    p -> relocation = FALSE;
+    p -> defined    = false;
+    p -> multiDef   = false;
+    p -> isSet      = false;
+    p -> equ        = false;
+    p -> known      = false;
+    p -> relocation = false;
 
     symTab = p;
 
@@ -2221,13 +2206,13 @@ int RefSym(char *symName, bool *known)
             case 1:
                 if (!p -> defined)
                 {
-                    *known = FALSE;
+                    *known = false;
                 }
                 break;
             case 2:
                 if (!p -> known) 
                 {
-                    *known = FALSE;
+                    *known = false;
                 }
                 if ( p -> relocation)
                 {
@@ -2268,7 +2253,7 @@ int RefSym(char *symName, bool *known)
         else
         {
             p = AddSym(symName);
-            *known = FALSE;
+            *known = false;
 //          sprintf(s, "Symbol '%s' undefined", symName);
 //          Error(s);
         }
@@ -2298,21 +2283,21 @@ void DefSym(char *symName, u_long val, bool setSym, bool equSym)
         if (!p -> defined || (p -> isSet && setSym))
         {
             p -> value = val;
-            p -> defined = TRUE;
+            p -> defined = true;
             p -> isSet = setSym;
             p -> equ = equSym;
             p -> relocation = valueBasedOnPC && cl_Relocating;
         }
         else if (p -> value != val)
         {
-            p -> multiDef = TRUE;
+            p -> multiDef = true;
             if (pass == 2 && !p -> known)
                  sprintf(s, "Phase error");
             else sprintf(s, "Symbol '%s' multiply defined",symName);
             Error(s);
         }
 
-        if (pass == 0 || pass == 2) p -> known = TRUE;
+        if (pass == 0 || pass == 2) p -> known = true;
     }
 }
 
@@ -2743,6 +2728,7 @@ int Eval2(void)
     char    *oldLine;
 
 #if HDOS
+    // HDOS Assembler was left to right ordering - no higher precedence for mult/div
     val = Factor();
 #else
     val = Term();
@@ -2868,7 +2854,7 @@ int Eval0(void)
 
 int Eval(void)
 {
-    evalKnown = TRUE;
+    evalKnown = true;
     valueBasedOnPC = false;
     relocateSymEval = false;
 
@@ -3229,7 +3215,6 @@ void dumpData(u_char *buf, u_long len)
     printf("\n----------------\n");
 }
 
-#if HDOS
 void write_hdos(u_long addr, u_char *buf, u_long len, int rectype)
 {
 //
@@ -3317,7 +3302,6 @@ void write_hdos(u_long addr, u_char *buf, u_long len, int rectype)
         printf("REC_XFER - size: %04x\n", size);
     }
 }
-#endif
 
 // rectype 0 = code, rectype 1 = xfer
 void write_hex(u_long addr, u_char *buf, u_long len, int rectype)
@@ -3327,9 +3311,7 @@ void write_hex(u_long addr, u_char *buf, u_long len, int rectype)
         switch(cl_ObjType)
         {
             default:
-#if HDOS
             case OBJ_HDOS:   write_hdos  (addr, buf, len, rectype); break;
-#endif
             case OBJ_HEX:    write_ihex  (addr, buf, len, rectype); break;
             case OBJ_S9:     write_srec  (addr, buf, len, rectype); break;
             case OBJ_BIN:    write_bin   (addr, buf, len, rectype); break;
@@ -3436,7 +3418,6 @@ void CodeEnd(void)
             write_hex(xferAddr, hex_buf, 0, REC_XFER);
     }
     setbuf(stdout, NULL);
-#if HDOS
     if (cl_HdosType == OBJ_PIC) {
         printf("Saving PIC table - size: %04x\n", picPos);
         fprintf(listing, "PIC Table\n\n");
@@ -3476,12 +3457,11 @@ void CodeEnd(void)
 
         printf("Done saving pic table\n"); 
     }
-#endif
 }
 
-#if HDOS
 void checkRelocate(int offset)
 {
+#if HDOS
     if ((relocateSymEval) || (valueBasedOnPC && cl_Relocating))
     {
         if (pass == 1) {
@@ -3490,26 +3470,6 @@ void checkRelocate(int offset)
         if (pass == 2) {
             // position of address,
             int pos = locPtr + offset;
-            picTable[picPos++] = pos & 0xff;
-            picTable[picPos++] = pos >> 8;
-        }
-    }
-}
-#endif
-
-void addJMP() 
-{
-#if 0
-    if (cl_Relocating)
-    {
-       
-        cl_HdosPicTableSize += 2;
-        if (pass == 1) {
-            cl_HdosPicTableSize +=2;
-        }
-        else if (pass == 2) {
-            // position of address,
-            int pos = locPtr + 1; 
             picTable[picPos++] = pos & 0xff;
             picTable[picPos++] = pos >> 8;
         }
@@ -3546,21 +3506,17 @@ void CodeRelOrg(int addr)
 }
 
 
-#if HDOS
 void CodeHdosEnd()
 {
     cl_HdosLength = locPtr - cl_HdosRelocationStart;
 }
-#endif
 
 void CodeXfer(int addr)
 {
     xferAddr  = addr;
-    xferFound = TRUE;
-#if HDOS
+    xferFound = true;
     cl_HdosEntryPoint = addr;
     cl_HdosLength = locPtr - cl_HdosLoadAddr;
-#endif
 }
 
 
@@ -3882,7 +3838,7 @@ void InstrLL(u_long l1, u_long l2)
 SegPtr FindSeg(char *name)
 {
     SegPtr p = segTab;
-    bool found = FALSE;
+    bool found = false;
 
     while (p && !found)
     {
@@ -3902,7 +3858,7 @@ SegPtr AddSeg(char *name)
     p = malloc(sizeof *p + strlen(name));
 
     p -> next = segTab;
-//  p -> gen = TRUE;
+//  p -> gen = true;
     p -> loc = 0;
     p -> cod = 0;
     strcpy(p -> name, name);
@@ -3994,7 +3950,7 @@ int ReadLine(FILE *file, char *line, int max)
     int c = 0;
     int len = 0;
 
-    macLineFlag = TRUE;
+    macLineFlag = true;
 
     // if at end of macro and inside a nested macro, pop the stack
     while (macLevel > 0 && macLine[macLevel] == NULL)
@@ -4024,7 +3980,7 @@ int ReadLine(FILE *file, char *line, int max)
     }
     else
     {   // else we weren't in a macro or we just ran out of macro
-        macLineFlag = FALSE;
+        macLineFlag = false;
 
         if (nInclude >= 0)
             incline[nInclude]++;
@@ -4086,13 +4042,11 @@ void hdosProcessLine(char *line)
        
     while (maxTokens)
     {
-#if HDOS
         // check for existing comment symbol - quotes are properly handled below
         if (line[pos] == ';')
         {
             return;
         }
-#endif
         while((pos < len) && (!isspace(line[pos])))
         { 
             if (line[pos] == '\'')
@@ -4174,7 +4128,7 @@ void CopyListLine(void)
 
     p = listLine;
     q = line;
-    listLineFF = FALSE;
+    listLineFF = false;
 
     // the old version
 //  strcpy(listLine, "                ");       // 16 blanks
@@ -4187,7 +4141,7 @@ void CopyListLine(void)
 
     while (n < 255-16 && (c = *q++))    // copy rest of line, stripping out form feeds
     {
-        if (c == 12) listLineFF = TRUE; // if a form feed was found, remember it for later
+        if (c == 12) listLineFF = true; // if a form feed was found, remember it for later
         else
         {
             *p++ = c;
@@ -4638,7 +4592,7 @@ void DoOpcode(int typ, int parm)
 
             if (pass == 2)
             {
-                showAddr = FALSE;
+                showAddr = false;
 
                 // "XXXX  (XXXX)"
                 p = ListLoc(locPtr);
@@ -4786,7 +4740,7 @@ void DoOpcode(int typ, int parm)
 
             if (pass == 2)
             {
-                showAddr = FALSE;
+                showAddr = false;
 
                 // "XXXX  (XXXX)"
                 p = ListLoc(locPtr);
@@ -4818,15 +4772,13 @@ void DoOpcode(int typ, int parm)
                     p = ListAddr(p,val);
                     *p++ = ')';
                 }
-#if HDOS
                 else if (cl_HdosType == OBJ_PIC)
                 {
                     // looks like the END on relocation does not have a symbol.
                     CodeHdosEnd();
 
                 }
-#endif
-                sourceEnd = TRUE;
+                sourceEnd = true;
             }
             break;
 
@@ -4981,14 +4933,14 @@ void DoLabelOp(int typ, int parm, char *labl)
             setHdosLoadAddr(val);
             if (!evalKnown)
                 Warning("Undefined label used in ORG statement");
-            DefSym(labl,locPtr,FALSE,FALSE);
-            showAddr = TRUE;
+            DefSym(labl,locPtr,false,false);
+            showAddr = true;
             break;
 
         case o_RORG:
             val = Eval();
             CodeRelOrg(val);
-            DefSym(labl,codPtr,FALSE,FALSE);
+            DefSym(labl,codPtr,false,false);
 
             if (pass == 2)
             {
@@ -5015,7 +4967,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                         {
                             val = Eval();
                             CodeRelOrg(val);
-                            //DefSym(labl,codPtr,FALSE,FALSE);
+                            //DefSym(labl,codPtr,false,false);
 
                             if (pass == 2)
                             {
@@ -5071,8 +5023,8 @@ void DoLabelOp(int typ, int parm, char *labl)
                 if (!seg) seg = AddSeg(word);
 //              seg -> gen = parm;      // copy gen flag from parameter
                 SwitchSeg(seg);
-                DefSym(labl,locPtr,FALSE,FALSE);
-                showAddr = TRUE;
+                DefSym(labl,locPtr,false,false);
+                showAddr = true;
             }
             break;
 
@@ -5088,61 +5040,61 @@ void DoLabelOp(int typ, int parm, char *labl)
                 p = ListLoc(locPtr);
             }
 
-            DefSym(labl,locPtr,FALSE,FALSE);
+            DefSym(labl,locPtr,false,false);
 
             CodeAbsOrg(codPtr);
 
             break;
 
         case o_LIST:
-            listThisLine = TRUE;    // always list this line
+            listThisLine = true;    // always list this line
 
             if (labl[0])
                 Error("Label not allowed");
 
             GetWord(word);
 
-                 if (strcmp(word,"ON") == 0)        listFlag = TRUE;
-            else if (strcmp(word,"OFF") == 0)       listFlag = FALSE;
-            else if (strcmp(word,"MACRO") == 0)     listMacFlag = TRUE;
-            else if (strcmp(word,"NOMACRO") == 0)   listMacFlag = FALSE;
-            else if (strcmp(word,"EXPAND") == 0)    expandHexFlag = TRUE;
-            else if (strcmp(word,"NOEXPAND") == 0)  expandHexFlag = FALSE;
-            else if (strcmp(word,"SYM") == 0)       symtabFlag = TRUE;
-            else if (strcmp(word,"NOSYM") == 0)     symtabFlag = FALSE;
-            else if (strcmp(word,"TEMP") == 0)      tempSymFlag = TRUE;
-            else if (strcmp(word,"NOTEMP") == 0)    tempSymFlag = FALSE;
+                 if (strcmp(word,"ON") == 0)        listFlag = true;
+            else if (strcmp(word,"OFF") == 0)       listFlag = false;
+            else if (strcmp(word,"MACRO") == 0)     listMacFlag = true;
+            else if (strcmp(word,"NOMACRO") == 0)   listMacFlag = false;
+            else if (strcmp(word,"EXPAND") == 0)    expandHexFlag = true;
+            else if (strcmp(word,"NOEXPAND") == 0)  expandHexFlag = false;
+            else if (strcmp(word,"SYM") == 0)       symtabFlag = true;
+            else if (strcmp(word,"NOSYM") == 0)     symtabFlag = false;
+            else if (strcmp(word,"TEMP") == 0)      tempSymFlag = true;
+            else if (strcmp(word,"NOTEMP") == 0)    tempSymFlag = false;
             else                                    IllegalOperand();
 
             break;
 /*
         case o_PAGE:
-            listThisLine = TRUE;    // always list this line
+            listThisLine = true;    // always list this line
 
             if (labl[0])
                 Error("Label not allowed");
 
-            listLineFF = TRUE;
+            listLineFF = true;
             break;
 */
         case o_OPT:
-            listThisLine = TRUE;    // always list this line
+            listThisLine = true;    // always list this line
 
             if (labl[0])
                 Error("Label not allowed");
 
             GetWord(word);
 
-                 if (strcmp(word,"LIST") == 0)      listFlag = TRUE;
-            else if (strcmp(word,"NOLIST") == 0)    listFlag = FALSE;
-            else if (strcmp(word,"MACRO") == 0)     listMacFlag = TRUE;
-            else if (strcmp(word,"NOMACRO") == 0)   listMacFlag = FALSE;
-            else if (strcmp(word,"EXPAND") == 0)    expandHexFlag = TRUE;
-            else if (strcmp(word,"NOEXPAND") == 0)  expandHexFlag = FALSE;
-            else if (strcmp(word,"SYM") == 0)       symtabFlag = TRUE;
-            else if (strcmp(word,"NOSYM") == 0)     symtabFlag = FALSE;
-            else if (strcmp(word,"TEMP") == 0)      tempSymFlag = TRUE;
-            else if (strcmp(word,"NOTEMP") == 0)    tempSymFlag = FALSE;
+                 if (strcmp(word,"LIST") == 0)      listFlag = true;
+            else if (strcmp(word,"NOLIST") == 0)    listFlag = false;
+            else if (strcmp(word,"MACRO") == 0)     listMacFlag = true;
+            else if (strcmp(word,"NOMACRO") == 0)   listMacFlag = false;
+            else if (strcmp(word,"EXPAND") == 0)    expandHexFlag = true;
+            else if (strcmp(word,"NOEXPAND") == 0)  expandHexFlag = false;
+            else if (strcmp(word,"SYM") == 0)       symtabFlag = true;
+            else if (strcmp(word,"NOSYM") == 0)     symtabFlag = false;
+            else if (strcmp(word,"TEMP") == 0)      tempSymFlag = true;
+            else if (strcmp(word,"NOTEMP") == 0)    tempSymFlag = false;
             else                                    Error("Illegal option");
 
             break;
@@ -5244,7 +5196,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                         if (nparms > MAXMACPARMS)
                         {
                             Error("Too many macro parameters");
-                            macro -> toomany = TRUE;
+                            macro -> toomany = true;
                             break;
                         }
                         AddMacroParm(macro,word);
@@ -5259,7 +5211,7 @@ void DoLabelOp(int typ, int parm, char *labl)
 
                 if (pass == 2)
                 {
-                    macro -> def = TRUE;
+                    macro -> def = true;
                     if (macro -> toomany)
                         Error("Too many macro parameters");
                 }
@@ -5269,7 +5221,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                 while (i && typ != o_ENDM)
                 {
                     if ((pass == 2 || cl_ListP1) && (listFlag || errFlag))
-                        ListOut(TRUE);
+                        ListOut(true);
                     CopyListLine();
 
                     // skip initial formfeeds
@@ -5287,7 +5239,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                     {
                         token = GetWord(labl);
                         if (token)
-                            showAddr = TRUE;
+                            showAddr = true;
                             while (*linePtr == ' ' || *linePtr == '\t')
                                 linePtr++;
 
@@ -5455,8 +5407,8 @@ void DoLabelOp(int typ, int parm, char *labl)
         case o_REPEAT:
             if (labl[0])
             {
-                DefSym(labl,locPtr,FALSE,FALSE);
-                showAddr = TRUE;
+                DefSym(labl,locPtr,false,false);
+                showAddr = true;
             }
 
             // get repeat count
@@ -5476,7 +5428,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                 while (i && typ != o_REPEND)
                 {
                     if ((pass == 2 || cl_ListP1) && (listFlag || errFlag))
-                        ListOut(TRUE);
+                        ListOut(true);
                     CopyListLine();
 
                     // skip initial formfeeds
@@ -5494,7 +5446,7 @@ void DoLabelOp(int typ, int parm, char *labl)
                     {
                         token = GetWord(labl);
                         if (token)
-                            showAddr = TRUE;
+                            showAddr = true;
                             while (*linePtr == ' ' || *linePtr == '\t')
                                 linePtr++;
 
@@ -5584,7 +5536,7 @@ void DoLabelOp(int typ, int parm, char *labl)
 #endif
 
        case o_Incbin:
-            DefSym(labl,locPtr,FALSE,FALSE);
+            DefSym(labl,locPtr,false,false);
 
             GetFName(word);
 
@@ -5676,12 +5628,12 @@ void DoLine()
     int         numhex;
     bool        firstLine;
 
-    errFlag      = FALSE;
-    warnFlag     = FALSE;
+    errFlag      = false;
+    warnFlag     = false;
     instrLen     = 0;
-    showAddr     = FALSE;
+    showAddr     = false;
     listThisLine = listFlag;
-    firstLine    = TRUE;
+    firstLine    = true;
     CopyListLine();
 
     // skip initial formfeeds
@@ -5707,7 +5659,7 @@ void DoLine()
         token = GetWord(labl);
         oldLine = linePtr;
         if (token)
-            showAddr = TRUE;
+            showAddr = true;
         while (*linePtr == ' ' || *linePtr == '\t')
             linePtr++;
 
@@ -5744,7 +5696,7 @@ void DoLine()
 
     if (!(condState[condLevel] & condTRUE))
     {
-        listThisLine = FALSE;
+        listThisLine = false;
 
         // inside failed IF statement
         if (GetFindOpcode(opcode, &typ, &parm, &macro))
@@ -5816,7 +5768,7 @@ void DoLine()
         }
 
         if ((pass == 2 || cl_ListP1) && listThisLine && (errFlag || listMacFlag || !macLineFlag))
-            ListOut(TRUE);
+            ListOut(true);
     }
     else
     {
@@ -5825,7 +5777,7 @@ void DoLine()
 
             valueBasedOnPC = true;
 
-            DefSym(labl,locPtr / wordDiv,FALSE,FALSE);
+            DefSym(labl,locPtr / wordDiv,false,false);
         }
         else
         {
@@ -5860,23 +5812,23 @@ void DoLine()
 
                     GetMacParms(macro);
 
-                    showAddr = TRUE;
+                    showAddr = true;
                     valueBasedOnPC = true;
-                    DefSym(labl,locPtr,FALSE,FALSE);
+                    DefSym(labl,locPtr,false,false);
                 }
             }
             else if (typ >= o_LabelOp)
             {
-                showAddr = FALSE;
+                showAddr = false;
                 DoLabelOp(typ,parm,labl);
             }
             else
             {
-                showAddr = TRUE;
+                showAddr = true;
                 if (typ != o_SPACE) 
                 {
                     valueBasedOnPC = true;
-                    DefSym(labl,locPtr,FALSE,FALSE);
+                    DefSym(labl,locPtr,false,false);
                 }
                 DoOpcode(typ, parm);
             }
@@ -5965,7 +5917,7 @@ void DoLine()
                             if (listThisLine && (errFlag || listMacFlag || !macLineFlag))
                             {
                                 ListOut(firstLine);
-                                firstLine = FALSE;
+                                firstLine = false;
                             }
                             if (listWid == LIST_24)
                                 strcpy(listLine, "                        ");   // 24 blanks
@@ -5991,7 +5943,7 @@ void DoLine()
                             if (listThisLine && (errFlag || listMacFlag || !macLineFlag))
                             {
                                 ListOut(firstLine);
-                                firstLine = FALSE;
+                                firstLine = false;
                             }
                             if (listWid == LIST_24)
                                 strcpy(listLine, "                        ");   // 24 blanks
@@ -6026,7 +5978,7 @@ void DoPass()
     SegPtr      seg;
 
     fseek(source, 0, SEEK_SET); // rewind source file
-    sourceEnd = FALSE;
+    sourceEnd = false;
     lastLabl[0] = 0;
     subrLabl[0] = 0;
 
@@ -6038,11 +5990,11 @@ void DoPass()
     errCount      = 0;
     condLevel     = 0;
     condState[condLevel] = condTRUE; // top level always true
-    listFlag      = TRUE;
-    listMacFlag   = FALSE;
-    expandHexFlag = TRUE;
-    symtabFlag    = TRUE;
-    tempSymFlag   = TRUE;
+    listFlag      = true;
+    listMacFlag   = false;
+    expandHexFlag = true;
+    symtabFlag    = true;
+    tempSymFlag   = true;
     linenum       = 0;
     macLevel      = 0;
     macUniqueID   = 0;
@@ -6106,7 +6058,7 @@ void DoPass()
             }
 
             if (listThisLine)
-                ListOut(TRUE);
+                ListOut(true);
 
             i = ReadSourceLine(line, sizeof(line));
         }
@@ -6135,6 +6087,7 @@ void usage(void)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    --                  end of options\n");
     fprintf(stderr, "    -e                  show errors to screen\n");
+    fprintf(stderr, "    -h                  Classic HDOS Assembler MODE\n");
     fprintf(stderr, "    -w                  show warnings to screen\n");
 //  fprintf(stderr, "    -1                  output listing during first pass\n");
     fprintf(stderr, "    -l [filename]       make a listing file, default is srcfile.lst\n");
@@ -6167,19 +6120,19 @@ void getopts(int argc, char * const argv[])
 
     while ((ch = getopt(argc, argv, "hew19tb:cd:l:o:s:C:?")) != -1)
     {
-        errFlag = FALSE;
+        errFlag = false;
         switch (ch)
         {
             case 'e':
-                cl_Err = TRUE;
+                cl_Err = true;
                 break;
 
             case 'w':
-                cl_Warn = TRUE;
+                cl_Warn = true;
                 break;
 
             case '1':
-                cl_ListP1 = TRUE;
+                cl_ListP1 = true;
                 break;
 
             case '9': // -9 option is deprecated
@@ -6206,6 +6159,7 @@ void getopts(int argc, char * const argv[])
                 break;
 
             case 'h':
+                hdosMode = true;
                 cl_ObjType = OBJ_HDOS;
                 cl_Binbase = 0;
                 cl_Binend = 0xFFFFFFFF;
@@ -6258,7 +6212,7 @@ void getopts(int argc, char * const argv[])
                     fprintf(stderr,"%s: Conflicting options: -c can not be used with -o\n",progname);
                     usage();
                 }
-                cl_Stdout = TRUE;
+                cl_Stdout = true;
                 break;
 
             case 'd':
@@ -6266,11 +6220,11 @@ void getopts(int argc, char * const argv[])
                 linePtr = line;
                 GetWord(labl);
                 val = 0;
-                setSym = FALSE;
+                setSym = false;
                 token = GetWord(word);
                 if (token == ':')
                 {
-                    setSym = TRUE;
+                    setSym = true;
                     token = GetWord(word);
                 }
                 if (token == '=')
@@ -6292,7 +6246,7 @@ void getopts(int argc, char * const argv[])
                 break;
 
             case 'l':
-                cl_List = TRUE;
+                cl_List = true;
                 if (optarg[0] == '-')
                 {
                     optarg = "";
@@ -6307,7 +6261,7 @@ void getopts(int argc, char * const argv[])
                     fprintf(stderr,"%s: Conflicting options: -o can not be used with -c\n",progname);
                     usage();
                 }
-                cl_Obj = TRUE;
+                cl_Obj = true;
                 if (optarg[0] == '-')
                 {
                     optarg = "";
@@ -6344,7 +6298,7 @@ void getopts(int argc, char * const argv[])
 #if 1
     // -b or -9 or -t must force -o!
     if (cl_ObjType != OBJ_HEX && !cl_Stdout && !cl_Obj)
-        cl_Obj = TRUE;
+        cl_Obj = true;
 #endif
 
     // now argc is the number of remaining arguments
@@ -6409,7 +6363,7 @@ int main(int argc, char * const argv[])
     pass       = 0;
     symTab     = NULL;
     xferAddr   = 0;
-    xferFound  = FALSE;
+    xferFound  = false;
 
     macroTab   = NULL;
     macPtr[0]  = NULL;
@@ -6418,12 +6372,13 @@ int main(int argc, char * const argv[])
     nullSeg    = AddSeg("");
     curSeg     = nullSeg;
 
-    cl_Err     = FALSE;
-    cl_Warn    = FALSE;
-    cl_List    = FALSE;
-    cl_Obj     = FALSE;
+    cl_Err     = false;
+    cl_Warn    = false;
+    cl_List    = false;
+    cl_Obj     = false;
     cl_ObjType = OBJ_HEX;
-    cl_ListP1  = FALSE;
+    cl_ListP1  = false;
+    hdosMode   = false;
 
     asmTab     = NULL;
     cpuTab     = NULL;

@@ -11,13 +11,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 
-
-#define HDOS 1
+#define HDOS 0
 
 // a few useful typedefs
-typedef unsigned char  bool;    // define a bool type
-enum { FALSE = 0, false = 0, TRUE = 1, true = 1 };
 typedef char Str255[256];       // generic string type
 
 #define maxOpcdLen  11          // max opcode length (for building opcode table)
@@ -125,9 +123,7 @@ void InstrWW(u_short w1, u_short w2);
 void InstrWL(u_short w1, u_long l1);
 void InstrL(u_long l1);
 void InstrLL(u_long l1, u_long l2);
-#ifdef HDOS
 void checkRelocate(int offset);
-#endif
 
 //char * ListStr(char *l, char *s);
 char * ListByte(char *p, u_char b);
@@ -137,6 +133,7 @@ char * ListByte(char *p, u_char b);
 //char * ListLoc(u_long addr);
 
 // various internal variables used by the assemblers
+extern  bool            hdosMode;           // TRUE if emulating HDOS Assembler
 extern  bool            errFlag;            // TRUE if error occurred this line
 extern  int             pass;               // Current assembler pass
 extern  char           *linePtr;            // pointer into current line
