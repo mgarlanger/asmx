@@ -13,8 +13,6 @@
 #include <unistd.h>
 #include <stdbool.h>
 
-#define HDOS 0
-
 // a few useful typedefs
 typedef char Str255[256];       // generic string type
 

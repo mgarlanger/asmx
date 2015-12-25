@@ -310,6 +310,7 @@ enum
     o_SUBR,     // SUBROUTINE pseudo-op
 
     o_IF,       // IF <expr> pseudo-op
+    o_IFT,      // IFT <expr> pseudo-op - used in HDOS
     o_IFF,      // IF !<expr> pseudo-op
     o_ELSE,     // ELSE pseudo-op
     o_ELSIF,    // ELSIF <expr> pseudo-op
@@ -402,12 +403,8 @@ struct OpcdRec opcdTab2[] =
     {"SEG.U",     o_SEG,      0},
     {"SUBR",      o_SUBR,     0},
     {"SUBROUTINE",o_SUBR,     0},
-#if HDOS
-    {"IF",        o_IFF,      0}, // with HDOS IF '0' is true ?
-#else
     {"IF",        o_IF,       0},
-#endif
-    {"IFT",       o_IF,       0}, // in HDOS 3.0 soure ??  - Think it's IF TRUE - IF ()
+    {"IFT",       o_IFT,      0}, // in HDOS 3.0 soure ??  - Think it's IF TRUE - IF ()
     {"IFF",       o_IFF,      0}, // in HDOS 3.0 soure ??  - Think it's IF FALSE - IF !()
     {"ELSE",      o_ELSE,     0},
     {"ELSIF",     o_ELSIF,    0},
@@ -431,16 +428,26 @@ void DoLine(void);          // forward declaration
 int DoCPUOpcode(int typ, int parm)
 {
     if (curAsm && curAsm -> DoCPUOpcode)
+    {
         return curAsm -> DoCPUOpcode(typ,parm);
-    else return 0;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 
 int DoCPULabelOp(int typ, int parm, char *labl)
 {
     if (curAsm && curAsm -> DoCPULabelOp)
+    {
         return curAsm -> DoCPULabelOp(typ,parm,labl);
-    else return 0;
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 
@@ -453,16 +460,18 @@ void PassInit(void)
     while(p)
     {
         if (p -> PassInit)
+        {
             p -> PassInit();
+        }
         p = p -> next;
     }
 }
 
 
 void *AddAsm(char *name,        // assembler name
-              int (*DoCPUOpcode) (int typ, int parm),
-              int (*DoCPULabelOp) (int typ, int parm, char *labl),
-              void (*PassInit) (void) )
+             int (*DoCPUOpcode) (int typ, int parm),
+             int (*DoCPULabelOp) (int typ, int parm, char *labl),
+             void (*PassInit) (void) )
 {
     AsmPtr p;
 
@@ -598,11 +607,18 @@ void AsmInit(void)
     p = line + strlen(line);    // start at end of executable name
 
     while (p > line && isalphanum(p[-1]))
+    {
         p--;                    // skip back to last non alpha-numeric character
-    if (!isalphanum(*p)) p++;   // advance past last non alpha-numeric character
+    }
+    if (!isalphanum(*p))
+    {
+        p++;   // advance past last non alpha-numeric character
+    }
 
     if (p[0] == 'A' && p[1] == 'S' && p[2] == 'M')
+    {
         p = p + 3;              // skip leading "ASM"
+    }
 
     // for each substring, try to find a matching CPU name
     while (*p)
@@ -673,8 +689,14 @@ void Warning(char *message)
     if (pass == 2 && cl_Warn)
     {
         listThisLine = true;
-        if (cl_List)    fprintf(listing, "%s:%d: *** Warning:  %s ***\n",name,line,message);
-        if (cl_Warn)    fprintf(stderr,  "%s:%d: *** Warning:  %s ***\n",name,line,message);
+        if (cl_List)
+        {
+            fprintf(listing, "%s:%d: *** Warning:  %s ***\n",name,line,message);
+        }
+        if (cl_Warn)
+        {
+            fprintf(stderr,  "%s:%d: *** Warning:  %s ***\n",name,line,message);
+        }
     }
 }
 
@@ -692,10 +714,14 @@ void Debleft(char *s)
     char *p = s;
 
     while (*p == 9 || *p == ' ')
+    {
         p++;
+    }
 
     if (p != s)
+    {
         while ((*s++ = *p++));
+    }
 }
 
 
@@ -708,7 +734,9 @@ void Debright(char *s)
     char *p = s + strlen(s);
 
     while (p>s && *--p == ' ')
+    {
         *p = 0;
+    }
 }
 
 
@@ -732,7 +760,9 @@ void Uprcase(char *s)
     char *p = s;
 
     while ((*p = toupper(*p)))
+    {
         p++;
+    }
 }
 
 
@@ -759,11 +789,15 @@ int isalphanum(char c)
 int isLabelCharacter(char c) 
 {
     c = toupper(c);
-#if HDOS
-    return ('A' <= c && c <= 'Z');
-#else
-    return isalphaul(c);
-#endif
+
+    if (hdosMode)
+    {
+        return ('A' <= c && c <= 'Z');
+    }
+    else
+    {
+       return isalphaul(c);
+    }
 }
 
 
@@ -779,15 +813,19 @@ u_int EvalBin(char *binStr)
     while ((c = *binStr++))
     {
         if (c < '0' || c > '1')
+        {
             evalErr = true;
+        }
         else
+        {
             binVal = binVal * 2 + c - '0';
+        }
     }
 
     if (evalErr)
     {
-      binVal = 0;
-      Error("Invalid binary number");
+        binVal = 0;
+        Error("Invalid binary number");
     }
 
    return binVal;
@@ -806,15 +844,19 @@ u_int EvalOct(char *octStr)
     while ((c = *octStr++))
     {
         if (c < '0' || c > '7')
+        {
             evalErr = true;
+        }
         else
+        {
             octVal = octVal * 8 + c - '0';
+        }
     }
 
     if (evalErr)
     {
-      octVal = 0;
-      Error("Invalid octal number");
+        octVal = 0;
+        Error("Invalid octal number");
     }
 
    return octVal;
@@ -839,15 +881,19 @@ u_int EvalSplitOct(char *octStr)
         c = octStr[pos++];
         
         if (c < '0' || c > maxDigit)
+        {
             evalErr = true;
+        }
         else
-            octVal = octVal * multiplier + c - '0';
+        {
+             octVal = octVal * multiplier + c - '0';
+        }
     }
 
     if (evalErr)
     {
-      octVal = 0;
-      Error("Invalid split-octal number");
+        octVal = 0;
+        Error("Invalid split-octal number");
     }
     return octVal;
 }
@@ -865,15 +911,19 @@ u_int EvalDec(char *decStr)
     while ((c = *decStr++))
     {
         if (!isdigit(c))
+        {
             evalErr = true;
+        }
         else
+        {
             decVal = decVal * 10 + c - '0';
+        }
     }
 
     if (evalErr)
     {
-      decVal = 0;
-      Error("Invalid decimal number");
+        decVal = 0;
+        Error("Invalid decimal number");
     }
 
    return decVal;
@@ -884,7 +934,9 @@ int Hex2Dec(c)
 {
     c = toupper(c);
     if (c > '9')
+    {
         return c - 'A' + 10;
+    }
     return c - '0';
 }
 
@@ -901,15 +953,19 @@ u_int EvalHex(char *hexStr)
     while ((c = *hexStr++))
     {
         if (!ishex(c))
+        {
             evalErr = true;
+        }
         else
+        {
             hexVal = hexVal * 16 + Hex2Dec(c);
+        }
     }
 
     if (evalErr)
     {
-      hexVal = 0;
-      Error("Invalid hexadecimal number");
+        hexVal = 0;
+        Error("Invalid hexadecimal number");
     }
 
     return hexVal;
@@ -976,7 +1032,10 @@ u_int EvalNum(char *word)
 char * ListStr(char *l, char *s)
 {
     // copy string to line
-    while (*s) *l++ = *s++;
+    while (*s)
+    {
+        *l++ = *s++;
+    }
 
     return l;
 }
@@ -1046,7 +1105,9 @@ char * ListLoc(u_long addr)
     p = ListAddr(listLine,addr);
     *p++ = ' ';
     if (listWid == LIST_24 && addrWid == ADDR_16)
+    {
         *p++ = ' ';
+    }
 
     return p;
 }
@@ -1273,29 +1334,36 @@ int GetWord(char *word)
     // skip initial whitespace
     c = *linePtr;
     while (c == 12 || c == '\t' || c == ' ')
+    {
         c = *++linePtr;
+    }
 
     // skip comments
-#if HDOS
-    if ((c == ';') || (((linePtr - line) == 0) && (c == '*')))
-#else
-    if (c == ';')
-#endif
+    bool isComment;
+    if (hdosMode)
+    {
+        isComment = (c == ';') || (((linePtr - line) == 0) && (c == '*'));
+    }
+    else
+    {
+        isComment = (c == ';');
+    }
+    if (isComment)
+    {
         while (c)
+        {
             c = *++linePtr;
+        }
+    }
 
     // test for end of line
     if (c)
     {
         // test for alphanumeric token
-#if HDOS 
-        if (isalphanum(c) || (c == '.') || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')))
-#else
 #ifdef DOLLAR_SYM
-        if (isalphanum(c) || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')) ||
+        if (isalphanum(c) || (hdosMode && (c == '.')) || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')) ||
 #else
-        if (isalphanum(c) ||
-#endif
+        if (isalphanum(c) || (hdosMode && ((c == '.') || (c == '$' && (isalphanum(linePtr[1]) || linePtr[1]=='$')))) ||
             (
              (((opts & OPT_DOLLARSYM) && c == '$') || ((opts & OPT_ATSYM) && c == '@'))
              && ((isalphanum(linePtr[1]) ||
@@ -1304,13 +1372,8 @@ int GetWord(char *word)
                 )
            ))
 #endif
-
         {
-#if HDOS
-            while (isalphanum(c) || c == '$' || c == '.' || ((opts & OPT_ATSYM) && c == '@'))
-#else
-            while (isalphanum(c) || c == '$' || ((opts & OPT_ATSYM) && c == '@'))
-#endif
+            while (isalphanum(c) || c == '$' || (hdosMode && (c == '.')) || ((opts & OPT_ATSYM) && c == '@'))
             {
                 *word++ = toupper(c);
                 c = *++linePtr;
@@ -1344,11 +1407,7 @@ int GetOpcode(char *word)
         c = *++linePtr;
 
     // skip comments
-#if HDOS
-    if ((c == ';') || (c == '*'))
-#else
-    if (c == ';')
-#endif
+    if ((c == ';') || (hdosMode && (c == '*')))
         while (c)
             c = *++linePtr;
 
@@ -1649,35 +1708,34 @@ int CheckReg(int reg) // may want to add a maxreg parameter
 u_int GetBackslashChar(void)
 {
     u_char      ch;
-#if !HDOS
     Str255      s;
-#endif
     if (*linePtr)
     {
         ch = *linePtr++;
-#if !HDOS
-        if (ch == '\\' && *linePtr != 0) // backslash
+        if (!hdosMode)
         {
-            ch = *linePtr++;
-            switch(ch)
+            if (ch == '\\' && *linePtr != 0) // backslash
             {
-                case 'r':   ch = '\r';   break;
-                case 'n':   ch = '\n';   break;
-                case 't':   ch = '\t';   break;
-                case 'x':
-                    if (ishex(linePtr[0]) && ishex(linePtr[1]))
-                    {
-                        s[0] = linePtr[0];
-                        s[1] = linePtr[1];
-                        s[2] = 0;
-                        linePtr = linePtr + 2;
-                        ch = EvalHex(s);
-                    }
-                    break;
-                default:   break;
+                ch = *linePtr++;
+                switch(ch)
+                {
+                    case 'r':   ch = '\r';   break;
+                    case 'n':   ch = '\n';   break;
+                    case 't':   ch = '\t';   break;
+                    case 'x':
+                        if (ishex(linePtr[0]) && ishex(linePtr[1]))
+                        {
+                            s[0] = linePtr[0];
+                            s[1] = linePtr[1];
+                            s[2] = 0;
+                            linePtr = linePtr + 2;
+                            ch = EvalHex(s);
+                        }
+                        break;
+                    default:   break;
+                }
             }
         }
-#endif
     }
     else ch = -1;
 
@@ -2727,12 +2785,15 @@ int Eval2(void)
     int     val2;
     char    *oldLine;
 
-#if HDOS
-    // HDOS Assembler was left to right ordering - no higher precedence for mult/div
-    val = Factor();
-#else
-    val = Term();
-#endif
+    if (hdosMode)
+    {
+        // HDOS Assembler was left to right ordering - no higher precedence for mult/div
+        val = Factor();
+    }
+    else
+    {
+        val = Term();
+    }	
 
     oldLine = linePtr;
     token = GetWord(word);
@@ -2740,14 +2801,27 @@ int Eval2(void)
     {
         switch(token)
         {
-#if HDOS
             // HDOS Assembler was left to right ordering - no higher precedence for mult/div
-            case '+':   val = val + Factor();     break;
-            case '-':   val = val - Factor();     break;
-#else
-            case '+':   val = val + Term();     break;
-            case '-':   val = val - Term();     break;
-#endif
+            case '+':
+                if (hdosMode)
+                {
+                    val = val + Factor();
+                }
+                else
+                {
+                    val = val + Term();
+                }
+                break;
+            case '-':
+                if (hdosMode)
+                {
+                    val = val - Factor();
+                }
+                else
+                {
+                    val = val - Term();
+                }
+                break;
             case '*':   val = val * Factor();   break;
             case '/':   val2 = Factor();
                         if (val2)
@@ -3328,11 +3402,12 @@ void CodeInit(void)
     hex_addr = 0;
     hex_page = 0;
     bin_eof  = 0;
-#if HDOS
-    cl_HdosLoadAddr = 0xffff;
-    picPos   = 0;
-    cl_HdosPicTableSize = 0;
-#endif
+    if (hdosMode)
+    {
+        cl_HdosLoadAddr = 0xffff;
+        picPos   = 0;
+        cl_HdosPicTableSize = 0;
+    }
 }
 
 
@@ -3352,12 +3427,10 @@ void CodeOut(int byte)
 {
     if (pass == 1)
     {
-#if HDOS
-        if (codPtr < cl_HdosLoadAddr)
+        if (hdosMode && (codPtr < cl_HdosLoadAddr))
         {
             cl_HdosLoadAddr = codPtr;
         }
-#endif
     }
     if (pass == 2)
     {
@@ -3461,20 +3534,21 @@ void CodeEnd(void)
 
 void checkRelocate(int offset)
 {
-#if HDOS
-    if ((relocateSymEval) || (valueBasedOnPC && cl_Relocating))
+    if (hdosMode)
     {
-        if (pass == 1) {
-            cl_HdosPicTableSize +=2;
-        }
-        if (pass == 2) {
-            // position of address,
-            int pos = locPtr + offset;
-            picTable[picPos++] = pos & 0xff;
-            picTable[picPos++] = pos >> 8;
+        if ((relocateSymEval) || (valueBasedOnPC && cl_Relocating))
+        {
+            if (pass == 1) {
+                cl_HdosPicTableSize +=2;
+            }
+            if (pass == 2) {
+                // position of address,
+                int pos = locPtr + offset;
+                picTable[picPos++] = pos & 0xff;
+                picTable[picPos++] = pos >> 8;
+            }
         }
     }
-#endif
 }
 
 
@@ -3500,9 +3574,10 @@ void CodeAbsOrg(int addr)
 void CodeRelOrg(int addr)
 {
     locPtr = addr;
-#if HDOS
-    cl_HdosRelocationStart = addr;
-#endif
+    if (hdosMode) 
+    {
+        cl_HdosRelocationStart = addr;
+    }
 }
 
 
@@ -4088,9 +4163,10 @@ int ReadSourceLine(char *line, int max)
         i = ReadLine(include[nInclude], line, max);
         if (i) 
         {
-#if HDOS
-            hdosProcessLine(line);
-#endif
+            if (hdosMode)
+            {
+                hdosProcessLine(line);
+            }
             return i;
         }
 
@@ -4098,9 +4174,10 @@ int ReadSourceLine(char *line, int max)
     }
  
     i = ReadLine(source, line, max);
-#if HDOS
-    hdosProcessLine(line);
-#endif
+    if (hdosMode) 
+    {
+        hdosProcessLine(line);
+    }
     return i;
 }
 
@@ -4375,9 +4452,10 @@ void DoOpcode(int typ, int parm)
                         if (instrLen < MAX_BYTSTR)
                             bytStr[instrLen++] = val;
                     }
-#if HDOS
-                    checkRelocate(0);
-#endif
+                    if (hdosMode)
+                    {
+                        checkRelocate(0);
+                    }
                 }
 
                 token = GetWord(word);
@@ -4827,15 +4905,17 @@ void DoOpcode(int typ, int parm)
             //GetWord(word);
             break;
         case o_TITLE:  // Title
-#if HDOS
-            GetString(title);
-#endif
+            if (hdosMode)
+            {
+                GetString(title);
+            }
             break;
 
         case o_STL:    // Subtitle
-#if HDOS
-            GetString(subTitle);
-#endif
+            if (hdosMode)
+            {
+                GetString(subTitle);
+            }
             break;
 
         case o_NOTE:    // ?? 
@@ -4952,7 +5032,6 @@ void DoLabelOp(int typ, int parm, char *labl)
             }
             break;
 
-#if HDOS
         case o_CODE:
             token = GetWord(word);
             switch (token)
@@ -5013,7 +5092,6 @@ void DoLabelOp(int typ, int parm, char *labl)
                     break;
             }
             break;
-#endif
 
         case o_SEG:
             token = GetWord(word);  // get seg name
@@ -5272,6 +5350,8 @@ void DoLabelOp(int typ, int parm, char *labl)
                     switch(typ)
                     {
                         case o_IF:
+                        case o_IFT:
+                        case o_IFF:
                             if (pass == 1)
                                 AddMacroLine(macro,line);
                             macroCondLevel++;
@@ -5313,6 +5393,8 @@ void DoLabelOp(int typ, int parm, char *labl)
             break;
 
         case o_IF:
+        case o_IFT:
+        case o_IFF:
             if (labl[0])
                 Error("Label not allowed");
 
@@ -5325,25 +5407,31 @@ void DoLabelOp(int typ, int parm, char *labl)
                 condState[condLevel] = 0; // this block false but level not permanently failed
 
                 val = Eval();
-                if (!errFlag && val != 0)
-                    condState[condLevel] = condTRUE; // this block true
-            }
-            break;
+                bool condMet;
+                if (hdosMode)
+                {
+                    if ((typ == o_IF) || (typ == o_IFF))
+                    {
+                        condMet = (val == 0);
+                    }
+                    else  // o_IFT
+                    {
+                        condMet = (val != 0);
+                    }
+                }
+                else
+                {
+                    if ((typ == o_IF) || (typ == o_IFT))
+                    {
+                        condMet = (val != 0);
+                    }
+                    else  // o_IFF
+                    {
+                        condMet = (val == 0);
+                    }
+                }
 
-        case o_IFF:  // if false
-            if (labl[0])
-                Error("Label not allowed");
-
-
-            if (condLevel >= MAX_COND)
-                Error("IF statements nested too deeply");
-            else
-            {
-                condLevel++;
-                condState[condLevel] = 0; // this block false but level not permanently failed
-
-                val = Eval();
-                if (!errFlag && val == 0)
+                if (!errFlag && condMet)
                     condState[condLevel] = condTRUE; // this block true
             }
             break;
@@ -5621,9 +5709,7 @@ void DoLine()
     Str255      word;
     int         token;
     MacroPtr    macro;
-#if !HDOS
     char        *oldLine;
-#endif
     char        *p;
     int         numhex;
     bool        firstLine;
@@ -5643,56 +5729,57 @@ void DoLine()
 
     // look for label at beginning of line
     labl[0] = 0;
-#if HDOS
-    if (isLabelCharacter(*linePtr) || *linePtr == '$' || *linePtr == '.')
-    {
-        token = GetLabel(labl);
-    }
-
-#else
-#ifdef TEMP_LBLAT
-    if (isalphaul(*linePtr) || *linePtr == '$' || *linePtr == '.' || *linePtr == '@')
-#else
-    if (isalphaul(*linePtr) || *linePtr == '$' || *linePtr == '.' || ((opts & OPT_ATSYM) && *linePtr == '@'))
-#endif
-    {
-        token = GetWord(labl);
-        oldLine = linePtr;
-        if (token)
-            showAddr = true;
-        while (*linePtr == ' ' || *linePtr == '\t')
-            linePtr++;
-
-        if (labl[0])
+    if (hdosMode) {
+        if (isLabelCharacter(*linePtr) || *linePtr == '$' || *linePtr == '.')
         {
-#ifdef TEMP_LBLAT
-            if (token == '.' || token == '@')
-#else
-            if (token == '.')
-#endif
-            {
-                GetWord(word);
-                if (token == '.' && FindOpcodeTab((OpcdPtr) &opcdTab2, word, &typ, &parm) )
-                    linePtr = oldLine;
-                else if (token == '.' && FindCPU(word))
-                    linePtr = line;
-                else
-                {
-                if (token == '.' && subrLabl[0])    strcpy(labl,subrLabl);
-                                            else    strcpy(labl,lastLabl);
-                labl[strlen(labl)+1] = 0;
-                labl[strlen(labl)]   = token;
-                strcat(labl,word);          // labl = lastLabl + "." + word;
-                }
-            }
-            else
-                strcpy(lastLabl,labl);
+            token = GetLabel(labl);
         }
-
-        if (*linePtr == ':' && linePtr[1] != '=')
-            linePtr++;
     }
+    else
+    {
+#ifdef TEMP_LBLAT
+        if (isalphaul(*linePtr) || *linePtr == '$' || *linePtr == '.' || *linePtr == '@')
+#else
+        if (isalphaul(*linePtr) || *linePtr == '$' || *linePtr == '.' || ((opts & OPT_ATSYM) && *linePtr == '@'))
 #endif
+        {
+            token = GetWord(labl);
+            oldLine = linePtr;
+            if (token)
+                showAddr = true;
+            while (*linePtr == ' ' || *linePtr == '\t')
+                linePtr++;
+
+            if (labl[0])
+            {
+#ifdef TEMP_LBLAT
+                if (token == '.' || token == '@')
+#else
+                if (token == '.')
+#endif
+                {
+                    GetWord(word);
+                    if (token == '.' && FindOpcodeTab((OpcdPtr) &opcdTab2, word, &typ, &parm) )
+                        linePtr = oldLine;
+                    else if (token == '.' && FindCPU(word))
+                        linePtr = line;
+                    else
+                    {
+                    if (token == '.' && subrLabl[0])    strcpy(labl,subrLabl);
+                                                else    strcpy(labl,lastLabl);
+                    labl[strlen(labl)+1] = 0;
+                    labl[strlen(labl)]   = token;
+                    strcat(labl,word);          // labl = lastLabl + "." + word;
+                    }
+                }
+                else
+                    strcpy(lastLabl,labl);
+            }
+
+            if (*linePtr == ':' && linePtr[1] != '=')
+                linePtr++;
+        }
+    }
 
     if (!(condState[condLevel] & condTRUE))
     {
@@ -6436,11 +6523,12 @@ int main(int argc, char * const argv[])
         }
     }
 
-#if HDOS
-    // \todo determine the proper value for these two based on the current date/time
-    DefSym(".DATE.", 1, 0, 1); 
-    DefSym(".TIME.", 2, 0, 1); 
-#endif
+    if (hdosMode)
+    {
+        // \todo determine the proper value for these two based on the current date/time
+        DefSym(".DATE.", 1, 0, 1); 
+        DefSym(".TIME.", 2, 0, 1); 
+    }
 
     CodeInit();
 
