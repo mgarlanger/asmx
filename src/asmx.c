@@ -14,7 +14,7 @@
 #ifndef VERSION // should be defined on the command line
 #define VERSION "2.0"
 #endif
-#define COPYRIGHT "Copyright 1998-2007 Bruce Tomlin,\n2015 Mark Garlanger" 
+#define COPYRIGHT "Copyright 1998-2007 Bruce Tomlin,\nCopyright 2015-2018 Mark Garlanger" 
 #define IHEX_SIZE   32          // max number of data bytes per line in hex object file
 #define MAXSYMLEN   19          // max symbol length (only used in DumpSym())
 const int symTabCols = 3;       // number of columns for symbol table dump
@@ -127,6 +127,7 @@ int             pass;               // Current assembler pass
 bool            warnFlag;           // TRUE if warning occurred this line
 int             warnCount;          // Total number of warnings
 bool            hdosMode;           // TRUE if emulating HDOS Assembler
+bool            octalMode;          // TRUE if output should be in octal
 bool            errFlag;            // TRUE if error occurred this line
 int             errCount;           // Total number of errors
 
@@ -1049,7 +1050,14 @@ char * ListByte(char *p, u_char b)
 {
     char s[16]; // with extra space for just in case
 
-    sprintf(s,"%.2X",b);
+    if (octalMode)
+    {
+        sprintf(s,"%02.2o",b);
+    }
+    else
+    {
+        sprintf(s,"%.2X",b);
+    }
     return ListStr(p,s);
 }
 
@@ -1058,7 +1066,14 @@ char * ListWord(char *p, u_short w)
 {
     char s[16]; // with extra space for just in case
 
-    sprintf(s,"%.4X",w);
+    if (octalMode)
+    {
+        sprintf(s,"%03.3o.%03.3o",(w >> 8), w & 0xff);
+    }
+    else
+    {
+        sprintf(s,"%.4X",w);
+    }
     return ListStr(p,s);
 }
 
@@ -3839,7 +3854,14 @@ void CodeEnd(void)
             int pos = 0;
             while (pos < picPos)
             {
-                fprintf(listing, "  %02X%02X\n", picTable[pos+1], picTable[pos]);    
+                if (octalMode)
+                {
+                    fprintf(listing, "  %03o%03o\n", picTable[pos+1], picTable[pos]);
+                }
+                else
+                {
+                    fprintf(listing, "  %02X%02X\n", picTable[pos+1], picTable[pos]);
+                }
                 fputc(picTable[pos++], object);
                 fputc(picTable[pos++], object);
             }
@@ -5485,47 +5507,57 @@ void DoLabelOp(int typ, int parm, char *labl)
     switch(typ)
     {
         case o_EQU:
+
+            val = Eval();
+
+            // "XXXX  (XXXX)"
+            p = listLine;
+            switch(addrWid)
+            {
+                default:
+                case ADDR_16:
+                    if (listWid == LIST_24)
+                    {
+                        n = 5;
+                    }
+                    else
+                    {
+                        n = 4;
+                    }
+                    break;
+
+                case ADDR_24:
+                    n = 6;
+                    break;
+
+                case ADDR_32:
+                    n = 8;
+                    break;
+            }
+            for (i = 0; i <= n; i++)
+            {
+                *p++ = ' ';
+            }
+            *p++ = '=';
+            *p++ = ' ';
+            p = ListAddr(p,val);
             if (labl[0] == 0)
             {
-                Error("Missing label");
+                if (hdosMode)
+                {
+                    Warning("Missing label");
+                    DefSym(".",val,parm==1,parm==0);
+                }
+                else
+                {
+                    Error("Missing label");
+                }
             }
             else
             {
-                val = Eval();
-
-                // "XXXX  (XXXX)"
-                p = listLine;
-                switch(addrWid)
-                {
-                    default:
-                    case ADDR_16:
-                        if (listWid == LIST_24)
-                        {
-                            n = 5;
-                        }
-                        else
-                        {
-                            n = 4;
-                        }
-                        break;
-
-                    case ADDR_24:
-                        n = 6;
-                        break;
-
-                    case ADDR_32:
-                        n = 8;
-                        break;
-                }
-                for (i = 0; i <= n; i++)
-                {
-                    *p++ = ' ';
-                }
-                *p++ = '=';
-                *p++ = ' ';
-                p = ListAddr(p,val);
                 DefSym(labl,val,parm==1,parm==0);
             }
+
             break;
 
         case o_ORG:
@@ -7052,7 +7084,7 @@ void getopts(int argc, char * const argv[])
     int     token;
     int     neg;
 
-    while ((ch = getopt(argc, argv, "hew19tb:cd:l:o:s:C:?")) != -1)
+    while ((ch = getopt(argc, argv, "hOew19tb:cd:l:o:s:C:?")) != -1)
     {
         errFlag = false;
         switch (ch)
@@ -7108,6 +7140,10 @@ void getopts(int argc, char * const argv[])
                 cl_ObjType = OBJ_HDOS;
                 cl_Binbase = 0;
                 cl_Binend = 0xFFFFFFFF;
+                break;
+
+            case 'O':
+                octalMode = true;
                 break;
 
             case 'b':
@@ -7333,6 +7369,7 @@ int main(int argc, char * const argv[])
     cl_ObjType = OBJ_HEX;
     cl_ListP1  = false;
     hdosMode   = false;
+    octalMode  = false;
 
     asmTab     = NULL;
     cpuTab     = NULL;

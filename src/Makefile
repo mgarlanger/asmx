@@ -82,7 +82,7 @@ zip: asmx # build everything first to check for errors
 .PHONY: test
 test: asmx
 # note: asmx must be installed first!
-	cd ../test && testit
+	cd ../test && ./testit
 
 .PHONY: clean
 clean:

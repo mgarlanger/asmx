@@ -48,6 +48,7 @@ struct OpcdRec I8085_opcdTab[] =
     {"CMA", o_None, 0x2F},
     {"SIM", o_None, 0x30 + I_8085}, // 8085-only
     {"STC", o_None, 0x37},
+    {"STCC", o_None, 0x37},    // HDOS included this alt name for STC.
     {"CMC", o_None, 0x3F},
     {"HLT", o_None, 0x76},
     {"RNZ", o_None, 0xC0},
@@ -89,8 +90,8 @@ struct OpcdRec I8085_opcdTab[] =
     {"CNZ", o_JMP, 0xC4},
     {"CNE", o_JMP, 0xC4},
     {"JRZ", o_JMP, 0xCA}, // ?? this appeared to be a Z80 instruction in the HDOS 3.0 source, but 
-                                 // examining the official HDOS 3.0 binaries, shows that this was treated
-                                 // as just a JZ
+                          // examining the official HDOS 3.0 binaries, shows that this was treated
+                          // as just a JZ
     {"JZ",  o_JMP, 0xCA},
     {"JE",  o_JMP, 0xCA},
     {"CZ",  o_JMP, 0xCC},
@@ -245,6 +246,10 @@ int I8085_DoCPUOpcode(int typ, int parm)
         case o_PushPop:
             GetWord(word);
             reg1 = FindReg(word,"B D H PSW");
+            
+            if (hdosMode && (reg1 < 0))
+                reg1 = FindReg(word, "BC DE HL PSW");
+
             if (reg1 < 0)
                 IllegalOperand();
             else
@@ -334,7 +339,7 @@ void Asm8085Init(void)
     char *p;
 
     p = AddAsm(versionName, &I8085_DoCPUOpcode, NULL, NULL);
-    AddCPU(p, "8080",  CPU_8080,  LITTLE_END, ADDR_16, LIST_24, 8, 0, I8085_opcdTab);
+    AddCPU(p, "8080",  CPU_8080,  LITTLE_END, ADDR_16, LIST_24, 10, 0, I8085_opcdTab);
     AddCPU(p, "8085",  CPU_8085,  LITTLE_END, ADDR_16, LIST_24, 8, 0, I8085_opcdTab);
     AddCPU(p, "8085U", CPU_8085U, LITTLE_END, ADDR_16, LIST_24, 8, 0, I8085_opcdTab);
 }
