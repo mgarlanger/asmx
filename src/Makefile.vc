@@ -4,7 +4,7 @@ OBJ=.obj
 EXE=.exe
 DEL=del
 COPY=copy
-LINK=copy
+LINK=mklink
 
 # version number
 VERSION = 2.0b6
@@ -39,18 +39,18 @@ install: asmx$(EXE)
 	mkdir -p $(INSTALL_DIR)
 	$(COPY) asmx$(EXE) $(INSTALL_DIR)
 # select aliases for your favorite assemblers here:
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm1802$(EXE)
-	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm6502$(EXE)
-	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm6809$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68hc11$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68hc16$(EXE)
-	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68k$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8048$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8051$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8085$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmf8$(EXE)
-	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmz80$(EXE)
-#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmgbz80$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm1802$(EXE) asmx$(EXE)
+	$(LINK) $(INSTALL_DIR)\asm6502$(EXE) asmx$(EXE)
+	$(LINK) $(INSTALL_DIR)\asm6809$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm68hc11$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm68hc16$(EXE) asmx$(EXE)
+	$(LINK) $(INSTALL_DIR)\asm68k$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm8048$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm8051$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asm8085$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asmf8$(EXE) asmx$(EXE)
+	$(LINK) $(INSTALL_DIR)\asmz80$(EXE) asmx$(EXE)
+#	$(LINK) $(INSTALL_DIR)\asmgbz80$(EXE) asmx$(EXE)
 
 .PHONY: uninstall
 uninstall:
