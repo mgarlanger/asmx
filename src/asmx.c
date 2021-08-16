@@ -1,7 +1,29 @@
 // asmx.c - copyright 1998-2007 Bruce Tomlin
+#include <stdint.h>
 
 #include "asmx.h"
 #include <errno.h>
+
+#ifdef _MSC_VER
+
+// Poor mans implementation of getopt() for Microsoft Visual C++
+char* optarg;
+int optind = 0;
+int getopt(int argc, char* argv[], const char* tokens)
+{
+    while (optind < argc) {
+        optarg = strtok(argv[optind], tokens);
+        if (optarg != NULL) {
+            return *optarg++;
+        }
+        ++optind;
+    }
+    return -1;
+}
+
+#else
+    #include <unistd.h>     // for getopt()
+#endif
 
 #define VERSION_NAME "asmx multi-assembler"
 
@@ -7074,6 +7096,8 @@ void usage(void)
     exit(1);
 }
 
+extern char *optarg;
+extern int optind, opterr, optopt;
 
 void getopts(int argc, char * const argv[])
 {

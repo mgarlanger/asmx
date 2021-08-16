@@ -1,0 +1,84 @@
+# makefile for asmx multi-assembler
+# modified to work for MSVC nmake
+OBJ=.obj
+EXE=.exe
+DEL=del
+COPY=copy
+LINK=copy
+
+# version number
+VERSION = 2.0b6
+
+# C compiler target architecture
+#   this is the setting for OS X to create a universal PPC/Intel binary
+#   comment it out if you aren't running OS X for Intel
+#TARGET_ARCH = -arch ppc
+#TARGET_ARCH = -arch ppc -arch i686
+
+# C compiler flags
+CFLAGS = -Wall -O2 -std=c99 -DVERSION=\"$(VERSION)\"
+
+# install directory in ~/bin or wherever you want it
+INSTALL_DIR = c:\bin
+
+OBJS = asm1802$(OBJ) asm6502$(OBJ) asm6805$(OBJ) asm6809$(OBJ) \
+	asm68hc11$(OBJ) asm68hc16$(OBJ) asm68k$(OBJ) asm8048$(OBJ) \
+	asm8051$(OBJ) asm8085$(OBJ) asmarm$(OBJ) asmf8$(OBJ) \
+	asmjag$(OBJ) asmz80$(OBJ) asmthumb$(OBJ) asmx$(OBJ) asmz80$(OBJ)
+
+.PHONY: all
+all: asmx$(EXE)
+
+asmx$(EXE): $(OBJS)
+	$(CC) $(OBJS) -o asmx$(EXE)
+
+$(OBJS): asmx.h
+
+.PHONY: install
+install: asmx$(EXE)
+	mkdir -p $(INSTALL_DIR)
+	$(COPY) asmx$(EXE) $(INSTALL_DIR)
+# select aliases for your favorite assemblers here:
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm1802$(EXE)
+	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm6502$(EXE)
+	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm6809$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68hc11$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68hc16$(EXE)
+	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm68k$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8048$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8051$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asm8085$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmf8$(EXE)
+	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmz80$(EXE)
+#	$(LINK) asmx$(EXE) $(INSTALL_DIR)\asmgbz80$(EXE)
+
+.PHONY: uninstall
+uninstall:
+	-0 $(DEL) $(INSTALL_DIR)\asmx$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm1802$(EXE)
+	-0 $(DEL) $(INSTALL_DIR)\asm6502$(EXE)
+	-0 $(DEL) $(INSTALL_DIR)\asm6809$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm68hc11$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm68hc16$(EXE)
+	-0 $(DEL) $(INSTALL_DIR)\asm68k$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm8048$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm8051$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asm8085$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asmf8$(EXE)
+	-0 $(DEL) $(INSTALL_DIR)\asmz80$(EXE)
+#	-0 $(DEL) $(INSTALL_DIR)\asmgbz80$(EXE)
+
+# do everything
+.PHONY: it
+it: clean test
+
+.PHONY: test
+test: asmx$(EXE)
+# note: asmx must be installed first!
+	cd ..\test
+	testit
+
+.PHONY: clean
+clean:
+	$(DEL) $(OBJS) asmx$(EXE) ..\test\*.hex ..\test\*.lst
+
