@@ -4,7 +4,7 @@ OBJ=.obj
 EXE=.exe
 DEL=del
 COPY=copy
-LINK=mklink
+LINK=mklink /H
 
 # version number
 VERSION = 2.0b6
@@ -24,9 +24,8 @@ INSTALL_DIR = c:\bin
 OBJS = asm1802$(OBJ) asm6502$(OBJ) asm6805$(OBJ) asm6809$(OBJ) \
 	asm68hc11$(OBJ) asm68hc16$(OBJ) asm68k$(OBJ) asm8048$(OBJ) \
 	asm8051$(OBJ) asm8085$(OBJ) asmarm$(OBJ) asmf8$(OBJ) \
-	asmjag$(OBJ) asmz80$(OBJ) asmthumb$(OBJ) asmx$(OBJ) asmz80$(OBJ)
+	asmjag$(OBJ) asmz80$(OBJ) asmthumb$(OBJ) asmx$(OBJ)
 
-.PHONY: all
 all: asmx$(EXE)
 
 asmx$(EXE): $(OBJS)
@@ -34,7 +33,6 @@ asmx$(EXE): $(OBJS)
 
 $(OBJS): asmx.h
 
-.PHONY: install
 install: asmx$(EXE)
 	mkdir -p $(INSTALL_DIR)
 	$(COPY) asmx$(EXE) $(INSTALL_DIR)
@@ -52,7 +50,6 @@ install: asmx$(EXE)
 	$(LINK) $(INSTALL_DIR)\asmz80$(EXE) asmx$(EXE)
 #	$(LINK) $(INSTALL_DIR)\asmgbz80$(EXE) asmx$(EXE)
 
-.PHONY: uninstall
 uninstall:
 	-0 $(DEL) $(INSTALL_DIR)\asmx$(EXE)
 #	-0 $(DEL) $(INSTALL_DIR)\asm1802$(EXE)
@@ -68,17 +65,11 @@ uninstall:
 	-0 $(DEL) $(INSTALL_DIR)\asmz80$(EXE)
 #	-0 $(DEL) $(INSTALL_DIR)\asmgbz80$(EXE)
 
-# do everything
-.PHONY: it
-it: clean test
-
-.PHONY: test
 test: asmx$(EXE)
 # note: asmx must be installed first!
 	cd ..\test
 	testit
 
-.PHONY: clean
 clean:
 	$(DEL) $(OBJS) asmx$(EXE) ..\test\*.hex ..\test\*.lst
 

@@ -4,27 +4,6 @@
 #include "asmx.h"
 #include <errno.h>
 
-#ifdef _MSC_VER
-
-// Poor mans implementation of getopt() for Microsoft Visual C++
-char* optarg;
-int optind = 0;
-int getopt(int argc, char* argv[], const char* tokens)
-{
-    while (optind < argc) {
-        optarg = strtok(argv[optind], tokens);
-        if (optarg != NULL) {
-            return *optarg++;
-        }
-        ++optind;
-    }
-    return -1;
-}
-
-#else
-    #include <unistd.h>     // for getopt()
-#endif
-
 #define VERSION_NAME "asmx multi-assembler"
 
 //#define ENABLE_REP    // uncomment to enable REPEAT pseudo-op (still under development)
@@ -7096,9 +7075,6 @@ void usage(void)
     exit(1);
 }
 
-extern char *optarg;
-extern int optind, opterr, optopt;
-
 void getopts(int argc, char * const argv[])
 {
     int     ch;
@@ -7107,10 +7083,23 @@ void getopts(int argc, char * const argv[])
     bool    setSym;
     int     token;
     int     neg;
+    int     optind;
 
-    while ((ch = getopt(argc, argv, "hOew19tb:cd:l:o:s:C:?")) != -1)
-    {
+    for (optind = 1; optind < argc; ++optind) {
+
+        const char* optarg = argv[optind];
         errFlag = false;
+        ch = *optarg++;
+        if (ch != '-')
+        {
+            break;
+        }
+        ch = *optarg++;
+        if (ch == '-')
+        {
+            ++optind;       // double -- end of options
+            break;
+        }
         switch (ch)
         {
             case 'e':
@@ -7175,12 +7164,7 @@ void getopts(int argc, char * const argv[])
                 cl_Binbase = 0;
                 cl_Binend = 0xFFFFFFFF;
 
-                if (optarg[0] =='-')
-                {   // -b with no parameter
-                    optarg = "";
-                    optind--;
-                }
-                else if (*optarg)
+                if (optarg[0])
                 {   // - b with parameter
                     strncpy(line, optarg, 255);
                     linePtr = line;
@@ -7257,12 +7241,7 @@ void getopts(int argc, char * const argv[])
 
             case 'l':
                 cl_List = true;
-                if (optarg[0] == '-')
-                {
-                    optarg = "";
-                    optind--;
-                }
-                strncpy(cl_ListName, optarg, 255);
+                strncpy(cl_ListName, (optarg[0] == '-') ? "" : optarg, 255);
                 break;
 
             case 'o':
@@ -7272,12 +7251,7 @@ void getopts(int argc, char * const argv[])
                     usage();
                 }
                 cl_Obj = true;
-                if (optarg[0] == '-')
-                {
-                    optarg = "";
-                    optind--;
-                }
-                strncpy(cl_ObjName, optarg, 255);
+                strncpy(cl_ObjName, (optarg[0] == '-') ? "" : optarg, 255);
                 break;
 
             case 'C':
@@ -7290,14 +7264,14 @@ void getopts(int argc, char * const argv[])
                 }
                 strcpy(defCPU, word);
                 break;
-
             case '?':
+                usage();
+                break;
             default:
+                fprintf(stderr, "Invalid option '%c'\n", ch);
                 usage();
         }
     }
-    argc -= optind;
-    argv += optind;
 
     if (cl_Stdout && cl_ObjType == OBJ_BIN)
     {
@@ -7311,15 +7285,14 @@ void getopts(int argc, char * const argv[])
         cl_Obj = true;
     }
 
-    // now argc is the number of remaining arguments
-    // and argv[0] is the first remaining argument
+    // and argv[optind] is the first remaining argument
 
-    if (argc != 1)
+    if (optind + 1 != argc)
     {
         usage();
     }
 
-    strncpy(cl_SrcName, argv[0], 255);
+    strncpy(cl_SrcName, argv[optind], 255);
 
     // note: this won't work if there's a single-char filename in the current directory!
     if (cl_SrcName[0] == '?' && cl_SrcName[1] == 0)
