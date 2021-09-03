@@ -24,7 +24,7 @@ INSTALL_DIR = c:\bin
 OBJS = asm1802$(OBJ) asm6502$(OBJ) asm6805$(OBJ) asm6809$(OBJ) \
 	asm68hc11$(OBJ) asm68hc16$(OBJ) asm68k$(OBJ) asm8048$(OBJ) \
 	asm8051$(OBJ) asm8085$(OBJ) asmarm$(OBJ) asmf8$(OBJ) \
-	asmjag$(OBJ) asmz80$(OBJ) asmthumb$(OBJ) asmx$(OBJ)
+	asmjag$(OBJ) asmnano$(OBJ) asmz80$(OBJ) asmthumb$(OBJ) asmx$(OBJ)
 
 all: asmx$(EXE)
 

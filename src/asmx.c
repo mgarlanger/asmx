@@ -581,7 +581,39 @@ void AsmInit(void)
 
     p = AddAsm("None", NULL, NULL, NULL);
     AddCPU(p, "NONE",  0, UNKNOWN_END, ADDR_32, LIST_24, 8, 0, NULL);
-
+#if defined(ASM1802)
+    ASSEMBLER(1802);
+#elif defined(ASM6502)
+    ASSEMBLER(6502);
+#elif defined(ASM68K)
+    ASSEMBLER(68K);
+#elif defined(ASM6805)
+    ASSEMBLER(6805);
+#elif defined(ASM6809)
+    ASSEMBLER(6809);
+#elif defined(ASM68HC11)
+    ASSEMBLER(68HC11);
+#elif defined(ASM68HC16)
+    ASSEMBLER(68HC16);
+#elif defined(ASM8048)
+    ASSEMBLER(8048);
+#elif defined(ASM8051)
+    ASSEMBLER(8051);
+#elif defined(ASMF8)
+    ASSEMBLER(F8);
+#elif defined(ASMJAG)
+    ASSEMBLER(Jag);
+#elif defined(ASMNANO)
+    ASSEMBLER(Nano);
+#elif defined(ASMTHUMB)
+    ASSEMBLER(Thumb);
+#elif defined(ASMARM)
+    ASSEMBLER(ARM);
+#elif defined(ASM8085)
+    ASSEMBLER(8085);
+#elif defined(ASMZ80)
+    ASSEMBLER(Z80);
+#else
     ASSEMBLER(1802);
     ASSEMBLER(6502);
     ASSEMBLER(68K);
@@ -593,10 +625,12 @@ void AsmInit(void)
     ASSEMBLER(8051);
     ASSEMBLER(F8);
     ASSEMBLER(Jag);
+    ASSEMBLER(Nano);
     ASSEMBLER(Thumb);
     ASSEMBLER(ARM);
     ASSEMBLER(8085);
     ASSEMBLER(Z80);
+#endif
 
 //  strcpy(defCPU,"Z80");     // hard-coded default for testing
 
