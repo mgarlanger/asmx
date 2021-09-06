@@ -40,6 +40,8 @@ enum nano_cond
 	COND_BF,		/* Repeat reserved F */
 } BRANCH_COND;
 
+#define IMM_PREFIX	0xF000
+
 const char nano_r0_r15_SP[] =
 	"R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 SP LR";
 const char nano_r0_r15[] =
@@ -59,10 +61,14 @@ struct OpcdRec Nano_opcdTab[] =
 	{"LB",    o_LbSb,		0x8000},
 	{"SB",    o_LbSb,		0x9000},
 
-	{"MUL",   o_Shift,		0xA008},
-	{"DIV",   o_Shift,		0xA009},
+	{"MUL",   o_MulDiv,		0xA008},
+	{"DIV",   o_MulDiv,		0xA009},
 	{"ASR",   o_Shift,		0xA00A},
 	{"LSR",   o_Shift,		0xA00B},
+	{"ALUC",  o_Shift,		0xA00C},
+	{"ALUD",  o_Shift,		0xA00D},
+	{"ALUE",  o_Shift,		0xA00E},
+	{"ALUF",  o_Shift,		0xA00F},
 
 	{"BRA",   o_Branch, 	0xB000},
 	{"SWI",   o_Immed8, 	0xBF00},
@@ -98,19 +104,24 @@ struct OpcdRec Nano_opcdTab[] =
 
 int RelBranch(int width, int instrLen)
 {
-	long val;
-	long limit;
-
-	limit = (1 << width) - 1;
-
-	val = Eval();
+	long limit = (1 << width) - 1;
+	long val = Eval();
 	val = val - locPtr - instrLen;
-	if (!errFlag && ((val & 1) || val < ~limit || val > limit))
+	if (!errFlag && ((val & 1) || val < ~limit || val > limit)) {
 		Error("Branch out of range");
-
+	}
 	return val;
 }
 
+void GenPrefixW(int opcode, long val, int width)
+{
+	long limit = (1U << width) - 1U;
+	if (val < 0 || val > limit) {
+		InstrWW(IMM_PREFIX | (u_short) ((val >> width) & 0xFFF), opcode | (val & limit));
+	} else {
+		InstrW(opcode | (val & limit));
+	}
+}
 
 int Nano_DoCPUOpcode(int typ, int parm)
 {
@@ -119,7 +130,6 @@ int Nano_DoCPUOpcode(int typ, int parm)
 	char    *oldLine;
 	int     token;
 	int    	Rx,Ry;
-	u_short regbits;
 
 	switch(typ)
 	{
@@ -130,55 +140,56 @@ int Nano_DoCPUOpcode(int typ, int parm)
 
 			if (Comma()) break;
 
+			Ry = GetReg(nano_r0_r15_SP);
+			if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
+			if (CheckReg(Ry)) break;
+
 			oldLine = linePtr;
 			token = GetWord(word);
-			if (token == '#')
-			{ // Rd,#immed8 / SP,#immed7
-				if (Rx <= 15)
-				{
-					val = EvalByte();
-					InstrW(parm & 0xF000 | (Rx << 8) | (val & 0xFF));
-				}
+			if (token != ',') {
+				// ALU Rx,Ry
+				InstrW(0xA000 | (parm & 0x000F) | (Rx << 8) | (Ry << 4));
+				break;
 			}
-			else
-			{ // Rx,Ry
-				linePtr = oldLine;
-
-				Ry = GetReg(nano_r0_r15_SP);
-				if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
-				if (CheckReg(Ry)) break;
-				else // ALU Rx,Ry
-					InstrW(0xA000 | (parm & 0x000F) | (Rx << 8) | (Ry << 4));
+			token = GetWord(word);
+			if (token == '#') { // Rx,Ry,#immed
+				val = Eval();
+				GenPrefixW((parm & 0xF000) | (Rx << 8) | (Ry << 4), val, 4);
 			}
 			break;
 
 		case o_MulDiv:		// MUL/DIV
-			Rx = GetReg(nano_r0_r15);
+			Rx = GetReg(nano_r0_r15_SP);
+			if (Rx > 15) Rx = Rx - 2; // SP LR -> R14 R15
 			if (CheckReg(Rx)) break;
 
 			if (Comma()) break;
 
-			Ry = GetReg(nano_r0_r15);
+			Ry = GetReg(nano_r0_r15_SP);
+			if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
 			if (CheckReg(Ry)) break;
 
-			InstrW(0xA000 | (parm & 0x000F) | (Rx << 12) | (Ry << 4));
+			InstrW(parm | (Rx << 8) | (Ry << 4));
 			break;
 
 		case o_Shift:        // ASR/LSL/LSR
-			Rx = GetReg(nano_r0_r15);
+			Rx = GetReg(nano_r0_r15_SP);
+			if (Rx > 15) Rx = Rx - 2; // SP LR -> R14 R15
 			if (CheckReg(Rx)) break;
 
 			if (Comma()) break;
-			if (Expect("#")) break;
-			if (Expect("1")) break;
 
-			InstrW((parm & 0xFFFF) | (Rx << 12) | Ry << 8);
+			Ry = GetReg(nano_r0_r15_SP);
+			if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
+			if (CheckReg(Ry)) break;
+
+			InstrW(parm | (Rx << 8) | (Ry << 4));
 
 			break;
 
 		case o_Immed8:       // BKPT/SWI
-			val = EvalByte();
-			InstrW(parm | (val & 0xFF));
+			val = Eval();
+			GenPrefixW(parm, val, 8);
 			break;
 
 		case o_RegImm8:    // mov #Imm
@@ -187,8 +198,10 @@ int Nano_DoCPUOpcode(int typ, int parm)
 			if (CheckReg(Rx)) break;
 
 			if (Comma()) break;
-			val = EvalByte();
-			InstrW(parm | (Rx << 12) | (val & 0xFF));
+
+			if (Expect("#")) break;
+			val = Eval();
+			GenPrefixW(parm | (Rx << 12), val, 8);
 			break;
 
 		case o_Branch:       // Branch
@@ -208,7 +221,7 @@ int Nano_DoCPUOpcode(int typ, int parm)
 			if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
 			if (CheckReg(Ry)) break;
 			if (Expect("]")) break;
-			InstrW(parm | (Rx << 8) | (Ry << 4) | val & 0x0F);
+			GenPrefixW(parm | (Rx << 8) | (Ry << 4), val, 4);
 			break;
 
 		case o_LdSt:		// LW/SW
@@ -223,9 +236,16 @@ int Nano_DoCPUOpcode(int typ, int parm)
 			if (Ry > 15) Ry = Ry - 2; // SP LR -> R14 R15
 			if (CheckReg(Ry)) break;
 			if (Expect("]")) break;
-			InstrW(parm | (Rx << 8) | (Ry << 4) | (val >> 1) & 0x0F);
+			if (val & 1) {
+				Error("Offset must be even");
+			}
+			GenPrefixW(parm | (Rx << 8) | (Ry << 4), val >> 1, 4);
 			break;
-
+		case o_Immed12:
+			if (Expect("#")) break;
+			val = Eval();
+			GenPrefixW(parm, val, 12);
+			break;
 		case o_Implied:      // NOP
 			InstrW(parm);
 			break;
@@ -252,5 +272,5 @@ int Nano_DoCPUOpcode(int typ, int parm)
 void AsmNanoInit(void)
 {
 	char* p = AddAsm(versionName, &Nano_DoCPUOpcode, NULL, NULL);
-	AddCPU(p, "NANO16"   , 0, BIG_END, ADDR_16, LIST_16, 8, 0, Nano_opcdTab);
+	AddCPU(p, "NANO"   , 0, BIG_END, ADDR_16, LIST_16, 8, 0, Nano_opcdTab);
 }
