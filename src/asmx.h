@@ -10,8 +10,12 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdbool.h>
+
+typedef unsigned char u_char;
+typedef unsigned short u_short;
+typedef unsigned long u_long;
+typedef unsigned int u_int;
 
 // a few useful typedefs
 typedef char Str255[256];       // generic string type

@@ -4,6 +4,12 @@
 //#define NICE_ADD // allow ADD/ADC/SBC without "A,"
 #include "asmx.h"
 
+#ifdef _MSC_VER
+    #define INLINE
+#else
+    #define INLINE  inline
+#endif
+
 enum
 {
     CPU_Z80,    // standard Z80
@@ -194,7 +200,7 @@ int IXOffset()
 }
 
 
-inline int DDFD(int reg)
+INLINE int DDFD(int reg)
 {
     if (reg == reg_IX)
         return 0xDD;
