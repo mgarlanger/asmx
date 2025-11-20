@@ -7096,6 +7096,7 @@ void usage(void)
     fprintf(stderr, "    -b [base[-end]]     output object file as binary with optional base/end addresses\n");
     fprintf(stderr, "    -t                  output object file in TRSDOS executable format (implies -C Z80)\n");
     fprintf(stderr, "    -c                  send object code to stdout\n");
+    fprintf(stderr, "    -O                  use octal in listing file\n");
     fprintf(stderr, "    -C cputype          specify default CPU type (currently ");
     if (defCPU[0])
     {
