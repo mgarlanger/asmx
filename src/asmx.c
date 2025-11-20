@@ -1087,7 +1087,7 @@ char * ListByte(char *p, u_char b)
 
     if (octalMode)
     {
-        sprintf(s,"%02.2o",b);
+        sprintf(s,"%03o",b);
     }
     else
     {
@@ -1103,7 +1103,7 @@ char * ListWord(char *p, u_short w)
 
     if (octalMode)
     {
-        sprintf(s,"%03.3o.%03.3o",(w >> 8), w & 0xff);
+        sprintf(s,"%03o.%03o",(w >> 8), w & 0xff);
     }
     else
     {
@@ -6841,6 +6841,8 @@ void DoLine()
                     case ADDR_16:
                         if (listWid == LIST_24) p = listLine + 6;
                                            else p = listLine + 5;
+                        if (octalMode)
+                            p = listLine + 8;
                         break;
 
                     case ADDR_24:
@@ -6865,11 +6867,18 @@ void DoLine()
                 }
                 for (i = 0; i < instrLen; i++)
                 {
-                    if (listWid == LIST_24)
-                        if (hexSpaces & (1<<i))
-                        {
-                            *p++ = ' ';
-                        }
+                    if (octalMode)
+                    {
+                        *p++ = ' ';
+                    }
+                    else
+                    {
+                        if (listWid == LIST_24)
+                            if (hexSpaces & (1<<i))
+                            {
+                                *p++ = ' ';
+                            }
+                    }
 
                     if (i<numhex || expandHexFlag)
                     {
@@ -7096,6 +7105,7 @@ void usage(void)
     fprintf(stderr, "    -b [base[-end]]     output object file as binary with optional base/end addresses\n");
     fprintf(stderr, "    -t                  output object file in TRSDOS executable format (implies -C Z80)\n");
     fprintf(stderr, "    -c                  send object code to stdout\n");
+    fprintf(stderr, "    -O                  use octal in listing file\n");
     fprintf(stderr, "    -C cputype          specify default CPU type (currently ");
     if (defCPU[0])
     {
